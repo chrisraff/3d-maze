@@ -3,6 +3,7 @@ import { FlyControls } from 'https://unpkg.com/three@0.118.3/examples/jsm/contro
 
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+var clock = new THREE.Clock();
 
 var renderer = new THREE.WebGLRenderer();
 // renderer.setPixelRatio( window.devicePixelRatio );
@@ -22,9 +23,11 @@ scene.add( cube );
 camera.position.z = 5;
 
 var animate = function () {
+    var delta = clock.getDelta();
+
     requestAnimationFrame( animate );
 
-    controls.update(0.01);
+    controls.update(delta);
 
     renderer.render( scene, camera );
 };
