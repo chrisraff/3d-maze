@@ -23,11 +23,21 @@ controls.movementSpeed = 1;
 controls.rollSpeed = 1;
 
 var geometry = new THREE.BoxGeometry();
-var material = new THREE.MeshLambertMaterial( { color: 0x00ff00 } );
-var cube = new THREE.Mesh( geometry, material );
-scene.add( cube );
-
 camera.position.z = 5;
+
+var mazeData = generateMaze();
+for (var i = 0; i < mazeData.length; i++) {
+    for (var j = 0; j < mazeData[i].length; j++) {
+        for (var k = 0; k < mazeData[i].length; k++) {
+            if (!mazeData[i][j][k])
+                continue;
+            var material = new THREE.MeshLambertMaterial( { color: new THREE.Color(`hsl(${Math.floor(Math.random() * 360)},100%,50%)`) } );
+            var block = new THREE.Mesh( geometry, material );
+            block.position.set( i, j, k );
+            scene.add( block );
+        }
+    }
+}
 
 var animate = function () {
     var delta = clock.getDelta();
