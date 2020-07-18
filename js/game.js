@@ -22,11 +22,11 @@ controls.dragToLook = true;
 controls.movementSpeed = majorWidth;
 controls.rollSpeed = 1;
 
-var geometry = new THREE.BoxGeometry();
-camera.position.z = -5;
-camera.lookAt(0, 0, 0);
+camera.position.set( getOffset(1), getOffset(1), getOffset(-2))
+camera.lookAt(getOffset(1), getOffset(1), 0);
 
 var mazeData = generateMaze();
+var geometry = new THREE.BoxGeometry();
 for (var i = 0; i < mazeData.length; i++) {
     for (var j = 0; j < mazeData[i].length; j++) {
         for (var k = 0; k < mazeData[i].length; k++) {
