@@ -25,7 +25,7 @@ controls.rollSpeed = 1;
 camera.position.set( getOffset(1), getOffset(1), getOffset(-2))
 camera.lookAt(getOffset(1), getOffset(1), 0);
 
-var mazeData = generateMaze();
+var mazeData = generateMaze(3);
 var geometry = new THREE.BoxGeometry();
 for (var i = 0; i < mazeData.length; i++) {
     for (var j = 0; j < mazeData[i].length; j++) {
