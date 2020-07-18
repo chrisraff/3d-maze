@@ -19,11 +19,12 @@ scene.add( ambLight );
 
 const controls = new FlyControls(camera, renderer.domElement);
 controls.dragToLook = true;
-controls.movementSpeed = 1;
+controls.movementSpeed = majorWidth;
 controls.rollSpeed = 1;
 
 var geometry = new THREE.BoxGeometry();
-camera.position.z = 5;
+camera.position.z = -5;
+camera.lookAt(0, 0, 0);
 
 var mazeData = generateMaze();
 for (var i = 0; i < mazeData.length; i++) {
@@ -33,7 +34,8 @@ for (var i = 0; i < mazeData.length; i++) {
                 continue;
             var material = new THREE.MeshLambertMaterial( { color: new THREE.Color(`hsl(${Math.floor(Math.random() * 360)},100%,50%)`) } );
             var block = new THREE.Mesh( geometry, material );
-            block.position.set( i, j, k );
+            block.scale.set( getWidth(i), getWidth(j), getWidth(k) );
+            block.position.set( getOffset(i), getOffset(j), getOffset(k) );
             scene.add( block );
         }
     }
