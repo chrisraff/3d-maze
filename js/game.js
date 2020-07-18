@@ -32,10 +32,21 @@ for (var i = 0; i < mazeData.length; i++) {
         for (var k = 0; k < mazeData[i].length; k++) {
             if (!mazeData[i][j][k])
                 continue;
-            var material = new THREE.MeshLambertMaterial( { color: new THREE.Color(`hsl(${Math.floor(Math.random() * 360)},100%,50%)`) } );
+            
+            var iWidth = getWidth(i);
+            var jWidth = getWidth(j);
+            var kWidth = getWidth(k);
+
+            // only large walls get color
+            var colorful = false;
+            if (iWidth + jWidth + kWidth >= 2 * majorWidth + minorWidth)
+                colorful = true;
+
+            var material = new THREE.MeshLambertMaterial( { color: `hsl(${Math.floor(Math.random() * 360)},${colorful ? 100 : 0}%,${colorful ? 50 : 10}%)` } );
             var block = new THREE.Mesh( geometry, material );
-            block.scale.set( getWidth(i), getWidth(j), getWidth(k) );
+            block.scale.set( iWidth, jWidth, kWidth );
             block.position.set( getOffset(i), getOffset(j), getOffset(k) );
+
             scene.add( block );
         }
     }
