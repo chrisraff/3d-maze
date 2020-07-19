@@ -50,22 +50,22 @@ for (var i = 0; i < mazeData.length; i++) {
             if (!mazeData[i][j][k])
                 continue;
             
-            var iWidth = getWidth(i);
-            var jWidth = getWidth(j);
-            var kWidth = getWidth(k);
+            let iWidth = getWidth(i);
+            let jWidth = getWidth(j);
+            let kWidth = getWidth(k);
 
             // only large walls get color
-            var colorful = false;
+            let colorful = false;
             if (iWidth + jWidth + kWidth >= 2 * majorWidth + minorWidth)
                 colorful = true;
 
-            // var material = new THREE.MeshLambertMaterial( { color: `hsl(${Math.floor(Math.random() * 360)},${colorful ? 100 : 0}%,${colorful ? 50 : 10}%)` } );
-            var material = new THREE.MeshPhongMaterial( { color: colorful ? `rgb(${
+            // let material = new THREE.MeshLambertMaterial( { color: `hsl(${Math.floor(Math.random() * 360)},${colorful ? 100 : 0}%,${colorful ? 50 : 10}%)` } );
+            let material = new THREE.MeshPhongMaterial( { color: colorful ? `rgb(${
                 Math.floor( 255 * i/(mazeSize*2+1) ) },${
                 Math.floor( 255 * j/(mazeSize*2+1) ) },${
                 Math.floor( 255 * k/(mazeSize*2+1) ) })` : `hsl(0, 0%, 10%)`,
                 opacity: 0.9, transparent: colorful, map: colorful ? gridTexture : null, specularMap: colorful ? gridSpecMap : null} );
-            var block = new THREE.Mesh( geometry, material );
+            let block = new THREE.Mesh( geometry, material );
             block.scale.set( iWidth, jWidth, kWidth );
             block.position.set( getOffset(i), getOffset(j), getOffset(k) );
 
@@ -75,7 +75,7 @@ for (var i = 0; i < mazeData.length; i++) {
 }
 
 var animate = function () {
-    var delta = clock.getDelta();
+    let delta = clock.getDelta();
 
     requestAnimationFrame( animate );
 
