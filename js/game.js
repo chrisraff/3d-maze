@@ -80,6 +80,38 @@ for (var i = 0; i < mazeData.length; i++) {
 const collisionDistance = 0.25;
 var mazePosNear = null; // closer to 0,0,0 (-)
 var mazePosFar = null;
+var axes = {x: 0, y: 1, z: 2};
+function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazePosRelevant, mazePosOther, sign) {
+    let min0 = Math.min(mazePosRelevant[othA0], mazePosOther[othA0]);
+    let max0 = Math.max(mazePosRelevant[othA0], mazePosOther[othA0]);
+    let min1 = Math.min(mazePosRelevant[othA1], mazePosOther[othA1]);
+    let max1 = Math.max(mazePosRelevant[othA1], mazePosOther[othA1]);
+
+    let collided = false;
+    let colAx = mazePosRelevant[majorAxis] + sign;
+    // solution for reading into maze xyz in correct order
+    let indices = Array(3);
+    indices[axes[majorAxis]] = colAx;
+    function getMazeData(idx0, idx1) {
+        indices[axes[othA0]] = idx0;
+        indices[axes[othA1]] = idx1;
+        return mazeData[indices[0]][indices[1]][indices[2]];
+    }
+    for (let i = Math.max(min0, 0); i <= Math.min(mazeSize*2, max0); i++) {
+        for (let j = Math.max(min1, 0); j <= Math.min(mazeSize*2, max1); j++) {
+            if (colAx >= 0 && colAx <= mazeSize*2 && getMazeData(i, j)) {
+                collided = true;
+                break;
+            }
+        }
+        if (collided)
+            break;
+    }
+    if (collided) {
+        camera.position[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
+        newMazePosRelevant[majorAxis] = mazePosRelevant[majorAxis];
+    }
+}
 function collisionUpdate() {
     let nearPos = new THREE.Vector3();
     nearPos.copy(camera.position);
@@ -96,32 +128,18 @@ function collisionUpdate() {
         mazePosFar = newMazePosFar;
     }
 
-    if (newMazePosNear.distanceTo(mazePosFar) != 0) {
-        // actual collision checking goes here
+    // actual collision checking goes here
+    if (newMazePosNear.distanceTo(mazePosNear) != 0) {
         let diffX = newMazePosNear.x - mazePosNear.x;
         if (diffX < 0) {
-            // moved backward on this axis
-            let minY = mazePosNear.y;
-            let maxY = mazePosFar.y;
-            let minZ = mazePosNear.z;
-            let maxZ = mazePosFar.z;
-
-            let collided = false;
-            let colX = mazePosNear.x - 1;
-            for (let i = Math.max(minY, 0); i <= Math.min(mazeSize*2, maxY); i++) {
-                for (let j = Math.max(minZ, 0); j <= Math.min(mazeSize*2, maxZ); j++) {
-                    if (colX >= 0 && colX <= mazeSize*2 && mazeData[colX][i][j]) {
-                        collided = true;
-                        break;
-                    }
-                }
-                if (collided)
-                    break;
-            }
-            if (collided) {
-                camera.position.x = maze.getOffset(mazePosNear.x-1) + collisionDistance + maze.minorWidth/2;
-                newMazePosNear.x = mazePosNear.x;
-            }
+            checkCollisionOnAxis('x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
+        }
+    }
+    if (newMazePosFar.distanceTo(mazePosFar) != 0) {
+        let diffX = newMazePosFar.x - mazePosFar.x;
+        if (diffX > 0) {
+            console.log('col')
+            checkCollisionOnAxis('x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
         }
     }
 
