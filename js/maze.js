@@ -1,3 +1,5 @@
+import * as THREE from 'https://unpkg.com/three@0.118.3/build/three.module.js';
+
 var majorWidth = 2;
 var minorWidth = 0.125/2;
 
@@ -12,6 +14,18 @@ function getOffset(idx) {
 function inBounds(x,y,z, size) {
     let ir = (a) => a >= 0 && a < 2*size + 1;
     return ir(x) && ir(y) && ir(z);
+}
+function getSegment(x) {
+    x += minorWidth/2;
+    let epsilon = minorWidth/100; // addition is to prevent .999 repeating
+    let out = Math.floor(x / (majorWidth + minorWidth) + epsilon) * 2;
+    let diff = x - (out*(majorWidth + minorWidth)/2);
+    if (Math.abs(diff) < minorWidth)
+        return out;
+    return out + 1;
+}
+function getMazePos(pos) {
+    return new THREE.Vector3(getSegment(pos.x), getSegment(pos.y), getSegment(pos.z));
 }
 
 function generateMaze(size) {
@@ -125,3 +139,5 @@ function generateMaze(size) {
     output[segments - 2][segments - 2][segments - 1] = false;
     return output;
 }
+
+export { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos };
