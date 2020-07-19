@@ -48,8 +48,8 @@ for (var i = 0; i < mazeData.length; i++) {
     for (var j = 0; j < mazeData[i].length; j++) {
         for (var k = 0; k < mazeData[i].length; k++) {
             if (    !mazeData[i][j][k] || 
-                    (i%2==0 && j%2==0 && k%2==0 && // don't create unseen blocks
-                        i!=0 && i!=mazeSize*2 && j!=0 && j!=mazeSize*2 && k!=0 && k!=mazeSize*2)) // except on the outside
+                    (i!=0 && i!=mazeSize*2 && j!=0 && j!=mazeSize*2 && k!=0 && k!=mazeSize*2 && // if we're inside...
+                        i%2==0 && j%2==0 && k%2==0)) // don't create unseen blocks
                 continue;
             
             let iWidth = getWidth(i);
