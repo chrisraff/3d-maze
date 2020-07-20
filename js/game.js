@@ -33,6 +33,10 @@ var ambLight = new THREE.AmbientLight( 0x808080 );
 scene.add( ambLight );
 
 // init controls
+const form_factor = WURFL.form_factor;
+if (form_factor == 'Smartphone' || form_factor == 'Tablet') {
+    // adjust controls
+}
 const controls = new FlyControls(camera, renderer.domElement);
 controls.dragToLook = true;
 controls.movementSpeed = maze.majorWidth;
@@ -111,9 +115,9 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
     if (collided) {
         let oldp = camera.position[majorAxis]
         camera.position[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
-        console.log(`${majorAxis} ${oldp} ${camera.position[majorAxis]}`)
-        console.log(mazePosRelevant)
-        console.log(newMazePosRelevant)
+        // console.log(`${majorAxis} ${oldp} ${camera.position[majorAxis]}`)
+        // console.log(mazePosRelevant)
+        // console.log(newMazePosRelevant)
         newMazePosRelevant[majorAxis] = mazePosRelevant[majorAxis];
     }
 }
@@ -135,7 +139,7 @@ function collisionUpdate() {
 
     // actual collision checking goes here
     if (newMazePosNear.distanceTo(mazePosNear) != 0) {
-        console.log('neg col')
+        // console.log('neg col')
         if (newMazePosNear.x - mazePosNear.x < 0) {
             checkCollisionOnAxis('x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
         }
