@@ -97,6 +97,7 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
         indices[axes[othA1]] = idx1;
         return mazeData[indices[0]][indices[1]][indices[2]];
     }
+    // check for collisions on orthogonal axes
     for (let i = Math.max(min0, 0); i <= Math.min(mazeSize*2, max0); i++) {
         for (let j = Math.max(min1, 0); j <= Math.min(mazeSize*2, max1); j++) {
             if (colAx >= 0 && colAx <= mazeSize*2 && getMazeData(i, j)) {
