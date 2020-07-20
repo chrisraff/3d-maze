@@ -108,7 +108,11 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
             break;
     }
     if (collided) {
+        let oldp = camera.position[majorAxis]
         camera.position[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
+        console.log(`${majorAxis} ${oldp} ${camera.position[majorAxis]}`)
+        console.log(mazePosRelevant)
+        console.log(newMazePosRelevant)
         newMazePosRelevant[majorAxis] = mazePosRelevant[majorAxis];
     }
 }
@@ -130,16 +134,27 @@ function collisionUpdate() {
 
     // actual collision checking goes here
     if (newMazePosNear.distanceTo(mazePosNear) != 0) {
-        let diffX = newMazePosNear.x - mazePosNear.x;
-        if (diffX < 0) {
+        console.log('neg col')
+        if (newMazePosNear.x - mazePosNear.x < 0) {
             checkCollisionOnAxis('x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
+        }
+        if (newMazePosNear.y - mazePosNear.y < 0) {
+            checkCollisionOnAxis('y', 'x', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
+        }
+        if (newMazePosNear.z - mazePosNear.z < 0) {
+            checkCollisionOnAxis('z', 'y', 'x', mazePosNear, newMazePosNear, mazePosFar, -1);
         }
     }
     if (newMazePosFar.distanceTo(mazePosFar) != 0) {
-        let diffX = newMazePosFar.x - mazePosFar.x;
-        if (diffX > 0) {
-            console.log('col')
+        console.log('pos col')
+        if (newMazePosFar.x - mazePosFar.x > 0) {
             checkCollisionOnAxis('x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
+        }
+        if (newMazePosFar.y - mazePosFar.y > 0) {
+            checkCollisionOnAxis('y', 'x', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
+        }
+        if (newMazePosFar.z - mazePosFar.z > 0) {
+            checkCollisionOnAxis('z', 'y', 'x', mazePosFar, newMazePosFar, mazePosNear, 1);
         }
     }
 
