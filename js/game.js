@@ -128,12 +128,13 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
             break;
     }
     if (collided) {
-        let oldp = camera.position[majorAxis]
         camera.position[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
         // console.log(`${majorAxis} ${oldp} ${camera.position[majorAxis]}`)
         // console.log(mazePosRelevant)
         // console.log(newMazePosRelevant)
         newMazePosRelevant[majorAxis] = mazePosRelevant[majorAxis];
+    } else {
+        mazePosRelevant[majorAxis] += sign;
     }
 }
 function collisionUpdate() {
