@@ -2,6 +2,7 @@
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
 import * as THREE from 'https://unpkg.com/three@0.118.3/build/three.module.js';
+import { GLTFLoader } from 'https://unpkg.com/three@0.118.3/examples/jsm/loaders/GLTFLoader.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 
@@ -12,6 +13,12 @@ var renderer = new THREE.WebGLRenderer();
 // renderer.setPixelRatio( window.devicePixelRatio );
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
+
+// setup basic objects
+var clock = new THREE.Clock();
+
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 
 // load textures
 var gridTexture = new THREE.TextureLoader().load( "textures/grid.bmp" );
@@ -24,12 +31,27 @@ gridSpecMap.wrapS = THREE.RepeatWrapping;
 gridSpecMap.wrapT = THREE.RepeatWrapping;
 gridSpecMap.repeat.set( 4, 4 );
 gridSpecMap.magFilter = THREE.NearestFilter;
+var alphaMap = new THREE.TextureLoader().load( "textures/gridAlpha.bmp" );
+alphaMap.wrapS = THREE.RepeatWrapping;
+alphaMap.wrapT = THREE.RepeatWrapping;
+alphaMap.repeat.set( 3, 3 );
+alphaMap.magFilter = THREE.NearestFilter;
 
-// setup basic objects
-var clock = new THREE.Clock();
+// load model
+var blockGeometry = new THREE.BoxGeometry();
+var loader = new GLTFLoader();
+var wallGeometry = new THREE.BufferGeometry();
 
-var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+loader.load( 'models/wall.glb', function ( gltf ) {
+    let modelWall = gltf.scene.getObjectByName('wall');
+    THREE.BufferGeometry.prototype.copy.call(wallGeometry, modelWall.geometry);
+}, undefined, function ( error ) {
+
+	console.error( error );
+
+} );
+
+
 
 // set up lights
 var localLight = new THREE.PointLight( 0xffffff );
@@ -82,11 +104,10 @@ function buildMaze(size=mazeSize) {
 
     mazeSize = size;
     mazeData = maze.generateMaze(mazeSize);
-    let geometry = new THREE.BoxGeometry();
     for (let i = 0; i < mazeData.length; i++) {
         for (let j = 0; j < mazeData[i].length; j++) {
             for (let k = 0; k < mazeData[i].length; k++) {
-                if (    !mazeData[i][j][k] || 
+                if (    !mazeData[i][j][k] ||
                         (i!=0 && i!=mazeSize*2 && j!=0 && j!=mazeSize*2 && k!=0 && k!=mazeSize*2 && // if we're inside...
                             i%2==0 && j%2==0 && k%2==0)) // don't create unseen blocks
                     continue;
@@ -105,8 +126,11 @@ function buildMaze(size=mazeSize) {
                     Math.floor( 25 + 200 * i/(mazeSize*2+1) ) },${
                     Math.floor( 25 + 200 * j/(mazeSize*2+1) ) },${
                     Math.floor( 25 + 200 * k/(mazeSize*2+1) ) })` : `hsl(0, 0%, 10%)`,
-                    opacity: 0.85, transparent: colorful, map: colorful ? gridTexture : null, specularMap: colorful ? gridSpecMap : null} );
-                let block = new THREE.Mesh( geometry, material );
+                    // transparent: colorful, //opacity: 0.85, 
+                    // alphaMap: colorful ? alphaMap : null } );
+                    //map: colorful ? gridTexture : null, specularMap: colorful ? gridSpecMap : null } );
+                } );
+                let block = new THREE.Mesh( colorful ? wallGeometry : blockGeometry, material );
                 block.scale.set( iWidth, jWidth, kWidth );
                 block.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
 
