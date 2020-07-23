@@ -1,3 +1,6 @@
+/**
+ * @author Chris Raff / http://www.ChrisRaff.com/
+ */
 import * as THREE from 'https://unpkg.com/three@0.118.3/build/three.module.js';
 
 var majorWidth = 2;

@@ -1,14 +1,26 @@
 <html>
-	<head>
-		<title>3D Maze | Chris Raff</title>
-		<style>
-			body { margin: 0; }
-			canvas { display: block; }
-		</style>
-	</head>
-	<body>
-		<script type="text/javascript" src="//wurfl.io/wurfl.js"></script>
+    <head>
+        <title>3D Maze | Chris Raff</title>
+        <style>
+            body { margin: 0; }
+            canvas { display: block; }
+
+            #blocker {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0,0,0,0.5);
+            }
+        </style>
+    </head>
+    <body>
+
+        <div id="blocker">
+            
+        </div>
+
+        <script type="text/javascript" src="//wurfl.io/wurfl.js"></script>
         <script type="module" src="js/maze.js"></script>
-		<script type="module" src="js/game.js"></script>
-	</body>
+        <script type="module" src="js/game.js"></script>
+    </body>
 </html>

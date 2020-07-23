@@ -1,6 +1,13 @@
+/**
+ * @author Chris Raff / http://www.ChrisRaff.com/
+ */
 import * as THREE from 'https://unpkg.com/three@0.118.3/build/three.module.js';
-import { FlyControls } from 'https://unpkg.com/three@0.118.3/examples/jsm/controls/FlyControls.js';
+// import { FlyControls } from 'https://unpkg.com/three@0.118.3/examples/jsm/controls/FlyControls.js';
+import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
+
+// get webpage objects
+var blocker = document.getElementById('blocker');
 
 var renderer = new THREE.WebGLRenderer();
 // renderer.setPixelRatio( window.devicePixelRatio );
@@ -37,10 +44,18 @@ const form_factor = WURFL.form_factor;
 if (form_factor == 'Smartphone' || form_factor == 'Tablet') {
     // adjust controls
 }
-const controls = new FlyControls(camera, renderer.domElement);
-controls.dragToLook = true;
+const controls = new FlyPointerLockControls(camera, renderer.domElement);
 controls.movementSpeed = maze.majorWidth;
 controls.rollSpeed = 1;
+blocker.addEventListener( 'click', function() {
+    controls.lock();
+}, false );
+controls.addEventListener( 'lock', function() {
+    blocker.style.display = 'none';
+} );
+controls.addEventListener( 'unlock', function() {
+    blocker.style.display = 'block';
+} );
 
 camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2))
 camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
