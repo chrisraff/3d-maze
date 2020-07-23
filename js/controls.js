@@ -44,6 +44,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
     this.moveState = { up: 0, down: 0, left: 0, right: 0, forward: 0, back: 0, pitchUp: 0, pitchDown: 0, yawLeft: 0, yawRight: 0, rollLeft: 0, rollRight: 0 };
     this.moveVector = new Vector3( 0, 0, 0 );
     this.rotationVector = new Vector3( 0, 0, 0 );
+    this.tmpRotationVector = new Vector3( 0, 0, 0 );
     
     var scope = this;
 
@@ -57,13 +58,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
         var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
         var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
-        scope.rotationVector.x = -( movementY * 0.002 );
-        scope.rotationVector.y = -( movementX * 0.002 );
+        scope.tmpRotationVector.x = - movementY;
+        scope.tmpRotationVector.y = - movementX;
 
-        scope.update(0.75, true);
-
-        scope.rotationVector.x = 0;
-        scope.rotationVector.y = 0;
+        scope.applyRotation( scope.tmpRotationVector, 0.002 );
 
         scope.dispatchEvent( changeEvent );
     };
@@ -104,24 +102,25 @@ var FlyPointerLockControls = function ( object, domElement ) {
         this.disconnect();
     };
 
-    this.update = function ( delta, xyRotationOnly=false ) {
+    this.update = function ( delta ) {
 
         var moveMult = delta * this.movementSpeed;
         var rotMult = delta * this.rollSpeed;
 
-        if (!xyRotationOnly) {
-            this.object.translateX( this.moveVector.x * moveMult );
-            this.object.translateY( this.moveVector.y * moveMult );
-            this.object.translateZ( this.moveVector.z * moveMult );
-        }
+        this.object.translateX( this.moveVector.x * moveMult );
+        this.object.translateY( this.moveVector.y * moveMult );
+        this.object.translateZ( this.moveVector.z * moveMult );
 
-        this.tmpQuaternion.set( this.rotationVector.x * rotMult, this.rotationVector.y * rotMult, this.rotationVector.z * rotMult * !xyRotationOnly, 1 ).normalize();
-        this.object.quaternion.multiply( this.tmpQuaternion );
+        this.applyRotation( this.rotationVector, rotMult );
+    };
+
+    this.applyRotation = function ( rotationVector_, scaleFactor = 1 ) {
+        scope.tmpQuaternion.set( rotationVector_.x * scaleFactor, rotationVector_.y * scaleFactor, rotationVector_.z * scaleFactor, 1 ).normalize();
+        scope.object.quaternion.multiply( scope.tmpQuaternion );
 
         // expose the rotation vector for convenience
-        this.object.rotation.setFromQuaternion( this.object.quaternion, this.object.rotation.order );
-
-    };
+        scope.object.rotation.setFromQuaternion( scope.object.quaternion, scope.object.rotation.order );
+    }
 
     this.updateMovementVector = function () {
 
