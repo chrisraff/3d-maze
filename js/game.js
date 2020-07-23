@@ -2,7 +2,6 @@
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
 import * as THREE from 'https://unpkg.com/three@0.118.3/build/three.module.js';
-// import { FlyControls } from 'https://unpkg.com/three@0.118.3/examples/jsm/controls/FlyControls.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 
@@ -62,6 +61,9 @@ var mazeSize = 5;
 var mazeData = maze.generateMaze(mazeSize);
 var mazeGroup = new THREE.Group();
 scene.add( mazeGroup );
+// checkpoints
+var startedMaze = false;
+var finishedMaze = false;
 // collisions
 var mazePosNear = null; // closer to 0,0,0 (-)
 var mazePosFar = null;
@@ -191,6 +193,15 @@ function collisionUpdate() {
 
     mazePosNear = newMazePosNear;
     mazePosFar = newMazePosFar;
+
+    if (mazePosFar.z == -1 && startedMaze) {
+        startedMaze = false;
+    } else if (!startedMaze && mazePosFar.z == 1 && mazePosFar.x == 1 && mazePosFar.y == 1) {
+        startedMaze = true;
+    } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeSize * 2) {
+        finishedMaze = true;
+        console.log('completed')
+    }
 };
 
 function onWindowResize() {
