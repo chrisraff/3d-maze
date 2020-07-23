@@ -66,7 +66,7 @@ scene.add( mazeGroup );
 var mazePosNear = null; // closer to 0,0,0 (-)
 var mazePosFar = null;
 
-function init(size=mazeSize) {
+function buildMaze(size=mazeSize) {
 
     mazePosNear = null;
     mazePosFar = null;
@@ -76,7 +76,6 @@ function init(size=mazeSize) {
 
     mazeGroup.remove(...mazeGroup.children);
 
-    // build maze
     mazeSize = size;
     mazeData = maze.generateMaze(mazeSize);
     let geometry = new THREE.BoxGeometry();
@@ -206,5 +205,5 @@ var animate = function () {
     renderer.render( scene, camera );
 };
 
-init();
+buildMaze();
 animate();
