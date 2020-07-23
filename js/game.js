@@ -69,6 +69,8 @@ var mazePosNear = null; // closer to 0,0,0 (-)
 var mazePosFar = null;
 
 function buildMaze(size=mazeSize) {
+    startedMaze = false;
+    finishedMaze = false;
 
     mazePosNear = null;
     mazePosFar = null;
