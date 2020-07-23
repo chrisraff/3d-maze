@@ -191,7 +191,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         switch ( event.keyCode ) {
 
-            case 16: /* shift */ scope.movementSpeedMultiplier = .1; break;
+            // case 16: /* shift */ scope.movementSpeedMultiplier = .1; break;
 
             case 87: /*W*/ scope.moveState.forward = 1; break;
             case 83: /*S*/ scope.moveState.back = 1; break;
@@ -199,8 +199,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
             case 65: /*A*/ scope.moveState.left = 1; break;
             case 68: /*D*/ scope.moveState.right = 1; break;
 
-            case 82: /*R*/ scope.moveState.up = 1; break;
-            case 70: /*F*/ scope.moveState.down = 1; break;
+            case 32: /* space */ scope.moveState.up = 1; break;
+            case 16: /* shift */ scope.moveState.down = 1; break;
 
             case 38: /*up*/ scope.moveState.pitchUp = 1; break;
             case 40: /*down*/ scope.moveState.pitchDown = 1; break;
@@ -222,7 +222,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         switch ( event.keyCode ) {
 
-            case 16: /* shift */ scope.movementSpeedMultiplier = 1; break;
+            // case 16: /* shift */ scope.movementSpeedMultiplier = 1; break;
 
             case 87: /*W*/ scope.moveState.forward = 0; break;
             case 83: /*S*/ scope.moveState.back = 0; break;
@@ -230,8 +230,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
             case 65: /*A*/ scope.moveState.left = 0; break;
             case 68: /*D*/ scope.moveState.right = 0; break;
 
-            case 82: /*R*/ scope.moveState.up = 0; break;
-            case 70: /*F*/ scope.moveState.down = 0; break;
+            case 32: /* shift */ scope.moveState.up = 0; break;
+            case 16: /* space */ scope.moveState.down = 0; break;
 
             case 38: /*up*/ scope.moveState.pitchUp = 0; break;
             case 40: /*down*/ scope.moveState.pitchDown = 0; break;
