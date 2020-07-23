@@ -99,9 +99,9 @@ function init(size=mazeSize) {
 
                 // let material = new THREE.MeshLambertMaterial( { color: `hsl(${Math.floor(Math.random() * 360)},${colorful ? 100 : 0}%,${colorful ? 50 : 10}%)` } );
                 let material = new THREE.MeshPhongMaterial( { color: colorful ? `rgb(${
-                    Math.floor( 255 * i/(mazeSize*2+1) ) },${
-                    Math.floor( 255 * j/(mazeSize*2+1) ) },${
-                    Math.floor( 255 * k/(mazeSize*2+1) ) })` : `hsl(0, 0%, 10%)`,
+                    Math.floor( 25 + 200 * i/(mazeSize*2+1) ) },${
+                    Math.floor( 25 + 200 * j/(mazeSize*2+1) ) },${
+                    Math.floor( 25 + 200 * k/(mazeSize*2+1) ) })` : `hsl(0, 0%, 10%)`,
                     opacity: 0.85, transparent: colorful, map: colorful ? gridTexture : null, specularMap: colorful ? gridSpecMap : null} );
                 let block = new THREE.Mesh( geometry, material );
                 block.scale.set( iWidth, jWidth, kWidth );
