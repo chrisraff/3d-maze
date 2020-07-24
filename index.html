@@ -43,9 +43,31 @@
 
                 cursor: pointer;
             }
+
+            #completionMessage {
+                position: absolute;
+                display: none;
+
+                left: 0;
+                right: 0;
+                margin-left: auto;
+                margin-right: auto;
+
+                color: #ffffff;
+                font-family: Arial;
+                font-size: 36px;
+                text-align: center;
+                padding: 10px;
+
+                background-color: rgba(0,0,0,0.25);
+            }
         </style>
     </head>
     <body>
+
+        <div id="completionMessage">
+            Maze Completed!
+        </div>
 
         <div id="blocker">
             <div id="instructions">

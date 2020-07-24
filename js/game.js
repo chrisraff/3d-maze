@@ -8,6 +8,7 @@ import * as maze from './maze.js';
 
 // get webpage objects
 var blocker = document.getElementById('blocker');
+var completionMessage = document.getElementById('completionMessage');
 
 var renderer = new THREE.WebGLRenderer();
 // renderer.setPixelRatio( window.devicePixelRatio );
@@ -78,6 +79,8 @@ var mazePosFar = null;
 function buildMaze(size=mazeSize) {
     startedMaze = false;
     finishedMaze = false;
+
+    completionMessage.style.display = 'none';
 
     mazePosNear = null;
     mazePosFar = null;
@@ -225,7 +228,7 @@ function collisionUpdate() {
         startedMaze = true;
     } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeSize * 2) {
         finishedMaze = true;
-        console.log('completed')
+        completionMessage.style.display = 'block';
     }
 };
 
