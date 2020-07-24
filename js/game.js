@@ -15,6 +15,29 @@ var renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
 
+
+// add 3d compass
+var compassRenderer = new THREE.WebGLRenderer();
+compassRenderer.setSize( Math.floor(window.innerWidth/6), Math.floor(window.innerHeight/6) );
+compassRenderer.domElement.id = "compass";
+document.body.appendChild( compassRenderer.domElement );
+
+var compassScene = new THREE.Scene();
+
+var compassCamera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+compassCamera.position.z = 2;
+
+var dir = new THREE.Vector3( 1, 0, 0 );
+var origin = new THREE.Vector3( 0, 0, 0 );
+var length = 1;
+var hex = 0xd92e18;
+
+var arrowHelper = new THREE.ArrowHelper( dir, origin, length, hex, 0.5, 0.5 );
+arrowHelper.line.material.color = new THREE.Color( 0xffffff );
+arrowHelper.line.material.needsUpdate = true;
+compassScene.add( arrowHelper );
+
+
 // setup basic objects
 var clock = new THREE.Clock();
 
@@ -99,7 +122,7 @@ function buildMaze(size=mazeSize) {
                         (i!=0 && i!=mazeSize*2 && j!=0 && j!=mazeSize*2 && k!=0 && k!=mazeSize*2 && // if we're inside...
                             i%2==0 && j%2==0 && k%2==0)) // don't create unseen blocks
                     continue;
-                
+
                 let iWidth = maze.getWidth(i);
                 let jWidth = maze.getWidth(j);
                 let kWidth = maze.getWidth(k);
@@ -243,6 +266,12 @@ function onWindowResize() {
 
 window.addEventListener( 'resize', onWindowResize, false );
 
+// save the positions of the entrance and exit of the maze
+var startPos = new THREE.Vector3( maze.getOffset(1), maze.getOffset(1), maze.getOffset(1) );
+var segments = mazeSize * 2 - 0.5;
+var endPos = new THREE.Vector3( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments) );
+
+
 var animate = function () {
     let delta = clock.getDelta();
 
@@ -252,7 +281,13 @@ var animate = function () {
 
     collisionUpdate();
 
+    // update the compass
+    var compassDir = camera.position.clone().multiplyScalar(-1).add(endPos).normalize();
+    compassDir.applyQuaternion( camera.quaternion.clone().inverse() );
+    arrowHelper.setDirection(compassDir);
+
     renderer.render( scene, camera );
+    compassRenderer.render( compassScene, compassCamera );
 };
 
 buildMaze();
