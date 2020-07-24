@@ -20,22 +20,7 @@ var clock = new THREE.Clock();
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 
-// load textures
-var gridTexture = new THREE.TextureLoader().load( "textures/grid.bmp" );
-gridTexture.wrapS = THREE.RepeatWrapping;
-gridTexture.wrapT = THREE.RepeatWrapping;
-gridTexture.repeat.set( 4, 4 );
-gridTexture.magFilter = THREE.NearestFilter;
-var gridSpecMap = new THREE.TextureLoader().load( "textures/gridSpec.bmp" );
-gridSpecMap.wrapS = THREE.RepeatWrapping;
-gridSpecMap.wrapT = THREE.RepeatWrapping;
-gridSpecMap.repeat.set( 4, 4 );
-gridSpecMap.magFilter = THREE.NearestFilter;
-var alphaMap = new THREE.TextureLoader().load( "textures/gridAlpha.bmp" );
-alphaMap.wrapS = THREE.RepeatWrapping;
-alphaMap.wrapT = THREE.RepeatWrapping;
-alphaMap.repeat.set( 3, 3 );
-alphaMap.magFilter = THREE.NearestFilter;
+const PI_2 = Math.PI / 2;
 
 // load model
 var blockGeometry = new THREE.BoxGeometry();
@@ -51,7 +36,7 @@ loader.load( 'models/wall.glb', function ( gltf ) {
 
 } );
 
-
+var darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
 
 // set up lights
 var localLight = new THREE.PointLight( 0xffffff );
@@ -121,18 +106,32 @@ function buildMaze(size=mazeSize) {
                 if (iWidth + jWidth + kWidth >= 2 * maze.majorWidth + maze.minorWidth)
                     colorful = true;
 
+                let block = null;
+
                 // let material = new THREE.MeshLambertMaterial( { color: `hsl(${Math.floor(Math.random() * 360)},${colorful ? 100 : 0}%,${colorful ? 50 : 10}%)` } );
-                let material = new THREE.MeshPhongMaterial( { color: colorful ? `rgb(${
-                    Math.floor( 25 + 200 * i/(mazeSize*2+1) ) },${
-                    Math.floor( 25 + 200 * j/(mazeSize*2+1) ) },${
-                    Math.floor( 25 + 200 * k/(mazeSize*2+1) ) })` : `hsl(0, 0%, 10%)`,
-                    // transparent: colorful, //opacity: 0.85, 
-                    // alphaMap: colorful ? alphaMap : null } );
-                    //map: colorful ? gridTexture : null, specularMap: colorful ? gridSpecMap : null } );
-                } );
-                let block = new THREE.Mesh( colorful ? wallGeometry : blockGeometry, material );
-                block.scale.set( iWidth, jWidth, kWidth );
-                block.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
+                if (colorful) {
+
+                    let material = new THREE.MeshLambertMaterial( { color: `rgb(${
+                        Math.floor( 25 + 200 * i/(mazeSize*2+1) ) },${
+                        Math.floor( 25 + 200 * j/(mazeSize*2+1) ) },${
+                        Math.floor( 25 + 200 * k/(mazeSize*2+1) ) })`
+                    } );
+                    block = new THREE.Mesh( wallGeometry, material );
+                    block.scale.set( maze.majorWidth, maze.minorWidth, maze.majorWidth );
+                    block.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
+
+                    // rotate appropriately
+                    if (iWidth == maze.minorWidth) {
+                        block.rotation.z = PI_2;
+                    } else if (kWidth == maze.minorWidth) {
+                        block.rotation.x = PI_2;
+                    }
+
+                } else {
+                    block = new THREE.Mesh( blockGeometry, darkMaterial );
+                    block.scale.set( iWidth, jWidth, kWidth );
+                    block.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
+                }
 
                 mazeGroup.add( block );
             }
