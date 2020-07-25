@@ -70,7 +70,13 @@ loader.load( 'models/arrow.glb', function ( gltf ) {
 
 } );
 
+// load texture
+var dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
+
+// common materials
 var darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
+var dotMaterialLarge = new THREE.PointsMaterial( { size: maze.minorWidth * 5, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } );
+var dotMaterialSmall = new THREE.PointsMaterial( { size: maze.minorWidth * 2, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } );
 
 // set up lights
 var localLight = new THREE.PointLight( 0xffffff );
@@ -96,6 +102,59 @@ controls.addEventListener( 'lock', function() {
 controls.addEventListener( 'unlock', function() {
     blocker.style.display = 'block';
 } );
+
+// goal particles
+var dotGroup = new THREE.Group();
+var dotQuaternions = [];
+for ( var i = 0; i < 2; i++ ) {
+    let dotVertices = [];
+    let dotColors = [];
+
+    let tmpColor = new THREE.Color();
+
+    for (let i = 0; i < 20; i ++ ) {
+        // uniform sphere
+        let x12 = 1;
+        let x22 = 1;
+        let x1 = 0;
+        let x2 = 0;
+        while (x12 + x22 >= 1) {
+            x1 = Math.random() * 2 - 1;
+            x2 = Math.random() * 2 - 1;
+
+            x12 = x1*x1;
+            x22 = x2*x2;
+        }
+
+        let sqrroot = Math.sqrt(1 - x12 - x22);
+
+        let r = Math.random();
+        r *= r;
+        r = 1 - r;
+
+        dotVertices.push(
+            r * (2 * x1 * sqrroot),
+            r * (2 * x2 * sqrroot),
+            r * (1 - 2 * (x12 + x22))
+        );
+
+        tmpColor.setHSL( Math.random(), 1.0, 0.75);
+
+        dotColors.push(tmpColor.r, tmpColor.g, tmpColor.b);
+    }
+
+    let dotGeometry = new THREE.BufferGeometry();
+    dotGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( dotVertices, 3 ) );
+    dotGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( dotColors, 3 ) );
+
+    let dots = new THREE.Points( dotGeometry, [dotMaterialLarge, dotMaterialSmall][i] );
+    dotGroup.add( dots );
+
+    let quaternion = new THREE.Quaternion();
+    quaternion.setFromAxisAngle( new THREE.Vector3(0.75, i, 0).normalize(), 0.02 );
+    dotQuaternions.push( quaternion );
+}
+scene.add( dotGroup );
 
 // maze variables
 var mazeSize = 3;
@@ -124,8 +183,11 @@ function buildMaze(size=mazeSize) {
     mazePosNear = null;
     mazePosFar = null;
 
-    segments = mazeSize * 2 - 0.5;
+    segments = mazeSize * 2 - 1;
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments) );
+
+    dotGroup.position.copy( endPos );
+    dotGroup.position.z += maze.majorWidth + maze.minorWidth;
 
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
     camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
@@ -299,6 +361,11 @@ var animate = function () {
         arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
         arrowMesh.applyQuaternion( camera.quaternion.clone().inverse() );
     }
+
+    // make the goal dots look interesting
+    for (let i = 0; i < dotGroup.children.length; i++) {
+        let mesh = dotGroup.children[i];
+        mesh.applyQuaternion( dotQuaternions[i] ) };
 
     renderer.render( scene, camera );
     compassRenderer.render( compassScene, compassCamera );
