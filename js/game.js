@@ -29,15 +29,11 @@ var compassScene = new THREE.Scene();
 var compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
 compassCamera.position.z = 2;
 
-var dir = new THREE.Vector3( 1, 0, 0 );
-var origin = new THREE.Vector3( 0, 0, 0 );
-var length = 1;
-var hex = 0xd92e18;
+var compassPoint = new THREE.PointLight( 0xffffff );
+compassPoint.position.set( -1, -2, 1 );
+compassScene.add( compassPoint );
 
-var arrowHelper = new THREE.ArrowHelper( dir, origin, length, hex, 0.5, 0.5 );
-arrowHelper.line.material.color = new THREE.Color( 0xffffff );
-arrowHelper.line.material.needsUpdate = true;
-compassScene.add( arrowHelper );
+compassScene.add( new THREE.AmbientLight( 'gray' ) );
 
 
 // setup basic objects
@@ -48,14 +44,26 @@ var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHe
 
 const PI_2 = Math.PI / 2;
 
-// load model
+// load models
 var blockGeometry = new THREE.BoxGeometry();
 var loader = new GLTFLoader();
 var wallGeometry = new THREE.BufferGeometry();
+var arrowGeometry = new THREE.BufferGeometry();
+var arrowMesh = null;
 
 loader.load( 'models/wall.glb', function ( gltf ) {
     let modelWall = gltf.scene.getObjectByName('wall');
     THREE.BufferGeometry.prototype.copy.call(wallGeometry, modelWall.geometry);
+}, undefined, function ( error ) {
+
+    console.error( error );
+
+} );
+loader.load( 'models/arrow.glb', function ( gltf ) {
+    let modelArrow = gltf.scene.getObjectByName('arrow');
+    THREE.BufferGeometry.prototype.copy.call(arrowGeometry, modelArrow.geometry);
+    arrowMesh = new THREE.Mesh( arrowGeometry, new THREE.MeshLambertMaterial( { color: 0xd92e18 } ) );
+    compassScene.add( arrowMesh );
 }, undefined, function ( error ) {
 
     console.error( error );
@@ -284,9 +292,8 @@ var animate = function () {
     collisionUpdate();
 
     // update the compass
-    var compassDir = camera.position.clone().multiplyScalar(-1).add(endPos).normalize();
-    compassDir.applyQuaternion( camera.quaternion.clone().inverse() );
-    arrowHelper.setDirection(compassDir);
+    arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
+    arrowMesh.applyQuaternion( camera.quaternion.clone().inverse() );
 
     renderer.render( scene, camera );
     compassRenderer.render( compassScene, compassCamera );
