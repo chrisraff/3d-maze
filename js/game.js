@@ -167,7 +167,7 @@ var finishedMaze = false;
 // save the positions of the entrance and exit of the maze
 var startPos = new THREE.Vector3( maze.getOffset(1), maze.getOffset(1), maze.getOffset(1) );
 var segments = mazeSize * 2 - 0.5;
-var endPos = new THREE.Vector3( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments) );
+var endPos = new THREE.Vector3();
 // collisions
 var mazePosNear = null; // closer to 0,0,0 (-)
 var mazePosFar = null;
@@ -184,10 +184,9 @@ function buildMaze(size=mazeSize) {
     mazePosFar = null;
 
     segments = mazeSize * 2 - 1;
-    endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments) );
+    endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
 
     dotGroup.position.copy( endPos );
-    dotGroup.position.z += maze.majorWidth + maze.minorWidth;
     dotRotationAnim = 0;
 
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
