@@ -98,7 +98,7 @@ controls.addEventListener( 'unlock', function() {
 } );
 
 // maze variables
-var mazeSize = 5;
+var mazeSize = 3;
 var mazeData = maze.generateMaze(mazeSize);
 var mazeGroup = new THREE.Group();
 scene.add( mazeGroup );
@@ -303,3 +303,9 @@ var animate = function () {
 
 buildMaze();
 animate();
+
+document.getElementById('mazeBuildButton').addEventListener('click', (event) => {
+    let newSize = document.getElementById('newMazeSizeSpan').innerHTML;
+    buildMaze(newSize);
+    document.getElementById('mazeSizeSpan').innerHTML = mazeSize;
+}, false);
