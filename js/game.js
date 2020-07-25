@@ -105,7 +105,8 @@ controls.addEventListener( 'unlock', function() {
 
 // goal particles
 var dotGroup = new THREE.Group();
-var dotQuaternions = [];
+var dotRotationAxes = [];
+var dotTmpQuaternion = new THREE.Quaternion();
 for ( var i = 0; i < 2; i++ ) {
     let dotVertices = [];
     let dotColors = [];
@@ -150,9 +151,7 @@ for ( var i = 0; i < 2; i++ ) {
     let dots = new THREE.Points( dotGeometry, [dotMaterialLarge, dotMaterialSmall][i] );
     dotGroup.add( dots );
 
-    let quaternion = new THREE.Quaternion();
-    quaternion.setFromAxisAngle( new THREE.Vector3(0.75, i, 0).normalize(), 0.02 );
-    dotQuaternions.push( quaternion );
+    dotRotationAxes.push( new THREE.Vector3(0.75, i, 0.5).normalize() );
 }
 scene.add( dotGroup );
 
@@ -365,7 +364,9 @@ var animate = function () {
     // make the goal dots look interesting
     for (let i = 0; i < dotGroup.children.length; i++) {
         let mesh = dotGroup.children[i];
-        mesh.applyQuaternion( dotQuaternions[i] ) };
+        dotTmpQuaternion.setFromAxisAngle( dotRotationAxes[i], (2.2 + i*0.4) * delta );
+        mesh.applyQuaternion( dotTmpQuaternion );
+    }
 
     renderer.render( scene, camera );
     compassRenderer.render( compassScene, compassCamera );
