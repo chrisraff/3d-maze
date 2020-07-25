@@ -152,13 +152,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.dispose = function () {
 
-        this.domElement.removeEventListener( 'contextmenu', contextmenu, false );
-        this.domElement.removeEventListener( 'mousedown', _mousedown, false );
-        this.domElement.removeEventListener( 'mousemove', _mousemove, false );
-        this.domElement.removeEventListener( 'mouseup', _mouseup, false );
-
-        window.removeEventListener( 'keydown', _keydown, false );
-        window.removeEventListener( 'keyup', _keyup, false );
+        this.disconnect();
 
     };
 
