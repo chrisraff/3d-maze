@@ -107,6 +107,7 @@ controls.addEventListener( 'unlock', function() {
 var dotGroup = new THREE.Group();
 var dotRotationAxes = [];
 var dotTmpQuaternion = new THREE.Quaternion();
+var dotRotationAnim = 0;
 for ( var i = 0; i < 2; i++ ) {
     let dotVertices = [];
     let dotColors = [];
@@ -187,6 +188,7 @@ function buildMaze(size=mazeSize) {
 
     dotGroup.position.copy( endPos );
     dotGroup.position.z += maze.majorWidth + maze.minorWidth;
+    dotRotationAnim = 0;
 
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
     camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
@@ -361,10 +363,13 @@ var animate = function () {
         arrowMesh.applyQuaternion( camera.quaternion.clone().inverse() );
     }
 
-    // make the goal dots look interesting
+    // make the goal dots spin
+    if (finishedMaze && dotRotationAnim < 1) {
+        dotRotationAnim = Math.min(dotRotationAnim + delta*2, 1);
+    }
     for (let i = 0; i < dotGroup.children.length; i++) {
         let mesh = dotGroup.children[i];
-        dotTmpQuaternion.setFromAxisAngle( dotRotationAxes[i], (2.2 + i*0.4) * delta );
+        dotTmpQuaternion.setFromAxisAngle( dotRotationAxes[i], (2.2 + i*0.4) * delta * (0.1 + dotRotationAnim * 0.9) );
         mesh.applyQuaternion( dotTmpQuaternion );
     }
 
