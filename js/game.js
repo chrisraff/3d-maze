@@ -292,8 +292,10 @@ var animate = function () {
     collisionUpdate();
 
     // update the compass
-    arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
-    arrowMesh.applyQuaternion( camera.quaternion.clone().inverse() );
+    if (arrowMesh != null) {
+        arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
+        arrowMesh.applyQuaternion( camera.quaternion.clone().inverse() );
+    }
 
     renderer.render( scene, camera );
     compassRenderer.render( compassScene, compassCamera );
