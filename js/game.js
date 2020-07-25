@@ -105,11 +105,17 @@ scene.add( mazeGroup );
 // checkpoints
 var startedMaze = false;
 var finishedMaze = false;
+// save the positions of the entrance and exit of the maze
+var startPos = new THREE.Vector3( maze.getOffset(1), maze.getOffset(1), maze.getOffset(1) );
+var segments = mazeSize * 2 - 0.5;
+var endPos = new THREE.Vector3( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments) );
 // collisions
 var mazePosNear = null; // closer to 0,0,0 (-)
 var mazePosFar = null;
 
 function buildMaze(size=mazeSize) {
+    mazeSize = size;
+
     startedMaze = false;
     finishedMaze = false;
 
@@ -118,12 +124,14 @@ function buildMaze(size=mazeSize) {
     mazePosNear = null;
     mazePosFar = null;
 
+    segments = mazeSize * 2 - 0.5;
+    endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments) );
+
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
     camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
 
     mazeGroup.remove(...mazeGroup.children);
 
-    mazeSize = size;
     mazeData = maze.generateMaze(mazeSize);
     for (let i = 0; i < mazeData.length; i++) {
         for (let j = 0; j < mazeData[i].length; j++) {
@@ -275,11 +283,6 @@ function onWindowResize() {
 }
 
 window.addEventListener( 'resize', onWindowResize, false );
-
-// save the positions of the entrance and exit of the maze
-var startPos = new THREE.Vector3( maze.getOffset(1), maze.getOffset(1), maze.getOffset(1) );
-var segments = mazeSize * 2 - 0.5;
-var endPos = new THREE.Vector3( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments) );
 
 
 var animate = function () {
