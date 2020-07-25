@@ -3,7 +3,19 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Fully three dimmensional mazes, in first person"/>
+
+        <meta property="og:title" content="3D Maze | Chris Raff" />
+        <meta property="og:description" content="Fully three dimmensional mazes, in first person" />
+        <meta property="og:url" content="https://www.chrisraff.com/3d-maze" />
+        <meta property="og:image" content="https://www.chrisraff.com/3d-maze/screenshot.png" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1057" />
+        <meta property="og:image:height" content="835" />
+
         <title>3D Maze | Chris Raff</title>
+
         <style>
             body { margin: 0; }
             canvas { display: block; }
@@ -79,8 +91,18 @@
                 line-height: 36px;
             }
         </style>
-    </head>
-    <body>
+
+        <!-- Global site tag (gtag.js) - Google Analytics -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=UA-120805992-1"></script>
+        <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-120805992-1');
+        </script>
+        </head>
+        <body>
 
         <div id="completionMessage">
             Maze Completed!
