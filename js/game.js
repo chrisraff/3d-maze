@@ -17,14 +17,16 @@ document.body.appendChild( renderer.domElement );
 
 
 // add 3d compass
-var compassRenderer = new THREE.WebGLRenderer();
-compassRenderer.setSize( Math.floor(window.innerWidth/6), Math.floor(window.innerHeight/6) );
+var compassRenderer = new THREE.WebGLRenderer( { alpha: true } );
+var compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeight)/6 );
+compassRenderer.setSize( compassWindowSize, compassWindowSize );
+compassRenderer.setClearColor( 0x000000, 0 );
 compassRenderer.domElement.id = "compass";
 document.body.appendChild( compassRenderer.domElement );
 
 var compassScene = new THREE.Scene();
 
-var compassCamera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+var compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
 compassCamera.position.z = 2;
 
 var dir = new THREE.Vector3( 1, 0, 0 );
@@ -56,7 +58,7 @@ loader.load( 'models/wall.glb', function ( gltf ) {
     THREE.BufferGeometry.prototype.copy.call(wallGeometry, modelWall.geometry);
 }, undefined, function ( error ) {
 
-	console.error( error );
+    console.error( error );
 
 } );
 
