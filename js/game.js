@@ -166,6 +166,16 @@ for ( var i = 0; i < 2; i++ ) {
 }
 scene.add( dotGroup );
 
+// trail particles
+var trailParticles = [];
+var trailGeometry = new THREE.BufferGeometry();
+trailGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3 ) );
+var trailPointSize = window.innerHeight / 25;
+
+var lastTrailCameraPosition = new THREE.Vector3();
+
+var tmpVector = new THREE.Vector3();
+
 // maze variables
 var mazeSize = 3;
 var mazeData = maze.generateMaze(mazeSize);
@@ -201,6 +211,14 @@ function buildMaze(size=mazeSize) {
 
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
     camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
+
+    lastTrailCameraPosition.copy( camera.position );
+    for (let i = 0; i < trailParticles.length; i++) {
+        let part = trailParticles[i];
+        scene.remove(part);
+        part.material.dispose();
+    }
+    trailParticles = [];
 
     mazeGroup.remove(...mazeGroup.children);
 
@@ -405,6 +423,35 @@ var animate = function () {
     if (arrowMesh != null) {
         arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
         arrowMesh.applyQuaternion( camera.quaternion.clone().inverse() );
+    }
+
+    // camera trail
+    // shrink and disappear
+    for (let i = 0; i < trailParticles.length; i++) {
+        let part = trailParticles[i];
+
+        part.material.size -= delta * trailPointSize/10;
+        if (part.material.size <= 0.01) {
+            scene.remove(part);
+            part.material.dispose();
+            trailParticles = trailParticles.splice(1); // remove earliest
+            i--;
+        }
+    }
+    // spawn new
+    if ( lastTrailCameraPosition.distanceTo( camera.position ) > collisionDistance ) {
+        lastTrailCameraPosition.copy( camera.position );
+
+        let partMaterial = new THREE.PointsMaterial( { color: `hsl(${Math.random() * 360}, 100%, 50%)`, sizeAttenuation: false, size: trailPointSize, map: dotSprite, alphaTest: 0.8, transparent: true } );
+        let partPoints = new THREE.Points( trailGeometry, partMaterial );
+
+        tmpVector.set( Math.random() * collisionDistance * 2 - collisionDistance, Math.random() * collisionDistance * 2 - collisionDistance, -maze.minorWidth );
+        tmpVector.applyMatrix4( camera.matrix );
+        partPoints.position.copy( tmpVector );
+
+        trailParticles.push( partPoints );
+
+        scene.add( partPoints );
     }
 
     // make the goal dots spin
