@@ -208,13 +208,14 @@ var FlyPointerLockControls = function ( object, domElement ) {
         this.tmpVector.copy(this.moveVector);
 
         if (moveTouchDragging) {
-            this.tmpVector.x += (moveLastX - moveStartX) * 3 / touchDOM.clientWidth;
-            this.tmpVector.z += (moveLastY - moveStartY) * 3 / touchDOM.clientWidth;
+            this.tmpVector.x += (moveLastX - moveStartX) * 4 / touchDOM.clientHeight;
+            this.tmpVector.z += (moveLastY - moveStartY) * 4 / touchDOM.clientHeight;
         }
         this.tmpVector.x = clamp (this.tmpVector.x, -1, 1);
         this.tmpVector.z = clamp (this.tmpVector.z, -1, 1);
 
-        this.tmpVector.normalize();
+        if (this.tmpVector.length() > 1)
+            this.tmpVector.normalize();
 
         this.object.translateX( this.tmpVector.x * moveMult );
         this.object.translateY( this.tmpVector.y * moveMult );
