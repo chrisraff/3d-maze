@@ -199,6 +199,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
         exitDOM.addEventListener( 'touchstart', scope.disableLock , false );
+        exitDOM = scope.domElement.ownerDocument.getElementById('compass');
+        exitDOM.addEventListener( 'touchstart', scope.disableLock , false );
     };
 
     this.disconnect = function() {
@@ -212,6 +214,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
         exitDOM.removeEventListener( 'touchstart', scope.disableLock , false );
+        exitDOM = scope.domElement.ownerDocument.getElementById('compass');
+        exitDOM.addEventListener( 'touchstart', scope.disableLock , false );
     };
 
     this.dispose = function() {
