@@ -411,10 +411,12 @@ function collisionUpdate() {
             let secondString = seconds % 60;
             if (secondString < 10) {
                 secondString = '0' + secondString.toFixed(2);
-                // toFixed can't be trusted
-                secondString = secondString.substring(0, 5);
             }
+            // toFixed can't be trusted
+            secondString = secondString.substring(0, 5);
             timeString = `${minutes}:${secondString}`;
+        } else {
+            timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
         document.getElementById('mazeTimeSpan').innerHTML = timeString;
     }
