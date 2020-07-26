@@ -390,8 +390,11 @@ function collisionUpdate() {
         if (seconds > 60) {
             let minutes = Math.floor(seconds / 60);
             let secondString = seconds % 60;
-            if (secondString < 10)
+            if (secondString < 10) {
                 secondString = '0' + secondString.toFixed(2);
+                // toFixed can't be trusted
+                secondString = secondString.substring(0, 5);
+            }
             timeString = `${minutes}:${secondString}`;
         }
         document.getElementById('mazeTimeSpan').innerHTML = timeString;
