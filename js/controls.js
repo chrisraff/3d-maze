@@ -171,6 +171,18 @@ var FlyPointerLockControls = function ( object, domElement ) {
         }
     };
 
+    this.disableLock = function( event ) {
+        scope.domElement.ownerDocument.exitPointerLock();
+
+        if (scope.isLocked) {
+            scope.dispatchEvent( unlockEvent );
+
+            scope.isLocked = false;
+        }
+
+        event.preventDefault();
+    }
+
     function onPointerlockError() {
         console.error( 'FlyPointerlockControls: Unable to use Pointer Lock API' );
     };
@@ -184,6 +196,9 @@ var FlyPointerLockControls = function ( object, domElement ) {
         touchDOM.addEventListener( 'touchstart', onTouchStart, false);
         touchDOM.addEventListener( 'touchmove', onTouchMove, false);
         touchDOM.addEventListener( 'touchend', onTouchEnd, false);
+
+        let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
+        exitDOM.addEventListener( 'touchstart', scope.disableLock , false );
     };
 
     this.disconnect = function() {
@@ -194,6 +209,9 @@ var FlyPointerLockControls = function ( object, domElement ) {
         touchDOM.removeEventListener( 'touchstart', onTouchStart, false);
         touchDOM.removeEventListener( 'touchmove', onTouchMove, false);
         touchDOM.removeEventListener( 'touchend', onTouchEnd, false);
+
+        let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
+        exitDOM.removeEventListener( 'touchstart', scope.disableLock , false );
     };
 
     this.dispose = function() {
@@ -278,7 +296,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
     }
 
     this.unlock = function() {
-        this.domElement.ownerDocument.exitPointerLock();
+        scope.domElement.ownerDocument.exitPointerLock();
     }
 
     this.domElement.addEventListener( 'contextmenu', contextmenu, false );
