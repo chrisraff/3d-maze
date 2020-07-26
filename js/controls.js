@@ -62,9 +62,11 @@ var FlyPointerLockControls = function ( object, domElement ) {
     }
 
     var touchable = is_touch_device();
-    var touchDragging = false;
-    var lastTouchX = 0;
-    var lastTouchY = 0;
+
+    var panTouchDragging = false;
+    var panLastTouchX = 0;
+    var panLastTouchY = 0;
+    var panTouchIdentifier = 0;
 
     function onMouseMove( event ) {
         if ( scope.isLocked === false ) return;
@@ -81,19 +83,25 @@ var FlyPointerLockControls = function ( object, domElement ) {
     };
 
     function onTouchStart( event ) {
-        if ( scope.isLocked === false || touchDragging ) return;
+        if ( scope.isLocked === false || panTouchDragging ) return;
 
         event.preventDefault();
 
-        touchDragging = true;
-        lastTouchX = event.touches[0].clientX;
-        lastTouchY = event.touches[0].clientY;
+        panTouchDragging = true;
+        panLastTouchX = event.touches[0].clientX;
+        panLastTouchY = event.touches[0].clientY;
+        panTouchIdentifier = event.touches[0].identifier;
     }
 
     function onTouchEnd( event ) {
         event.preventDefault();
 
-        touchDragging = false;
+        for (let i = 0; i < event.changedTouches.length; i++) {
+            let t = event.changedTouches[i];
+            if (t.identifier == panTouchIdentifier) {
+                panTouchDragging = false;
+            }
+        }
     }
 
     function onTouchMove( event ) {
@@ -101,18 +109,23 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         event.preventDefault();
 
-        let movementX = (event.touches[0].clientX - lastTouchX) || event.mozMovementX || event.webkitMovementX || 0;
-        let movementY = (event.touches[0].clientY - lastTouchY) || event.mozMovementY || event.webkitMovementY || 0;
+        for (let i = 0; i < event.touches.length; i++) {
+            let t = event.touches[i];
+            if (t.identifier == panTouchIdentifier){
+                let movementX = (t.clientX - panLastTouchX) || event.mozMovementX || event.webkitMovementX || 0;
+                let movementY = (t.clientY - panLastTouchY) || event.mozMovementY || event.webkitMovementY || 0;
 
-        lastTouchX = event.touches[0].clientX;
-        lastTouchY = event.touches[0].clientY;
+                panLastTouchX = t.clientX;
+                panLastTouchY = t.clientY;
 
-        scope.tmpRotationVector.x = - movementY;
-        scope.tmpRotationVector.y = - movementX;
+                scope.tmpRotationVector.x = - movementY;
+                scope.tmpRotationVector.y = - movementX;
 
-        scope.applyRotation( scope.tmpRotationVector, 0.002 );
+                scope.applyRotation( scope.tmpRotationVector, 0.002 );
 
-        scope.dispatchEvent( changeEvent );
+                scope.dispatchEvent( changeEvent );
+            }
+        }
     }
 
     function onPointerlockChange() {
