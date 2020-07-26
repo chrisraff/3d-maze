@@ -48,7 +48,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
     this.moveState = { up: 0, down: 0, left: 0, right: 0, forward: 0, back: 0, pitchUp: 0, pitchDown: 0, yawLeft: 0, yawRight: 0, rollLeft: 0, rollRight: 0 };
     this.moveVector = new Vector3( 0, 0, 0 );
     this.rotationVector = new Vector3( 0, 0, 0 );
-    this.tmpRotationVector = new Vector3( 0, 0, 0 );
+    this.tmpVector = new Vector3( 0, 0, 0 );
     
     var scope = this;
 
@@ -87,30 +87,31 @@ var FlyPointerLockControls = function ( object, domElement ) {
         let movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
         let movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
-        scope.tmpRotationVector.x = - movementY;
-        scope.tmpRotationVector.y = - movementX;
+        scope.tmpVector.set( - movementY, - movementX, 0 );
 
-        scope.applyRotation( scope.tmpRotationVector, 0.002 );
+        scope.applyRotation( scope.tmpVector, 0.002 );
 
         scope.dispatchEvent( changeEvent );
     };
 
     function onTouchStart( event ) {
-        if ( scope.isLocked === false || panTouchDragging ) return;
+        if ( scope.isLocked === false ) return;
 
         event.preventDefault();
 
         for (let i = 0; i < event.changedTouches.length; i++) {
-            if (event.touches[i].clientX <= touchDOM.clientWidth / 2) {
+            let t = event.changedTouches[i];
+            if (t.clientX >= touchDOM.clientWidth / 2 && !panTouchDragging && (!moveTouchDragging || moveTouchIdentifier != t.identifier)) {
                 panTouchDragging = true;
-                panLastTouchX = event.touches[i].clientX;
-                panLastTouchY = event.touches[i].clientY;
-                panTouchIdentifier = event.touches[i].identifier;
-            } else {
+
+                panLastTouchX = t.clientX;
+                panLastTouchY = t.clientY;
+                panTouchIdentifier = t.identifier;
+            } else if (!moveTouchDragging && (!panTouchDragging || panTouchIdentifier != t.identifier)) {
                 moveTouchDragging = true;
-                moveStartX = event.touches[i].clientX;
-                moveStartY = event.touches[i].clientY;
-                moveTouchIdentifier = event.touches[i].identifier;
+                moveStartX = t.clientX;
+                moveStartY = t.clientY;
+                moveTouchIdentifier = t.identifier;
             }
         }
     }
@@ -142,10 +143,9 @@ var FlyPointerLockControls = function ( object, domElement ) {
                 panLastTouchX = t.clientX;
                 panLastTouchY = t.clientY;
 
-                scope.tmpRotationVector.x = - movementY;
-                scope.tmpRotationVector.y = - movementX;
+                scope.tmpVector.set( - movementY, - movementX, 0 );
 
-                scope.applyRotation( scope.tmpRotationVector, 0.002 );
+                scope.applyRotation( scope.tmpVector, 0.002 );
 
                 scope.dispatchEvent( changeEvent );
             } else if (t.identifier == moveTouchIdentifier && moveTouchDragging) {
@@ -205,20 +205,20 @@ var FlyPointerLockControls = function ( object, domElement ) {
         let moveMult = delta * this.movementSpeed;
         let rotMult = delta * this.rollSpeed;
 
-        this.tmpRotationVector.copy(this.moveVector);
+        this.tmpVector.copy(this.moveVector);
 
         if (moveTouchDragging) {
-            this.tmpRotationVector.x += moveLastX - moveStartX;
-            this.tmpRotationVector.z += moveLastY - moveStartY;
+            this.tmpVector.x += (moveLastX - moveStartX) * 3 / touchDOM.clientWidth;
+            this.tmpVector.z += (moveLastY - moveStartY) * 3 / touchDOM.clientWidth;
         }
-        this.tmpRotationVector.x = clamp (this.tmpRotationVector.x, -1, 1);
-        this.tmpRotationVector.z = clamp (this.tmpRotationVector.z, -1, 1);
+        this.tmpVector.x = clamp (this.tmpVector.x, -1, 1);
+        this.tmpVector.z = clamp (this.tmpVector.z, -1, 1);
 
-        this.tmpRotationVector.normalize();
+        this.tmpVector.normalize();
 
-        this.object.translateX( this.tmpRotationVector.x * moveMult );
-        this.object.translateY( this.tmpRotationVector.y * moveMult );
-        this.object.translateZ( this.tmpRotationVector.z * moveMult );
+        this.object.translateX( this.tmpVector.x * moveMult );
+        this.object.translateY( this.tmpVector.y * moveMult );
+        this.object.translateZ( this.tmpVector.z * moveMult );
 
         this.applyRotation( this.rotationVector, rotMult );
     };
