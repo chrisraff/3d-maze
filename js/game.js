@@ -13,6 +13,7 @@ var completionMessage = document.getElementById('completionMessage');
 var renderer = new THREE.WebGLRenderer( { antialias: true } );
 // renderer.setPixelRatio( window.devicePixelRatio );
 renderer.setSize( window.innerWidth, window.innerHeight );
+renderer.domElement.id = "mainCanvas";
 document.body.appendChild( renderer.domElement );
 
 
@@ -104,6 +105,9 @@ controls.movementSpeed = maze.majorWidth;
 controls.rollSpeed = 1;
 blocker.addEventListener( 'click', function() {
     controls.lock();
+}, false );
+blocker.addEventListener( 'touch', function() {
+    controls.lock(true);
 }, false );
 controls.addEventListener( 'lock', function() {
     blocker.style.display = 'none';

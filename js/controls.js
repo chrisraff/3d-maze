@@ -52,11 +52,25 @@ var FlyPointerLockControls = function ( object, domElement ) {
     var lockEvent = { type: 'lock' };
     var unlockEvent = { type: 'unlock' };
 
+    function is_touch_device() {
+        try {
+            document.createEvent("TouchEvent");
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    var touchable = is_touch_device();
+    var touchDragging = false;
+    var lastTouchX = 0;
+    var lastTouchY = 0;
+
     function onMouseMove( event ) {
         if ( scope.isLocked === false ) return;
 
-        var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
-        var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+        let movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+        let movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
         scope.tmpRotationVector.x = - movementY;
         scope.tmpRotationVector.y = - movementX;
@@ -65,6 +79,35 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         scope.dispatchEvent( changeEvent );
     };
+
+    function onTouchStart( event ) {
+        if ( scope.isLocked === false || touchDragging ) return;
+
+        touchDragging = true;
+        lastTouchX = event.touches[0].clientX;
+        lastTouchY = event.touches[0].clientY;
+    }
+
+    function onTouchEnd( event ) {
+        touchDragging = false;
+    }
+
+    function onTouchMove( event ) {
+        if ( scope.isLocked === false ) return;
+
+        let movementX = (event.touches[0].clientX - lastTouchX) || event.mozMovementX || event.webkitMovementX || 0;
+        let movementY = (event.touches[0].clientY - lastTouchY) || event.mozMovementY || event.webkitMovementY || 0;
+
+        lastTouchX = event.touches[0].clientX;
+        lastTouchY = event.touches[0].clientY;
+
+        scope.tmpRotationVector.x = - movementY;
+        scope.tmpRotationVector.y = - movementX;
+
+        scope.applyRotation( scope.tmpRotationVector, 0.002 );
+
+        scope.dispatchEvent( changeEvent );
+    }
 
     function onPointerlockChange() {
         if ( scope.domElement.ownerDocument.pointerLockElement === scope.domElement ) {
@@ -90,12 +133,22 @@ var FlyPointerLockControls = function ( object, domElement ) {
         scope.domElement.ownerDocument.addEventListener( 'mousemove', onMouseMove, false);
         scope.domElement.ownerDocument.addEventListener( 'pointerlockchange', onPointerlockChange, false);
         scope.domElement.ownerDocument.addEventListener( 'pointerlockerror', onPointerlockError, false);
+
+        let mainCanvas = scope.domElement.ownerDocument.getElementById('mainCanvas');
+        mainCanvas.addEventListener( 'touchstart', onTouchStart, false);
+        mainCanvas.addEventListener( 'touchmove', onTouchMove, false);
+        mainCanvas.addEventListener( 'touchend', onTouchEnd, false);
     };
 
     this.disconnect = function() {
         scope.domElement.ownerDocument.removeEventListener( 'mousemove', onMouseMove, false );
         scope.domElement.ownerDocument.removeEventListener( 'pointerlockchange', onPointerlockChange, false );
         scope.domElement.ownerDocument.removeEventListener( 'pointerlockerror', onPointerlockError, false );
+
+        let mainCanvas = scope.domElement.ownerDocument.getElementById('mainCanvas');
+        mainCanvas.removeEventListener( 'touchstart', onTouchStart, false);
+        mainCanvas.removeEventListener( 'touchmove', onTouchMove, false);
+        mainCanvas.removeEventListener( 'touchend', onTouchEnd, false);
     };
 
     this.dispose = function() {
@@ -158,6 +211,13 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.lock = function() {
         this.domElement.requestPointerLock();
+        if (!this.isLocked && touchable) {
+
+            scope.dispatchEvent( lockEvent );
+
+            scope.isLocked = true;
+
+        }
     }
 
     this.unlock = function() {
