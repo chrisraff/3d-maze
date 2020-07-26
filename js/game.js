@@ -40,7 +40,8 @@ compassScene.add( new THREE.AmbientLight( 'gray' ) );
 
 // setup basic objects
 var fpsClock = new THREE.Clock();
-var timerClock = new THREE.Clock();
+var timerStartMillis = 0;
+var timerRunning = false;
 
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
@@ -126,8 +127,9 @@ blocker.addEventListener( 'touch', function() {
 }, false );
 controls.addEventListener( 'lock', function() {
     blocker.style.display = 'none';
-    if (!timerClock.running) {
-        timerClock.start();
+    if (!timerRunning) {
+        timerRunning = true;
+        timerStartMillis = new Date().getTime();
     }
 } );
 controls.addEventListener( 'unlock', function() {
@@ -314,7 +316,7 @@ function buildMaze(size=mazeSize) {
 
     mazeGroup.add( blockInstanceMesh );
 
-    timerClock.stop();
+    timerRunning = false;
 
 };
 
@@ -404,7 +406,7 @@ function collisionUpdate() {
     } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeSize * 2) {
         finishedMaze = true;
         completionMessage.style.display = 'block';
-        let seconds = timerClock.getElapsedTime().toFixed(2);
+        let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
         let timeString = seconds;
         if (seconds >= 60) {
             let minutes = Math.floor(seconds / 60);
