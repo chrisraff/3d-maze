@@ -145,7 +145,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
                 scope.tmpVector.set( - movementY, - movementX, 0 );
 
-                scope.applyRotation( scope.tmpVector, 0.002 );
+                scope.applyRotation( scope.tmpVector, 0.006 );
 
                 scope.dispatchEvent( changeEvent );
             } else if (t.identifier == moveTouchIdentifier && moveTouchDragging) {
