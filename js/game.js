@@ -11,7 +11,7 @@ var blocker = document.getElementById('blocker');
 var completionMessage = document.getElementById('completionMessage');
 
 var renderer = new THREE.WebGLRenderer( { antialias: true } );
-// renderer.setPixelRatio( window.devicePixelRatio );
+renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
 renderer.setSize( window.innerWidth, window.innerHeight );
 renderer.domElement.id = "mainCanvas";
 document.body.appendChild( renderer.domElement );
