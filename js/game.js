@@ -18,7 +18,8 @@ document.body.appendChild( renderer.domElement );
 
 
 // add 3d compass
-var compassRenderer = new THREE.WebGLRenderer( { alpha: true } );
+var compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
+compassRenderer.setPixelRatio( renderer.getPixelRatio() );
 var compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeight)/6 );
 compassRenderer.setSize( compassWindowSize, compassWindowSize );
 compassRenderer.setClearColor( 0x000000, 0 );
