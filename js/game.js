@@ -10,7 +10,7 @@ import * as maze from './maze.js';
 var blocker = document.getElementById('blocker');
 var completionMessage = document.getElementById('completionMessage');
 
-var renderer = new THREE.WebGLRenderer();
+var renderer = new THREE.WebGLRenderer( { antialias: true } );
 // renderer.setPixelRatio( window.devicePixelRatio );
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
@@ -45,16 +45,23 @@ var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHe
 
 const PI_2 = Math.PI / 2;
 
+var tmpColor = new THREE.Color();
+
 // load models
-var blockGeometry = new THREE.BoxGeometry();
+var blockGeometry = new THREE.InstancedBufferGeometry();
+THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxBufferGeometry() );
 var loader = new GLTFLoader();
-var wallGeometry = new THREE.BufferGeometry();
+var wallGeometry = new THREE.InstancedBufferGeometry();
 var arrowGeometry = new THREE.BufferGeometry();
 var arrowMesh = null;
 
 loader.load( 'models/wall.glb', function ( gltf ) {
     let modelWall = gltf.scene.getObjectByName('wall');
     THREE.BufferGeometry.prototype.copy.call(wallGeometry, modelWall.geometry);
+
+    // build maze for first time
+    // (must wait for this model to load or the colors don't work)
+    buildMaze();
 }, undefined, function ( error ) {
 
     console.error( error );
@@ -75,6 +82,7 @@ loader.load( 'models/arrow.glb', function ( gltf ) {
 var dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
 
 // common materials
+var wallMaterial = new THREE.MeshLambertMaterial( { vertexColors: true } );
 var darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
 var dotMaterialLarge = new THREE.PointsMaterial( { size: maze.minorWidth * 5, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } );
 var dotMaterialSmall = new THREE.PointsMaterial( { size: maze.minorWidth * 2, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } );
@@ -115,8 +123,6 @@ var dotRotationAnim = 0;
 for ( var i = 0; i < 2; i++ ) {
     let dotVertices = [];
     let dotColors = [];
-
-    let tmpColor = new THREE.Color();
 
     for (let i = 0; i < 20; i ++ ) {
         // uniform sphere
@@ -198,6 +204,11 @@ function buildMaze(size=mazeSize) {
 
     mazeGroup.remove(...mazeGroup.children);
 
+    let dummyWall = new THREE.Object3D;
+    let wallMatrices = [];
+    let wallColors = [];
+    let blockMatrices = [];
+
     mazeData = maze.generateMaze(mazeSize);
     for (let i = 0; i < mazeData.length; i++) {
         for (let j = 0; j < mazeData[i].length; j++) {
@@ -216,37 +227,58 @@ function buildMaze(size=mazeSize) {
                 if (iWidth + jWidth + kWidth >= 2 * maze.majorWidth + maze.minorWidth)
                     colorful = true;
 
-                let block = null;
-
                 // let material = new THREE.MeshLambertMaterial( { color: `hsl(${Math.floor(Math.random() * 360)},${colorful ? 100 : 0}%,${colorful ? 50 : 10}%)` } );
                 if (colorful) {
-
-                    let material = new THREE.MeshLambertMaterial( { color: `rgb(${
-                        Math.floor( 25 + 200 * i/(mazeSize*2+1) ) },${
-                        Math.floor( 25 + 200 * j/(mazeSize*2+1) ) },${
-                        Math.floor( 25 + 200 * k/(mazeSize*2+1) ) })`
-                    } );
-                    block = new THREE.Mesh( wallGeometry, material );
-                    block.scale.set( maze.majorWidth, maze.minorWidth, maze.majorWidth );
-                    block.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
+                    dummyWall.scale.set( maze.majorWidth, maze.minorWidth, maze.majorWidth );
+                    dummyWall.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
 
                     // rotate appropriately
                     if (iWidth == maze.minorWidth) {
-                        block.rotation.z = PI_2;
+                        dummyWall.rotation.z = PI_2;
                     } else if (kWidth == maze.minorWidth) {
-                        block.rotation.x = PI_2;
+                        dummyWall.rotation.x = PI_2;
                     }
 
-                } else {
-                    block = new THREE.Mesh( blockGeometry, darkMaterial );
-                    block.scale.set( iWidth, jWidth, kWidth );
-                    block.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
-                }
+                    dummyWall.updateMatrix();
 
-                mazeGroup.add( block );
+                    dummyWall.rotation.set(0,0,0);
+
+                    wallMatrices.push( dummyWall.matrix.clone() );
+
+                    wallColors.push(
+                        0.1 + 0.8 * i/(mazeSize*2+1),
+                        0.1 + 0.8 * j/(mazeSize*2+1),
+                        0.1 + 0.8 * k/(mazeSize*2+1)
+                    );
+
+                } else {
+                    // block = new THREE.Mesh( blockGeometry, darkMaterial );
+                    dummyWall.scale.set( iWidth, jWidth, kWidth );
+                    dummyWall.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
+
+                    dummyWall.updateMatrix();
+
+                    // mazeGroup.add( block );
+                    blockMatrices.push( dummyWall.matrix.clone() );
+                }
             }
         }
     }
+
+    wallGeometry.setAttribute( 'color', new THREE.InstancedBufferAttribute( new Float32Array( wallColors ), 3 ) );
+    let wallInstancedMesh = new THREE.InstancedMesh( wallGeometry, wallMaterial, wallMatrices.length );
+    let i = 0;
+    wallMatrices.forEach((mat) => wallInstancedMesh.setMatrixAt( i++, mat ) );
+    wallInstancedMesh.needsUpdate = true;
+
+    mazeGroup.add( wallInstancedMesh );
+
+    let blockInstanceMesh = new THREE.InstancedMesh( blockGeometry, darkMaterial, blockMatrices.length );
+    i = 0;
+    blockMatrices.forEach((mat) => blockInstanceMesh.setMatrixAt( i++, mat ) );
+    blockInstanceMesh.needsUpdate = true;
+
+    mazeGroup.add( blockInstanceMesh );
 
     timerClock.stop();
 
@@ -392,7 +424,6 @@ var animate = function () {
     compassRenderer.render( compassScene, compassCamera );
 };
 
-buildMaze();
 animate();
 
 document.getElementById('mazeBuildButton').addEventListener('click', (event) => {
