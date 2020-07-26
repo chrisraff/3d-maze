@@ -83,17 +83,23 @@ var FlyPointerLockControls = function ( object, domElement ) {
     function onTouchStart( event ) {
         if ( scope.isLocked === false || touchDragging ) return;
 
+        event.preventDefault();
+
         touchDragging = true;
         lastTouchX = event.touches[0].clientX;
         lastTouchY = event.touches[0].clientY;
     }
 
     function onTouchEnd( event ) {
+        event.preventDefault();
+
         touchDragging = false;
     }
 
     function onTouchMove( event ) {
         if ( scope.isLocked === false ) return;
+
+        event.preventDefault();
 
         let movementX = (event.touches[0].clientX - lastTouchX) || event.mozMovementX || event.webkitMovementX || 0;
         let movementY = (event.touches[0].clientY - lastTouchY) || event.mozMovementY || event.webkitMovementY || 0;
