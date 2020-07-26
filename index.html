@@ -82,7 +82,7 @@
 
             #adjustments {
                 position: absolute;
-                bottom: 0;
+                top: 0;
                 right: 0;
                 padding: 10px;
 
@@ -101,27 +101,41 @@
 
         gtag('config', 'UA-120805992-1');
         </script>
-        </head>
-        <body>
+    </head>
+    <body>
+        <script type="text/javascript" src="//wurfl.io/wurfl.js"></script>
 
         <div id="completionMessage">
-            Maze Completed! <br/>
+            Maze Completed!<br/>
             <span styel="font-size:18px">Time: <span id="mazeTimeSpan"></span></span><br/>
-            <span style="font-size:14px">Press escape to start a new maze</span>
+            <span style="font-size:14px" class="formfactor-desktop">Press escape to start a new maze</span>
+            <span style="font-size:14px;display:none" class="formfactor-non-desktop">Tap here to start a new maze</span>
         </div>
 
         <div id="blocker">
             <div id="instructions">
                 <span style="font-size:56px">3D Maze</span> <br/>
                 <a href="https://www.chrisraff.com" style="color:gray">ChrisRaff.com</a>
-                <br/><br/><br/>
-                <span style="font-size:36px">Click to play</span>
-                <br /><br />
-                Move: WASD, space and shift<br/>
-                Look: MOUSE, Q and E to roll<br/>
-                Find the exit of the maze. The compass (top left) points towards the exit, and the colors are brighter there.<br/>
-                Feel free to look at the maze from the outside, but to solve the maze you must start from the enterance.<br/>
-                Try larger or smaller mazes with the slider in the bottom right.
+                <br/><br /><br class="formfactor-desktop"/>
+                <span style="font-size:36px" class="formfactor-desktop">Click to play</span>
+                <span style="font-size:36px;display:none" class="formfactor-non-desktop">Tap to play</span>
+                <br /><br class="formfactor-desktop"/>
+                <span class="formfactor-desktop">
+                    Move: WASD, space and shift<br/>
+                    Look: MOUSE, Q and E to roll<br/>
+                    Find the exit of the maze. The compass (top left) points towards the exit, and the colors are brighter there.<br/>
+                    Feel free to look at the maze from the outside, but to solve the maze you must start from the enterance.<br/>
+                    Try larger or smaller mazes with the slider in the top right.
+                </span>
+                <span class="formfactor-non-desktop" style="display:none">
+                    Move: Left side of screen<br/>
+                    Look: Right side of screen<br/>
+                    Find the exit of the maze. The compass (top left) points towards the exit.<br/>
+                    Feel free to look at the maze from the outside,<br/>
+                    but to solve the maze you must start from the enterance.<br/>
+                    Try larger or smaller mazes with the slider in the top right.<br/>
+                    Tap the compass to return to this screen.
+                </span>
             </div>
 
             <div id="adjustments" onclick="event.stopPropagation();">
@@ -132,7 +146,6 @@
             </div>
         </div>
 
-        <script type="text/javascript" src="//wurfl.io/wurfl.js"></script>
         <script type="module" src="js/maze.js"></script>
         <script type="module" src="js/game.js"></script>
     </body>

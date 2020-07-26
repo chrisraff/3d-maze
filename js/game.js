@@ -98,7 +98,21 @@ scene.add( ambLight );
 // init controls
 const form_factor = WURFL.form_factor;
 if (form_factor == 'Smartphone' || form_factor == 'Tablet') {
-    // adjust controls
+    let desktops = document.getElementsByClassName('formfactor-desktop');
+    Array.prototype.forEach.call(
+        desktops,
+        function(e) {
+            e.style.display = 'none';
+        }
+    );
+
+    let mobiles = document.getElementsByClassName('formfactor-non-desktop');
+    Array.prototype.forEach.call(
+        mobiles,
+        function(e) {
+            e.style.display = '';
+        }
+    )
 }
 const controls = new FlyPointerLockControls(camera, renderer.domElement);
 controls.movementSpeed = maze.majorWidth;
