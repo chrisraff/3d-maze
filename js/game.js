@@ -246,9 +246,9 @@ function buildMaze(size=mazeSize) {
                     wallMatrices.push( dummyWall.matrix.clone() );
 
                     wallColors.push(
-                        0.1 + 0.8 * i/(mazeSize*2+1),
-                        0.1 + 0.8 * j/(mazeSize*2+1),
-                        0.1 + 0.8 * k/(mazeSize*2+1)
+                        0.15 + 0.7 * (i-1)/(mazeSize*2+1),
+                        0.15 + 0.7 * (j-1)/(mazeSize*2+1),
+                        0.15 + 0.7 * (k-1)/(mazeSize*2+1)
                     );
 
                 } else {
