@@ -289,7 +289,6 @@ var FlyPointerLockControls = function ( object, domElement ) {
     };
 
     this.lock = function() {
-        this.domElement.requestPointerLock();
         if (!this.isLocked && touchable) {
 
             scope.dispatchEvent( lockEvent );
@@ -297,6 +296,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
             scope.isLocked = true;
 
         }
+        this.domElement.requestPointerLock();
     }
 
     this.unlock = function() {
