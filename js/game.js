@@ -406,7 +406,7 @@ function collisionUpdate() {
         completionMessage.style.display = 'block';
         let seconds = timerClock.getElapsedTime().toFixed(2);
         let timeString = seconds;
-        if (seconds > 60) {
+        if (seconds >= 60) {
             let minutes = Math.floor(seconds / 60);
             let secondString = seconds % 60;
             if (secondString < 10) {
