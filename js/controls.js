@@ -10,6 +10,10 @@ import {
     Vector3
 } from "https://unpkg.com/three@0.118.3/build/three.module.js";
 
+function clamp(val, min, max) {
+    return Math.min( Math.max( val, min ), max );
+}
+
 var FlyPointerLockControls = function ( object, domElement ) {
 
     if ( domElement === undefined ) {
@@ -63,10 +67,19 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     var touchable = is_touch_device();
 
+    var touchDOM = null;
+
     var panTouchDragging = false;
     var panLastTouchX = 0;
     var panLastTouchY = 0;
     var panTouchIdentifier = 0;
+
+    var moveTouchDragging = false;
+    var moveStartX = 0;
+    var moveStartY = 0;
+    var moveLastX = 0;
+    var moveLastY = 0;
+    var moveTouchIdentifier = 0;
 
     function onMouseMove( event ) {
         if ( scope.isLocked === false ) return;
@@ -87,10 +100,19 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         event.preventDefault();
 
-        panTouchDragging = true;
-        panLastTouchX = event.touches[0].clientX;
-        panLastTouchY = event.touches[0].clientY;
-        panTouchIdentifier = event.touches[0].identifier;
+        for (let i = 0; i < event.changedTouches.length; i++) {
+            if (event.touches[i].clientX <= touchDOM.clientWidth / 2) {
+                panTouchDragging = true;
+                panLastTouchX = event.touches[i].clientX;
+                panLastTouchY = event.touches[i].clientY;
+                panTouchIdentifier = event.touches[i].identifier;
+            } else {
+                moveTouchDragging = true;
+                moveStartX = event.touches[i].clientX;
+                moveStartY = event.touches[i].clientY;
+                moveTouchIdentifier = event.touches[i].identifier;
+            }
+        }
     }
 
     function onTouchEnd( event ) {
@@ -98,8 +120,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         for (let i = 0; i < event.changedTouches.length; i++) {
             let t = event.changedTouches[i];
-            if (t.identifier == panTouchIdentifier) {
+            if (t.identifier == panTouchIdentifier && panTouchDragging) {
                 panTouchDragging = false;
+            } else if (t.identifier == moveTouchIdentifier && moveTouchDragging) {
+                moveTouchDragging = false;
             }
         }
     }
@@ -111,7 +135,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         for (let i = 0; i < event.touches.length; i++) {
             let t = event.touches[i];
-            if (t.identifier == panTouchIdentifier){
+            if (t.identifier == panTouchIdentifier && panTouchDragging) {
                 let movementX = (t.clientX - panLastTouchX) || event.mozMovementX || event.webkitMovementX || 0;
                 let movementY = (t.clientY - panLastTouchY) || event.mozMovementY || event.webkitMovementY || 0;
 
@@ -124,6 +148,9 @@ var FlyPointerLockControls = function ( object, domElement ) {
                 scope.applyRotation( scope.tmpRotationVector, 0.002 );
 
                 scope.dispatchEvent( changeEvent );
+            } else if (t.identifier == moveTouchIdentifier && moveTouchDragging) {
+                moveLastX = t.clientX;
+                moveLastY = t.clientY;
             }
         }
     }
@@ -153,10 +180,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
         scope.domElement.ownerDocument.addEventListener( 'pointerlockchange', onPointerlockChange, false);
         scope.domElement.ownerDocument.addEventListener( 'pointerlockerror', onPointerlockError, false);
 
-        let mainCanvas = scope.domElement.ownerDocument.getElementById('mainCanvas');
-        mainCanvas.addEventListener( 'touchstart', onTouchStart, false);
-        mainCanvas.addEventListener( 'touchmove', onTouchMove, false);
-        mainCanvas.addEventListener( 'touchend', onTouchEnd, false);
+        touchDOM = scope.domElement.ownerDocument.getElementById('mainCanvas');
+        touchDOM.addEventListener( 'touchstart', onTouchStart, false);
+        touchDOM.addEventListener( 'touchmove', onTouchMove, false);
+        touchDOM.addEventListener( 'touchend', onTouchEnd, false);
     };
 
     this.disconnect = function() {
@@ -164,10 +191,9 @@ var FlyPointerLockControls = function ( object, domElement ) {
         scope.domElement.ownerDocument.removeEventListener( 'pointerlockchange', onPointerlockChange, false );
         scope.domElement.ownerDocument.removeEventListener( 'pointerlockerror', onPointerlockError, false );
 
-        let mainCanvas = scope.domElement.ownerDocument.getElementById('mainCanvas');
-        mainCanvas.removeEventListener( 'touchstart', onTouchStart, false);
-        mainCanvas.removeEventListener( 'touchmove', onTouchMove, false);
-        mainCanvas.removeEventListener( 'touchend', onTouchEnd, false);
+        touchDOM.removeEventListener( 'touchstart', onTouchStart, false);
+        touchDOM.removeEventListener( 'touchmove', onTouchMove, false);
+        touchDOM.removeEventListener( 'touchend', onTouchEnd, false);
     };
 
     this.dispose = function() {
@@ -176,12 +202,23 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.update = function ( delta ) {
 
-        var moveMult = delta * this.movementSpeed;
-        var rotMult = delta * this.rollSpeed;
+        let moveMult = delta * this.movementSpeed;
+        let rotMult = delta * this.rollSpeed;
 
-        this.object.translateX( this.moveVector.x * moveMult );
-        this.object.translateY( this.moveVector.y * moveMult );
-        this.object.translateZ( this.moveVector.z * moveMult );
+        this.tmpRotationVector.copy(this.moveVector);
+
+        if (moveTouchDragging) {
+            this.tmpRotationVector.x += moveLastX - moveStartX;
+            this.tmpRotationVector.z += moveLastY - moveStartY;
+        }
+        this.tmpRotationVector.x = clamp (this.tmpRotationVector.x, -1, 1);
+        this.tmpRotationVector.z = clamp (this.tmpRotationVector.z, -1, 1);
+
+        this.tmpRotationVector.normalize();
+
+        this.object.translateX( this.tmpRotationVector.x * moveMult );
+        this.object.translateY( this.tmpRotationVector.y * moveMult );
+        this.object.translateZ( this.tmpRotationVector.z * moveMult );
 
         this.applyRotation( this.rotationVector, rotMult );
     };
