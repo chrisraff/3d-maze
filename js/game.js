@@ -227,7 +227,6 @@ function buildMaze(size=mazeSize) {
                 if (iWidth + jWidth + kWidth >= 2 * maze.majorWidth + maze.minorWidth)
                     colorful = true;
 
-                // let material = new THREE.MeshLambertMaterial( { color: `hsl(${Math.floor(Math.random() * 360)},${colorful ? 100 : 0}%,${colorful ? 50 : 10}%)` } );
                 if (colorful) {
                     dummyWall.scale.set( maze.majorWidth, maze.minorWidth, maze.majorWidth );
                     dummyWall.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
@@ -252,13 +251,11 @@ function buildMaze(size=mazeSize) {
                     );
 
                 } else {
-                    // block = new THREE.Mesh( blockGeometry, darkMaterial );
                     dummyWall.scale.set( iWidth, jWidth, kWidth );
                     dummyWall.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
 
                     dummyWall.updateMatrix();
 
-                    // mazeGroup.add( block );
                     blockMatrices.push( dummyWall.matrix.clone() );
                 }
             }
