@@ -37,7 +37,8 @@ compassScene.add( new THREE.AmbientLight( 'gray' ) );
 
 
 // setup basic objects
-var clock = new THREE.Clock();
+var fpsClock = new THREE.Clock();
+var timerClock = new THREE.Clock();
 
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
@@ -98,6 +99,9 @@ blocker.addEventListener( 'click', function() {
 }, false );
 controls.addEventListener( 'lock', function() {
     blocker.style.display = 'none';
+    if (!timerClock.running) {
+        timerClock.start();
+    }
 } );
 controls.addEventListener( 'unlock', function() {
     blocker.style.display = 'block';
@@ -244,6 +248,8 @@ function buildMaze(size=mazeSize) {
         }
     }
 
+    timerClock.stop();
+
 };
 
 const collisionDistance = 0.25;
@@ -332,6 +338,16 @@ function collisionUpdate() {
     } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeSize * 2) {
         finishedMaze = true;
         completionMessage.style.display = 'block';
+        let seconds = timerClock.getElapsedTime().toFixed(2);
+        let timeString = seconds;
+        if (seconds > 60) {
+            let minutes = Math.floor(seconds / 60);
+            let secondString = seconds % 60;
+            if (secondString < 10)
+                secondString = '0' + secondString.toFixed(2);
+            timeString = `${minutes}:${secondString}`;
+        }
+        document.getElementById('mazeTimeSpan').innerHTML = timeString;
     }
 };
 
@@ -348,7 +364,7 @@ window.addEventListener( 'resize', onWindowResize, false );
 
 
 var animate = function () {
-    let delta = clock.getDelta();
+    let delta = fpsClock.getDelta();
 
     requestAnimationFrame( animate );
 
