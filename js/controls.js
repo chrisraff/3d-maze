@@ -172,7 +172,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
     };
 
     this.disableLock = function( event ) {
-        scope.domElement.ownerDocument.exitPointerLock();
+        try {
+            scope.domElement.ownerDocument.exitPointerLock();
+        }
+        catch {} // do nothing
 
         if (scope.isLocked) {
             scope.dispatchEvent( unlockEvent );
@@ -215,7 +218,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
         let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
         exitDOM.removeEventListener( 'touchstart', scope.disableLock , false );
         exitDOM = scope.domElement.ownerDocument.getElementById('compass');
-        exitDOM.addEventListener( 'touchstart', scope.disableLock , false );
+        exitDOM.removeEventListener( 'touchstart', scope.disableLock , false );
     };
 
     this.dispose = function() {
@@ -289,6 +292,11 @@ var FlyPointerLockControls = function ( object, domElement ) {
     };
 
     this.lock = function() {
+        try {
+            this.domElement.requestPointerLock();
+        }
+        catch {} // do nothing
+
         if (!this.isLocked && touchable) {
 
             scope.dispatchEvent( lockEvent );
@@ -296,7 +304,6 @@ var FlyPointerLockControls = function ( object, domElement ) {
             scope.isLocked = true;
 
         }
-        this.domElement.requestPointerLock();
     }
 
     this.unlock = function() {
