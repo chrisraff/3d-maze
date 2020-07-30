@@ -3,7 +3,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
         <meta name="description" content="Fully three dimensional mazes, in first person"/>
         <meta name="mobile-web-app-capable" content="yes">
 
@@ -77,14 +77,14 @@
 
             #compass {
                 position: absolute;
-                top: 0;
-                left: 0;
+                top: env(safe-area-inset-top);
+                left: env(safe-area-inset-left);
             }
 
             #adjustments {
                 position: absolute;
-                top: 0;
-                right: 0;
+                top: env(safe-area-inset-top);
+                right: env(safe-area-inset-right);
                 padding: 10px;
 
                 color: #ffffff;
