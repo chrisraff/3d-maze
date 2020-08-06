@@ -1,5 +1,5 @@
 {
-  "name": "3D  Maze",
+  "name": "3D Maze",
   "short_name": "3D Maze",
   "icons": [{
       "src": "icons/icon-152x152.png",
@@ -14,7 +14,7 @@
       "sizes": "512x512",
       "type": "image/png"
     }],
-  "start_url": "./index.html",
+  "start_url": "/index.html",
   "display": "fullscreen",
   "orientation": "landscape",
   "background_color": "#000",

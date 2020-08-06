@@ -113,7 +113,20 @@
         </script>
     </head>
     <body>
-        <script type="text/javascript" src="//wurfl.io/wurfl.js"></script>
+        <script type="text/javascript" src="js/detectmobilebrowser.js"></script>
+        <script type="text/javascript">
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./service-worker.js')
+                        .then((reg) => {
+                            console.log('service worker registered', reg);
+
+                            // send WURFL data to be cached
+                            // navigator.serviceWorker.controller.postMessage(WURFL);
+                        });
+                });
+            }
+        </script>
 
         <div id="completionMessage">
             Maze Completed!<br/>

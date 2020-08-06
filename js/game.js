@@ -98,8 +98,7 @@ var ambLight = new THREE.AmbientLight( 0x808080 );
 scene.add( ambLight );
 
 // init controls
-const form_factor = WURFL.form_factor;
-if (form_factor == 'Smartphone' || form_factor == 'Tablet') {
+if (isMobile) {
     let desktops = document.getElementsByClassName('formfactor-desktop');
     Array.prototype.forEach.call(
         desktops,
