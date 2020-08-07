@@ -120,9 +120,6 @@
                     navigator.serviceWorker.register('./service-worker.js')
                         .then((reg) => {
                             console.log('service worker registered', reg);
-
-                            // send WURFL data to be cached
-                            // navigator.serviceWorker.controller.postMessage(WURFL);
                         });
                 });
             }

@@ -18,7 +18,6 @@ const FILES_TO_CACHE = [
 const RESOURCES_TO_CACHE = [
     'https://unpkg.com/three@0.118.3/build/three.module.js',
     'https://unpkg.com/three@0.118.3/examples/jsm/loaders/GLTFLoader.js',
-    // '//wurfl.io/wurfl.js',
 ]
 
 self.addEventListener('install', (evt) => {
@@ -33,7 +32,7 @@ self.addEventListener('install', (evt) => {
         caches.open(THIRD_PARTY_CACHE).then((cache) => {
             console.log('[ServiceWorker] Pre-caching external pages for offline');
             RESOURCES_TO_CACHE.forEach((url) => {
-                fetch(url, {mode: url.includes('wurfl') ? 'no-cors' : 'cors'})
+                fetch(url)
                     .then((response) => {
                         // If the response was good, clone it and store it in the cache.
                         if (response.status === 200) {
@@ -78,19 +77,4 @@ self.addEventListener('fetch', (evt) => {
                 });
         })
     );
-});
-
-self.addEventListener('message', (evt) => {
-    if ('form_factor' in evt.data) {
-        // cache wurfl data
-        console.log('[ServiceWorker] caching wurfl data');
-
-        let wurflCode = `var WURFL = ${JSON.stringify(evt.data)}`
-
-        let response = new Response( wurflCode, {status: 200} );
-        
-        caches.open(THIRD_PARTY_CACHE).then((cache) => {
-            cache.put('https://wurfl.io/wurfl.js', response);
-        });
-    }
 });
