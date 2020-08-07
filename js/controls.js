@@ -37,7 +37,9 @@ var FlyPointerLockControls = function ( object, domElement ) {
     
     this.isLocked = false;
 
-    // disable default target object behavior
+    // on first page load, android lets the pointer lock work
+    // this causes the game to be unstartable
+    this.lastLockDate = undefined;
 
     // internals
 
@@ -65,7 +67,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
         }
     }
 
-    var touchable = is_touch_device();
+    this.touchable = is_touch_device();
 
     var touchDOM = null;
 
@@ -156,6 +158,11 @@ var FlyPointerLockControls = function ( object, domElement ) {
     }
 
     function onPointerlockChange() {
+        // prevent android's fake pointerlocks on first load
+        if ( scope.touchable && scope.lastLockDate !== undefined && (new Date().getTime() - scope.lastLockDate) < 250 ) {
+            return;
+        }
+
         if ( scope.domElement.ownerDocument.pointerLockElement === scope.domElement ) {
 
             scope.dispatchEvent( lockEvent );
@@ -295,13 +302,17 @@ var FlyPointerLockControls = function ( object, domElement ) {
         try {
             this.domElement.requestPointerLock();
         }
-        catch {} // do nothing
+        catch (e) {
+            // do nothing
+            console.error(e);
+        }
 
-        if (!this.isLocked && touchable) {
-
+        if (!this.isLocked && this.touchable) {
             scope.dispatchEvent( lockEvent );
 
             scope.isLocked = true;
+
+            scope.lastLockDate = new Date().getTime();
 
         }
     }

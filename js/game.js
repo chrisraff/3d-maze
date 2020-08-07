@@ -122,7 +122,7 @@ blocker.addEventListener( 'click', function() {
     controls.lock();
 }, false );
 blocker.addEventListener( 'touch', function() {
-    controls.lock(true);
+    controls.lock();
 }, false );
 controls.addEventListener( 'lock', function() {
     blocker.style.display = 'none';
