@@ -433,7 +433,7 @@ function onWindowResize() {
 }
 
 window.addEventListener( 'resize', onWindowResize, false );
-
+window.addEventListener( 'orientationchange', onWindowResize, false);
 
 var animate = function () {
     let delta = fpsClock.getDelta();
