@@ -206,6 +206,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
         touchDOM.addEventListener( 'touchstart', onTouchStart, false);
         touchDOM.addEventListener( 'touchmove', onTouchMove, false);
         touchDOM.addEventListener( 'touchend', onTouchEnd, false);
+        touchDOM.addEventListener( 'touchcancel', onTouchEnd, false);
 
         let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
         exitDOM.addEventListener( 'touchstart', scope.disableLock , false );
@@ -221,6 +222,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
         touchDOM.removeEventListener( 'touchstart', onTouchStart, false);
         touchDOM.removeEventListener( 'touchmove', onTouchMove, false);
         touchDOM.removeEventListener( 'touchend', onTouchEnd, false);
+        touchDOM.removeEventListener( 'touchcancel', onTouchEnd, false);
 
         let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
         exitDOM.removeEventListener( 'touchstart', scope.disableLock , false );
