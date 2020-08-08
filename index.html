@@ -100,6 +100,17 @@
                 font-family: Arial;
                 line-height: 36px;
             }
+
+            #version {
+                position: absolute;
+                bottom: env(safe-area-inset-bottom);
+                right: env(safe-area-inset-right);
+                padding: 10px;
+
+                color: rgba(255,255,255,0.25);
+                font-family: Arial;
+                font-size: 10px;
+            }
         </style>
 
         <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -135,7 +146,7 @@
         <div id="blocker">
             <div id="instructions">
                 <span style="font-size:56px">3D Maze</span> <br/>
-                <a href="https://www.chrisraff.com" style="color:gray">ChrisRaff.com</a>
+                <a href="https://www.chrisraff.com" style="color:rgba(255,255,255,0.5)">ChrisRaff.com</a>
                 <br/><br /><br class="formfactor-desktop"/>
                 <span style="font-size:36px" class="formfactor-desktop">Click to play</span>
                 <span style="font-size:36px;display:none" class="formfactor-non-desktop">Tap to play</span>
@@ -163,6 +174,10 @@
                 <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.getElementById('newMazeSizeSpan').innerHTML = this.value"> <br/>
                 New Size: <span id="newMazeSizeSpan">3</span> <br/>
                 <button id='mazeBuildButton'>Build New Maze</button>
+            </div>
+
+            <div id="version">
+                Version 0.0.1
             </div>
         </div>
 

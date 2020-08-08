@@ -1,7 +1,7 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v2';
+const CACHE_NAME = 'static-cache-v3';
 const THIRD_PARTY_CACHE = 'third-party-cache-v1';
 
 const FILES_TO_CACHE = [
@@ -72,7 +72,6 @@ self.addEventListener('fetch', (evt) => {
         caches.open(CACHE_NAME).then((cache) => {
             return cache.match(evt.request)
                 .then((response) => {
-                    console.log(evt.request.url, response)
                     return response || fetch(evt.request);
                 });
         })
