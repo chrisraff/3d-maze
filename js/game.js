@@ -422,7 +422,7 @@ function collisionUpdate() {
         }
         document.getElementById('mazeTimeSpan').innerHTML = timeString;
 
-        gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeSize});')
+        gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeSize});
     }
 };
 
