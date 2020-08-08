@@ -231,6 +231,7 @@ scene.add( dotGroup );
 
 // trail particles
 var trailParticles = [];
+var trailMotions = [];
 var trailGeometry = new THREE.BufferGeometry();
 trailGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3 ) );
 var trailPointSize = window.innerHeight / 25;
@@ -282,6 +283,7 @@ function buildMaze(size=mazeSize) {
         part.material.dispose();
     }
     trailParticles = [];
+    trailMotions = [];
 
     mazeGroup.remove(...mazeGroup.children);
 
@@ -502,10 +504,13 @@ var animate = function () {
         let part = trailParticles[i];
 
         part.material.size -= delta * trailPointSize/10;
+        part.position.addScaledVector( trailMotions[i], delta * 0.02 );
+
         if (part.material.size <= 0.01) {
             scene.remove(part);
             part.material.dispose();
             trailParticles = trailParticles.splice(1); // remove earliest
+            trailMotions = trailMotions.splice(1);
             i--;
         }
     }
@@ -521,6 +526,7 @@ var animate = function () {
         partPoints.position.copy( tmpVector );
 
         trailParticles.push( partPoints );
+        trailMotions.push( new THREE.Vector3( ...sampleUniformSphere() ) );
 
         scene.add( partPoints );
     }
