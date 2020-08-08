@@ -405,6 +405,7 @@ function collisionUpdate() {
     } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeSize * 2) {
         finishedMaze = true;
         completionMessage.style.display = 'block';
+
         let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
         let timeString = seconds;
         if (seconds >= 60) {
@@ -420,6 +421,8 @@ function collisionUpdate() {
             timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
         document.getElementById('mazeTimeSpan').innerHTML = timeString;
+
+        gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeSize});')
     }
 };
 
@@ -433,7 +436,7 @@ function onWindowResize() {
 }
 
 window.addEventListener( 'resize', onWindowResize, false );
-window.addEventListener( 'orientationchange', onWindowResize, false);
+window.addEventListener( 'orientationchange', onWindowResize, false );
 
 var animate = function () {
     let delta = fpsClock.getDelta();
@@ -499,4 +502,6 @@ document.getElementById('mazeBuildButton').addEventListener('click', (event) => 
     let newSize = document.getElementById('newMazeSizeSpan').innerHTML;
     buildMaze(newSize);
     document.getElementById('mazeSizeSpan').innerHTML = mazeSize;
+
+    gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
 }, false);
