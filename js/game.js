@@ -87,8 +87,6 @@ var dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
 // common materials
 var wallMaterial = new THREE.MeshLambertMaterial( { vertexColors: true } );
 var darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
-var dotMaterialLarge = new THREE.PointsMaterial( { size: maze.minorWidth * 5, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } );
-var dotMaterialSmall = new THREE.PointsMaterial( { size: maze.minorWidth * 2, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } );
 
 // set up lights
 var localLight = new THREE.PointLight( 0xffffff );
@@ -135,55 +133,100 @@ controls.addEventListener( 'unlock', function() {
     blocker.style.display = 'block';
 } );
 
-// goal particles
-var dotGroup = new THREE.Group();
-var dotRotationAxes = [];
-var dotTmpQuaternion = new THREE.Quaternion();
-var dotRotationAnim = 0;
-for ( var i = 0; i < 2; i++ ) {
-    let dotVertices = [];
-    let dotColors = [];
+function sampleUniformSphere() {
 
-    for (let i = 0; i < 20; i ++ ) {
-        // uniform sphere
-        let x12 = 1;
-        let x22 = 1;
-        let x1 = 0;
-        let x2 = 0;
-        while (x12 + x22 >= 1) {
-            x1 = Math.random() * 2 - 1;
-            x2 = Math.random() * 2 - 1;
+    let x12 = 1;
+    let x22 = 1;
+    let x1 = 0;
+    let x2 = 0;
 
-            x12 = x1*x1;
-            x22 = x2*x2;
-        }
+    while (x12 + x22 >= 1) {
 
-        let sqrroot = Math.sqrt(1 - x12 - x22);
+        x1 = Math.random() * 2 - 1;
+        x2 = Math.random() * 2 - 1;
 
-        let r = Math.random();
-        r *= r;
-        r = 1 - r;
+        x12 = x1*x1;
+        x22 = x2*x2;
 
-        dotVertices.push(
-            r * (2 * x1 * sqrroot),
-            r * (2 * x2 * sqrroot),
-            r * (1 - 2 * (x12 + x22))
-        );
-
-        tmpColor.setHSL( Math.random(), 1.0, 0.75);
-
-        dotColors.push(tmpColor.r, tmpColor.g, tmpColor.b);
     }
 
-    let dotGeometry = new THREE.BufferGeometry();
-    dotGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( dotVertices, 3 ) );
-    dotGeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( dotColors, 3 ) );
+    let sqrroot = Math.sqrt(1 - x12 - x22);
 
-    let dots = new THREE.Points( dotGeometry, [dotMaterialLarge, dotMaterialSmall][i] );
-    dotGroup.add( dots );
+    let r = Math.random();
+    r *= r;
+    r = 1 - r;
 
-    dotRotationAxes.push( new THREE.Vector3(0.75, i, 0.5).normalize() );
+    return [
+        r * (2 * x1 * sqrroot),
+        r * (2 * x2 * sqrroot),
+        r * (1 - 2 * (x12 + x22))
+    ];
+
 }
+
+// goal particles
+var dotGroup = new THREE.Group();
+const dotsPerGroup = 20;
+var dotRotationAxes = [
+    new THREE.Vector3(0.75, 0, 0.5).normalize(),
+    new THREE.Vector3(0.75, 1, 0.5).normalize()
+];
+var dotPositionArrays = [
+    new Float32Array( 3 * dotsPerGroup ),
+    new Float32Array( 3 * dotsPerGroup )
+];
+var dotColorArrays = [
+    new Float32Array( 3 * dotsPerGroup ),
+    new Float32Array( 3 * dotsPerGroup )
+];
+var dotGeometries = [
+    new THREE.BufferGeometry(),
+    new THREE.BufferGeometry()
+]
+for (let i = 0; i < 2; i++) {
+    dotGeometries[i].setAttribute( 'position', new THREE.BufferAttribute( dotPositionArrays[i], 3 ) );
+    dotGeometries[i].setAttribute( 'color', new THREE.BufferAttribute( dotColorArrays[i], 3 ) );
+}
+var dotMaterials = [
+    new THREE.PointsMaterial( { size: maze.minorWidth * 5, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } ),
+    new THREE.PointsMaterial( { size: maze.minorWidth * 2, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } )
+];
+let dots = [
+    new THREE.Points( dotGeometries[0], dotMaterials[0] ),
+    new THREE.Points( dotGeometries[1], dotMaterials[1] )
+];
+dotGroup.add( ...dots );
+var dotTmpQuaternion = new THREE.Quaternion();
+var dotRotationAnim = 0;
+function dotGroupRandomize() {
+
+    dotRotationAnim = 0;
+
+    for ( let i = 0; i < 2; i++ ) {
+
+        for (let k = 0; k < 20; k ++ ) {
+
+            tmpColor.setHSL( Math.random(), 1.0, 0.75);
+
+            dotColorArrays[i][ k*3 + 0 ] = tmpColor.r;
+            dotColorArrays[i][ k*3 + 1 ] = tmpColor.g;
+            dotColorArrays[i][ k*3 + 2 ] = tmpColor.b;
+
+            let newPos = sampleUniformSphere();
+
+            dotPositionArrays[i][ k*3 + 0 ] = newPos[0];
+            dotPositionArrays[i][ k*3 + 1 ] = newPos[1];
+            dotPositionArrays[i][ k*3 + 2 ] = newPos[2];
+
+        }
+
+        dotGeometries[i].attributes.position.needsUpdate = true;
+        dotGeometries[i].attributes.color.needsUpdate = true;
+        dotGeometries[i].computeBoundingSphere();
+
+    }
+
+};
 scene.add( dotGroup );
 
 // trail particles
@@ -227,7 +270,7 @@ function buildMaze(size=mazeSize) {
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
 
     dotGroup.position.copy( endPos );
-    dotRotationAnim = 0;
+    dotGroupRandomize();
 
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
     camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
