@@ -11,7 +11,7 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="black">
         <meta name="apple-mobile-web-app-title" content="3D Maze">
         <link rel="apple-touch-icon" href="icons/icon-152x152.png">
-        
+
         <meta name="theme-color" content="#dddddd">
 
         <meta property="og:title" content="3D Maze | Chris Raff" />
@@ -35,6 +35,7 @@
                 width: 100%;
                 height: 100%;
                 background-color: rgba(0,0,0,0.5);
+                display: block;
             }
 
             #instructions {
@@ -68,7 +69,7 @@
 
             #completionMessage {
                 position: absolute;
-                display: none;
+                display: block;
 
                 left: 0;
                 right: 0;
@@ -111,6 +112,10 @@
                 font-family: Arial;
                 font-size: 10px;
             }
+
+            .hide {
+                display: none !important;
+            }
         </style>
 
         <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -122,6 +127,8 @@
 
         gtag('config', 'UA-120805992-1');
         </script>
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     </head>
     <body>
         <script type="text/javascript" src="js/detectmobilebrowser.js"></script>
@@ -136,11 +143,11 @@
             }
         </script>
 
-        <div id="completionMessage">
+        <div id="completionMessage" class="hide">
             Maze Completed!<br/>
             <span styel="font-size:18px">Time: <span id="mazeTimeSpan"></span></span><br/>
             <span style="font-size:14px" class="formfactor-desktop">Press escape to start a new maze</span>
-            <span style="font-size:14px;display:none" class="formfactor-non-desktop">Tap here to start a new maze</span>
+            <span style="font-size:14px;" class="formfactor-non-desktop hide">Tap here to start a new maze</span>
         </div>
 
         <div id="blocker">
@@ -149,7 +156,7 @@
                 <a href="https://www.chrisraff.com" style="color:rgba(255,255,255,0.5)">ChrisRaff.com</a>
                 <br/><br /><br class="formfactor-desktop"/>
                 <span style="font-size:36px" class="formfactor-desktop">Click to play</span>
-                <span style="font-size:36px;display:none" class="formfactor-non-desktop">Tap to play</span>
+                <span style="font-size:36px;" class="formfactor-non-desktop hide">Tap to play</span>
                 <br /><br class="formfactor-desktop"/>
                 <span class="formfactor-desktop">
                     Move: WASD, space and shift<br/>
@@ -160,7 +167,7 @@
                     <br/>
                     Try adding this game to your phone's home screen!
                 </span>
-                <span class="formfactor-non-desktop" style="display:none">
+                <span class="formfactor-non-desktop hide">
                     Move: Left side of screen<br/>
                     Look: Right side of screen<br/>
                     Find the exit of the maze. The compass (top left) points towards the exit.<br/>
@@ -179,7 +186,7 @@
             </div>
 
             <div id="version">
-                Version 0.0.2
+                Version 0.0.3
             </div>
         </div>
 

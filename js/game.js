@@ -6,15 +6,13 @@ import { GLTFLoader } from 'https://unpkg.com/three@0.118.3/examples/jsm/loaders
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 
-// get webpage objects
-var blocker = document.getElementById('blocker');
-var completionMessage = document.getElementById('completionMessage');
+// webpage objects
 
 var renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
 renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
 renderer.setSize( window.innerWidth, window.innerHeight );
 renderer.domElement.id = "mainCanvas";
-document.body.appendChild( renderer.domElement );
+$('body').append( renderer.domElement );
 
 
 // add 3d compass
@@ -24,7 +22,7 @@ var compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeig
 compassRenderer.setSize( compassWindowSize, compassWindowSize );
 compassRenderer.setClearColor( 0x000000, 0 );
 compassRenderer.domElement.id = "compass";
-document.body.appendChild( compassRenderer.domElement );
+$('body').append( compassRenderer.domElement );
 
 var compassScene = new THREE.Scene();
 
@@ -97,40 +95,27 @@ scene.add( ambLight );
 
 // init controls
 if (isMobile) {
-    let desktops = document.getElementsByClassName('formfactor-desktop');
-    Array.prototype.forEach.call(
-        desktops,
-        function(e) {
-            e.style.display = 'none';
-        }
-    );
-
-    let mobiles = document.getElementsByClassName('formfactor-non-desktop');
-    Array.prototype.forEach.call(
-        mobiles,
-        function(e) {
-            e.style.display = '';
-        }
-    )
+    $('.formfactor-desktop').addClass('hide');
+    $('.formfactor-non-desktop').removeClass('hide');
 }
 const controls = new FlyPointerLockControls(camera, renderer.domElement);
 controls.movementSpeed = maze.majorWidth;
 controls.rollSpeed = 1;
-blocker.addEventListener( 'click', function() {
+$('#blocker').click( function() {
     controls.lock();
-}, false );
-blocker.addEventListener( 'touch', function() {
+});
+$('#blocker').on( {'touch': function(event) {
     controls.lock();
-}, false );
+}});
 controls.addEventListener( 'lock', function() {
-    blocker.style.display = 'none';
+    $('#blocker').addClass('hide');
     if (!timerRunning) {
         timerRunning = true;
         timerStartMillis = new Date().getTime();
     }
 } );
 controls.addEventListener( 'unlock', function() {
-    blocker.style.display = 'block';
+    $('#blocker').removeClass('hide');
 } );
 
 function sampleUniformSphere() {
@@ -262,7 +247,7 @@ function buildMaze(size=mazeSize) {
     startedMaze = false;
     finishedMaze = false;
 
-    completionMessage.style.display = 'none';
+    $('#completionMessage').addClass('hide');
 
     mazePosNear = null;
     mazePosFar = null;
@@ -449,7 +434,7 @@ function collisionUpdate() {
         startedMaze = true;
     } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeSize * 2) {
         finishedMaze = true;
-        completionMessage.style.display = 'block';
+        $('#completionMessage').removeClass('hide');
 
         let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
         let timeString = seconds;
@@ -465,7 +450,7 @@ function collisionUpdate() {
         } else {
             timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
-        document.getElementById('mazeTimeSpan').innerHTML = timeString;
+        $('#mazeTimeSpan').text(timeString);
 
         gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeSize});
     }
@@ -547,10 +532,9 @@ var animate = function () {
 
 animate();
 
-document.getElementById('mazeBuildButton').addEventListener('click', (event) => {
-    let newSize = document.getElementById('newMazeSizeSpan').innerHTML;
-    buildMaze(newSize);
-    document.getElementById('mazeSizeSpan').innerHTML = mazeSize;
+$('#mazeBuildButton').click((event) => {
+    buildMaze($('#newMazeSizeSpan').text());
+    $('#mazeSizeSpan').text(mazeSize);
 
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
-}, false);
+});
