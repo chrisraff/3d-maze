@@ -82,6 +82,8 @@
                 text-align: center;
                 padding: 10px;
 
+                border-bottom: 1px solid #3336;
+
                 background-color: rgba(0,0,0,0.25);
             }
 
@@ -116,6 +118,10 @@
             .hide {
                 display: none !important;
             }
+
+            .frosted {
+                backdrop-filter: blur(0.3em);
+            }
         </style>
 
         <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -143,7 +149,7 @@
             }
         </script>
 
-        <div id="completionMessage" class="hide">
+        <div id="completionMessage" class="frosted hide">
             Maze Completed!<br/>
             <span styel="font-size:18px">Time: <span id="mazeTimeSpan"></span></span><br/>
             <span style="font-size:14px" class="formfactor-desktop">Press escape to start a new maze</span>
@@ -179,14 +185,14 @@
             </div>
 
             <div id="adjustments" onclick="event.stopPropagation();">
-                Current Size: <span id="mazeSizeSpan">3</span> <br/>
-                <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.getElementById('newMazeSizeSpan').innerHTML = this.value"> <br/>
                 New Size: <span id="newMazeSizeSpan">3</span> <br/>
+                <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.getElementById('newMazeSizeSpan').innerHTML = this.value"> <br/>
+                <span style="font-size: 150%">Size: <span id="mazeSizeSpan">3</span></span> <br/>
                 <button id='mazeBuildButton'>Build New Maze</button>
             </div>
 
             <div id="version">
-                Version 0.0.3
+                Version 0.0.4
             </div>
         </div>
 
