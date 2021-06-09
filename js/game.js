@@ -8,115 +8,73 @@ import * as maze from './maze.js';
 
 // webpage objects
 
-var renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
-renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
-renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.domElement.id = "mainCanvas";
-$('body').append( renderer.domElement );
+var renderer;
+var compassRenderer;
 
+var compassScene;
+var compassCamera;
 
-// add 3d compass
-var compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, powerPreference: "high-performance" } );
-compassRenderer.setPixelRatio( renderer.getPixelRatio() );
-var compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeight)/6 );
-compassRenderer.setSize( compassWindowSize, compassWindowSize );
-compassRenderer.setClearColor( 0x000000, 0 );
-compassRenderer.domElement.id = "compass";
-$('body').append( compassRenderer.domElement );
+// basic objects
+var fpsClock;
+var timerStartMillis;
+var timerRunning;
 
-var compassScene = new THREE.Scene();
+var scene;
+var camera;
 
-var compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
-compassCamera.position.z = 2;
-
-var compassPoint = new THREE.PointLight( 0xffffff );
-compassPoint.position.set( -1, -2, 1 );
-compassScene.add( compassPoint );
-
-compassScene.add( new THREE.AmbientLight( 'gray' ) );
-
-
-// setup basic objects
-var fpsClock = new THREE.Clock();
-var timerStartMillis = 0;
-var timerRunning = false;
-
-var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+var tmpColor;
 
 const PI_2 = Math.PI / 2;
 
-var tmpColor = new THREE.Color();
+// models
+var blockGeometry;
+var wallGeometry;
 
-// load models
-var blockGeometry = new THREE.InstancedBufferGeometry();
-THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxBufferGeometry() );
-var loader = new GLTFLoader();
-var wallGeometry = new THREE.InstancedBufferGeometry();
-var arrowGeometry = new THREE.BufferGeometry();
-var arrowMesh = null;
+var arrowMesh;
 
-loader.load( 'models/wall.glb', function ( gltf ) {
-    let modelWall = gltf.scene.getObjectByName('wall');
-    THREE.BufferGeometry.prototype.copy.call(wallGeometry, modelWall.geometry);
+// materials
+var dotSprite;
 
-    // build maze for first time
-    // (must wait for this model to load or the colors don't work)
-    buildMaze();
-}, undefined, function ( error ) {
+var wallMaterial;
+var darkMaterial;
 
-    console.error( error );
+// controls
+var controls;
 
-} );
-loader.load( 'models/arrow.glb', function ( gltf ) {
-    let modelArrow = gltf.scene.getObjectByName('arrow');
-    THREE.BufferGeometry.prototype.copy.call(arrowGeometry, modelArrow.geometry);
-    arrowMesh = new THREE.Mesh( arrowGeometry, new THREE.MeshLambertMaterial( { color: 0xd92e18 } ) );
-    compassScene.add( arrowMesh );
-}, undefined, function ( error ) {
+// goal particles
+var dotsPerGroup = 20;
+var dotGroup;
+var dotRotationAxes;
+var dotPositionArrays;
+var dotColorArrays;
+var dotGeometries;
+var dotTmpQuaternion;
+var dotRotationAnim;
 
-    console.error( error );
+// trail particles
+var trailParticles;
+var trailMotions;
+var trailGeometry;
+var trailPointSize;
 
-} );
+var lastTrailCameraPosition;
 
-// load texture
-var dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
+var tmpVector;
 
-// common materials
-var wallMaterial = new THREE.MeshLambertMaterial( { vertexColors: true } );
-var darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
-
-// set up lights
-var localLight = new THREE.PointLight( 0xffffff );
-camera.add( localLight );
-scene.add( camera );
-var ambLight = new THREE.AmbientLight( 0x808080 );
-scene.add( ambLight );
-
-// init controls
-if (isMobile) {
-    $('.formfactor-desktop').addClass('hide');
-    $('.formfactor-non-desktop').removeClass('hide');
-}
-const controls = new FlyPointerLockControls(camera, renderer.domElement);
-controls.movementSpeed = maze.majorWidth;
-controls.rollSpeed = 1;
-$('#blocker').click( function() {
-    controls.lock();
-});
-$('#blocker').on( {'touch': function(event) {
-    controls.lock();
-}});
-controls.addEventListener( 'lock', function() {
-    $('#blocker').addClass('hide');
-    if (!timerRunning) {
-        timerRunning = true;
-        timerStartMillis = new Date().getTime();
-    }
-} );
-controls.addEventListener( 'unlock', function() {
-    $('#blocker').removeClass('hide');
-} );
+// maze variables
+var mazeSize;
+var mazeData;
+var mazeGroup;
+// checkpoints
+var startedMaze;
+var finishedMaze;
+// save the positions of the entrance and exit of the maze
+var startPos;
+var segments;
+var endPos;
+// collisions
+var mazePosNear;
+var mazePosFar;
 
 function sampleUniformSphere() {
 
@@ -149,40 +107,6 @@ function sampleUniformSphere() {
 
 }
 
-// goal particles
-var dotGroup = new THREE.Group();
-const dotsPerGroup = 20;
-var dotRotationAxes = [
-    new THREE.Vector3(0.75, 0, 0.5).normalize(),
-    new THREE.Vector3(0.75, 1, 0.5).normalize()
-];
-var dotPositionArrays = [
-    new Float32Array( 3 * dotsPerGroup ),
-    new Float32Array( 3 * dotsPerGroup )
-];
-var dotColorArrays = [
-    new Float32Array( 3 * dotsPerGroup ),
-    new Float32Array( 3 * dotsPerGroup )
-];
-var dotGeometries = [
-    new THREE.BufferGeometry(),
-    new THREE.BufferGeometry()
-]
-for (let i = 0; i < 2; i++) {
-    dotGeometries[i].setAttribute( 'position', new THREE.BufferAttribute( dotPositionArrays[i], 3 ) );
-    dotGeometries[i].setAttribute( 'color', new THREE.BufferAttribute( dotColorArrays[i], 3 ) );
-}
-var dotMaterials = [
-    new THREE.PointsMaterial( { size: maze.minorWidth * 5, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } ),
-    new THREE.PointsMaterial( { size: maze.minorWidth * 2, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } )
-];
-let dots = [
-    new THREE.Points( dotGeometries[0], dotMaterials[0] ),
-    new THREE.Points( dotGeometries[1], dotMaterials[1] )
-];
-dotGroup.add( ...dots );
-var dotTmpQuaternion = new THREE.Quaternion();
-var dotRotationAnim = 0;
 function dotGroupRandomize() {
 
     dotRotationAnim = 0;
@@ -212,34 +136,184 @@ function dotGroupRandomize() {
     }
 
 };
-scene.add( dotGroup );
 
-// trail particles
-var trailParticles = [];
-var trailMotions = [];
-var trailGeometry = new THREE.BufferGeometry();
-trailGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3 ) );
-var trailPointSize = window.innerHeight / 25;
+function init() {
 
-var lastTrailCameraPosition = new THREE.Vector3();
+    renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
+    renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.domElement.id = "mainCanvas";
+    $('body').append( renderer.domElement )
 
-var tmpVector = new THREE.Vector3();
+    // add 3d compass
+    compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, powerPreference: "high-performance" } );
+    compassRenderer.setPixelRatio( renderer.getPixelRatio() );
+    let compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeight)/6 );
+    compassRenderer.setSize( compassWindowSize, compassWindowSize );
+    compassRenderer.setClearColor( 0x000000, 0 );
+    compassRenderer.domElement.id = "compass";
+    $('body').append( compassRenderer.domElement );
 
-// maze variables
-var mazeSize = 3;
-var mazeData = maze.generateMaze(mazeSize);
-var mazeGroup = new THREE.Group();
-scene.add( mazeGroup );
-// checkpoints
-var startedMaze = false;
-var finishedMaze = false;
-// save the positions of the entrance and exit of the maze
-var startPos = new THREE.Vector3( maze.getOffset(1), maze.getOffset(1), maze.getOffset(1) );
-var segments = mazeSize * 2 - 0.5;
-var endPos = new THREE.Vector3();
-// collisions
-var mazePosNear = null; // closer to 0,0,0 (-)
-var mazePosFar = null;
+    compassScene = new THREE.Scene();
+
+    compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
+    compassCamera.position.z = 2;
+
+    let compassPoint = new THREE.PointLight( 0xffffff );
+    compassPoint.position.set( -1, -2, 1 );
+    compassScene.add( compassPoint );
+
+    compassScene.add( new THREE.AmbientLight( 'gray' ) );
+
+    // setup basic objects
+    fpsClock = new THREE.Clock();
+    timerStartMillis = 0;
+    timerRunning = false;
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+    tmpColor = new THREE.Color();
+
+    // load models
+    blockGeometry = new THREE.InstancedBufferGeometry();
+    THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxBufferGeometry() );
+    let loader = new GLTFLoader();
+    wallGeometry = new THREE.InstancedBufferGeometry();
+    let arrowGeometry = new THREE.BufferGeometry();
+
+    loader.load( 'models/wall.glb', function ( gltf ) {
+        let modelWall = gltf.scene.getObjectByName('wall');
+        THREE.BufferGeometry.prototype.copy.call(wallGeometry, modelWall.geometry);
+
+        // build maze for first time
+        // (must wait for this model to load or the colors don't work)
+        buildMaze();
+    }, undefined, function ( error ) {
+
+        console.error( error );
+
+    } );
+    loader.load( 'models/arrow.glb', function ( gltf ) {
+        let modelArrow = gltf.scene.getObjectByName('arrow');
+        THREE.BufferGeometry.prototype.copy.call(arrowGeometry, modelArrow.geometry);
+        arrowMesh = new THREE.Mesh( arrowGeometry, new THREE.MeshLambertMaterial( { color: 0xd92e18 } ) );
+        compassScene.add( arrowMesh );
+    }, undefined, function ( error ) {
+
+        console.error( error );
+
+    } );
+
+    // load texture
+    dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
+
+    // materials
+    wallMaterial = new THREE.MeshLambertMaterial( { vertexColors: true } );
+    darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
+
+    // set up lights
+    let localLight = new THREE.PointLight( 0xffffff );
+    camera.add( localLight );
+    scene.add( camera );
+    let ambLight = new THREE.AmbientLight( 0x808080 );
+    scene.add( ambLight );
+
+    // init controls
+    if (isMobile) {
+        $('.formfactor-desktop').addClass('hide');
+        $('.formfactor-non-desktop').removeClass('hide');
+    }
+    controls = new FlyPointerLockControls(camera, renderer.domElement);
+    controls.movementSpeed = maze.majorWidth;
+    controls.rollSpeed = 1;
+    $('#blocker').click( function() {
+        controls.lock();
+    });
+    $('#blocker').on( {'touch': function(event) {
+        controls.lock();
+    }});
+    controls.addEventListener( 'lock', function() {
+        $('#blocker').addClass('hide');
+        if (!timerRunning) {
+            timerRunning = true;
+            timerStartMillis = new Date().getTime();
+        }
+    } );
+    controls.addEventListener( 'unlock', function() {
+        $('#blocker').removeClass('hide');
+    } );
+
+    // goal particles
+    dotGroup = new THREE.Group();
+    dotRotationAxes = [
+        new THREE.Vector3(0.75, 0, 0.5).normalize(),
+        new THREE.Vector3(0.75, 1, 0.5).normalize()
+    ];
+    dotPositionArrays = [
+        new Float32Array( 3 * dotsPerGroup ),
+        new Float32Array( 3 * dotsPerGroup )
+    ];
+    dotColorArrays = [
+        new Float32Array( 3 * dotsPerGroup ),
+        new Float32Array( 3 * dotsPerGroup )
+    ];
+    dotGeometries = [
+        new THREE.BufferGeometry(),
+        new THREE.BufferGeometry()
+    ];
+
+    for (let i = 0; i < 2; i++) {
+        dotGeometries[i].setAttribute( 'position', new THREE.BufferAttribute( dotPositionArrays[i], 3 ) );
+        dotGeometries[i].setAttribute( 'color', new THREE.BufferAttribute( dotColorArrays[i], 3 ) );
+    }
+
+    let dotMaterials = [
+        new THREE.PointsMaterial( { size: maze.minorWidth * 5, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } ),
+        new THREE.PointsMaterial( { size: maze.minorWidth * 2, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } )
+    ];
+    let dots = [
+        new THREE.Points( dotGeometries[0], dotMaterials[0] ),
+        new THREE.Points( dotGeometries[1], dotMaterials[1] )
+    ];
+    dotGroup.add( ...dots );
+    dotTmpQuaternion = new THREE.Quaternion();
+    dotRotationAnim = 0;
+
+    scene.add( dotGroup );
+
+    // trail particles
+    trailParticles = [];
+    trailMotions = [];
+    trailGeometry = new THREE.BufferGeometry();
+    trailGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3 ) );
+    trailPointSize = window.innerHeight / 25;
+
+    lastTrailCameraPosition = new THREE.Vector3();
+
+    tmpVector = new THREE.Vector3();
+
+    // maze variables
+    mazeSize = 3;
+    mazeData = maze.generateMaze(mazeSize);
+    mazeGroup = new THREE.Group();
+    scene.add( mazeGroup );
+    // checkpoints
+    startedMaze = false;
+    finishedMaze = false;
+    // save the positions of the entrance and exit of the maze
+    startPos = new THREE.Vector3( maze.getOffset(1), maze.getOffset(1), maze.getOffset(1) );
+    segments = mazeSize * 2 - 0.5;
+    endPos = new THREE.Vector3();
+    // collisions
+    mazePosNear = null; // closer to 0,0,0 (-)
+    mazePosFar = null;
+
+    // setup window resize handlers
+    window.addEventListener( 'resize', onWindowResize, false );
+    window.addEventListener( 'orientationchange', onWindowResize, false );
+
+}
 
 function buildMaze(size=mazeSize) {
     mazeSize = size;
@@ -465,9 +539,6 @@ function onWindowResize() {
 
 }
 
-window.addEventListener( 'resize', onWindowResize, false );
-window.addEventListener( 'orientationchange', onWindowResize, false );
-
 var animate = function () {
     let delta = fpsClock.getDelta();
 
@@ -529,6 +600,8 @@ var animate = function () {
     renderer.render( scene, camera );
     compassRenderer.render( compassScene, compassCamera );
 };
+
+init();
 
 animate();
 
