@@ -201,9 +201,14 @@
 
             <div id="adjustments" onclick="event.stopPropagation();">
                 New Size: <span id="newMazeSizeSpan">3</span> <br/>
-                <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.getElementById('newMazeSizeSpan').innerHTML = this.value"> <br/>
+                <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.querySelector('#newMazeSizeSpan').innerHTML = this.value"> <br/>
                 <span style="font-size: 150%">Size: <span id="mazeSizeSpan">3</span></span> <br/>
                 <button id='mazeBuildButton'>Build New Maze</button>
+
+                <br/>
+
+                <input type="checkbox" id="setting-fixed-camera" name="setting-fixed-camera" checked />
+                <label for="setting-fixed-camera">Fixed Camera</label>
             </div>
 
             <div id="copyright">
@@ -211,7 +216,7 @@
             </div>
 
             <div id="version">
-                Version 0.0.4
+                Version 0.0.5
             </div>
         </div>
 

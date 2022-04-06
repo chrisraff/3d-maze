@@ -611,3 +611,7 @@ $('#mazeBuildButton').click((event) => {
 
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
 });
+
+document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
+    controls.setGimbalLocked( event.target.checked );
+});

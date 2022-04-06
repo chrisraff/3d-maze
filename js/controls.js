@@ -5,6 +5,7 @@
  */
 
 import {
+    Euler,
     EventDispatcher,
     Quaternion,
     Vector3
@@ -34,16 +35,19 @@ var FlyPointerLockControls = function ( object, domElement ) {
     this.rollSpeed = 0.005;
 
     this.autoForward = false;
-    
+
     this.isLocked = false;
 
     // on first page load, android lets the pointer lock work
     // this causes the game to be unstartable
     this.lastLockDate = undefined;
 
+    this.gimbalLocked = true;
+
     // internals
 
     this.tmpQuaternion = new Quaternion();
+    this.tmpEulerAngle = new Euler();
 
     this.mouseStatus = 0;
 
@@ -51,7 +55,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
     this.moveVector = new Vector3( 0, 0, 0 );
     this.rotationVector = new Vector3( 0, 0, 0 );
     this.tmpVector = new Vector3( 0, 0, 0 );
-    
+
     var scope = this;
 
     var changeEvent = { type: 'change' };
@@ -259,11 +263,45 @@ var FlyPointerLockControls = function ( object, domElement ) {
     };
 
     this.applyRotation = function ( rotationVector_, scaleFactor = 1 ) {
-        scope.tmpQuaternion.set( rotationVector_.x * scaleFactor, rotationVector_.y * scaleFactor, rotationVector_.z * scaleFactor, 1 ).normalize();
-        scope.object.quaternion.multiply( scope.tmpQuaternion );
+
+        if (scope.gimbalLocked)
+        {
+            scope.tmpEulerAngle.setFromQuaternion(scope.object.quaternion, 'YXZ');
+
+            scope.tmpEulerAngle.y += rotationVector_.y * scaleFactor;
+            scope.tmpEulerAngle.x += rotationVector_.x * scaleFactor;
+
+            scope.tmpEulerAngle.x = clamp(scope.tmpEulerAngle.x, -Math.PI * 0.45, Math.PI * 0.45);
+
+            scope.object.quaternion.setFromEuler( scope.tmpEulerAngle );
+        }
+        else
+        {
+            scope.tmpQuaternion.set( rotationVector_.x * scaleFactor, rotationVector_.y * scaleFactor, rotationVector_.z * scaleFactor, 1 ).normalize();
+            scope.object.quaternion.multiply( scope.tmpQuaternion );
+        }
 
         // expose the rotation vector for convenience
         scope.object.rotation.setFromQuaternion( scope.object.quaternion, scope.object.rotation.order );
+    }
+
+    this.setGimbalLocked = function(setting)
+    {
+        if (scope.gimbalLocked && !setting)
+        {
+            // transition to unlocked camera
+            scope.gimbalLocked = false;
+        }
+        else if (setting && !scope.gimbalLocked)
+        {
+            // transition to locked camera
+            scope.tmpEulerAngle.setFromQuaternion(scope.object.quaternion, 'YXZ');
+            scope.tmpEulerAngle.z = 0;
+            scope.tmpEulerAngle.x = clamp(scope.tmpEulerAngle.x, -Math.PI * 0.45, Math.PI * 0.45);
+            scope.object.rotation.copy(scope.tmpEulerAngle);
+
+            scope.gimbalLocked = true;
+        }
     }
 
     this.updateMovementVector = function () {
@@ -364,6 +402,12 @@ var FlyPointerLockControls = function ( object, domElement ) {
             case 81: /*Q*/ scope.moveState.rollLeft = 1; break;
             case 69: /*E*/ scope.moveState.rollRight = 1; break;
 
+        }
+
+        if (scope.gimbalLocked)
+        {
+            scope.moveState.rollLeft = 0;
+            scope.moveState.rollRight = 0;
         }
 
         scope.updateMovementVector();
