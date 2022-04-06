@@ -1,9 +1,0 @@
-todo
-
--> subreddit release
-
-map?
-
-mobile friendly
-    viewport / pixels
-    controls

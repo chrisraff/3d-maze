@@ -115,6 +115,21 @@
                 font-size: 10px;
             }
 
+            #copyright {
+                position: absolute;
+                bottom: env(safe-area-inset-bottom);
+                left: 0;
+                right: 0;
+                margin-left: auto;
+                margin-right: auto;
+
+                color: rgba(255,255,255,0.25);
+                font-family: Arial;
+                font-size: 10px;
+                padding: 10px;
+                text-align: center;
+            }
+
             .hide {
                 display: none !important;
             }
@@ -189,6 +204,10 @@
                 <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.getElementById('newMazeSizeSpan').innerHTML = this.value"> <br/>
                 <span style="font-size: 150%">Size: <span id="mazeSizeSpan">3</span></span> <br/>
                 <button id='mazeBuildButton'>Build New Maze</button>
+            </div>
+
+            <div id="copyright">
+                © Chris Raff 2022
             </div>
 
             <div id="version">
