@@ -1,8 +1,8 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v8';
-const THIRD_PARTY_CACHE = 'third-party-cache-v2';
+const CACHE_NAME = 'static-cache-v9';
+const THIRD_PARTY_CACHE = 'third-party-cache-v3';
 
 const FILES_TO_CACHE = [
     '/',
@@ -11,13 +11,14 @@ const FILES_TO_CACHE = [
     '/js/maze.js',
     '/js/controls.js',
     '/js/detectmobilebrowser.js',
+    '/js/THREE.MeshLine.js',
     '/models/wall.glb',
     '/models/arrow.glb',
     '/textures/dot.png',
 ];
 const RESOURCES_TO_CACHE = [
-    'https://unpkg.com/three@0.118.3/build/three.module.js',
-    'https://unpkg.com/three@0.118.3/examples/jsm/loaders/GLTFLoader.js',
+    'https://unpkg.com/three@0.132.2/build/three.module.js',
+    'https://unpkg.com/three@0.132.2/examples/jsm/loaders/GLTFLoader.js',
     'https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js',
 ]
 

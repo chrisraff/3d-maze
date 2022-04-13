@@ -9,7 +9,7 @@ import {
     EventDispatcher,
     Quaternion,
     Vector3
-} from "https://unpkg.com/three@0.118.3/build/three.module.js";
+} from "three";
 
 function clamp(val, min, max) {
     return Math.min( Math.max( val, min ), max );

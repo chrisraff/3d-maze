@@ -1,8 +1,9 @@
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
-import * as THREE from 'https://unpkg.com/three@0.118.3/build/three.module.js';
-import { GLTFLoader } from 'https://unpkg.com/three@0.118.3/examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from 'three';
+import { MeshLine, MeshLineMaterial } from 'three.meshline';
+import { GLTFLoader } from 'GLTFLoader';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 
@@ -75,6 +76,11 @@ var endPos;
 // collisions
 var mazePosNear;
 var mazePosFar;
+// history
+var historyPositions;
+var	historyLineMaterial;
+var historyLine;
+var historyMesh;
 
 function sampleUniformSphere() {
 
@@ -308,6 +314,22 @@ function init() {
     // collisions
     mazePosNear = null; // closer to 0,0,0 (-)
     mazePosFar = null;
+    // history
+    historyPositions = [];
+    historyLineMaterial = new MeshLineMaterial( {
+        useMap: true,
+        map: dotSprite,
+		opacity: 1,
+		resolution: new THREE.Vector2( window.innerWidth, window.innerHeight ),
+		sizeAttenuation: true,
+		lineWidth: 0.01,
+        vertexColors: true
+	});
+    historyLine = new MeshLine(); // this is a geometry;
+
+    historyMesh = new THREE.Mesh(historyLine, historyLineMaterial);
+    // historyMesh.material = historyLineMaterial;
+    scene.add( historyMesh );
 
     // setup window resize handlers
     window.addEventListener( 'resize', onWindowResize, false );
@@ -334,6 +356,10 @@ function buildMaze(size=mazeSize) {
 
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
     camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
+
+    historyPositions = [];
+    historyLine.geometry.dispose();
+    historyMesh.visible = false;
 
     lastTrailCameraPosition.copy( camera.position );
     for (let i = 0; i < trailParticles.length; i++) {
@@ -476,7 +502,7 @@ function collisionUpdate() {
     }
 
     // actual collision checking goes here
-    if (newMazePosNear.distanceTo(mazePosNear) != 0) {
+    if (newMazePosNear.distanceToSquared(mazePosNear) != 0) {
         if (newMazePosNear.x - mazePosNear.x < 0) {
             checkCollisionOnAxis('x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
         }
@@ -487,7 +513,7 @@ function collisionUpdate() {
             checkCollisionOnAxis('z', 'y', 'x', mazePosNear, newMazePosNear, mazePosFar, -1);
         }
     }
-    if (newMazePosFar.distanceTo(mazePosFar) != 0) {
+    if (newMazePosFar.distanceToSquared(mazePosFar) != 0) {
         if (newMazePosFar.x - mazePosFar.x > 0) {
             checkCollisionOnAxis('x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
         }
@@ -515,7 +541,6 @@ function collisionUpdate() {
         if (seconds >= 60) {
             let minutes = Math.floor(seconds / 60);
             let secondString = "" + seconds % 60;
-            console.log(secondString);
             if (secondString < 10) {
                 secondString = `0${secondString.toFixed(2)}`;
             }
@@ -526,6 +551,37 @@ function collisionUpdate() {
             timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
         $('#mazeTimeSpan').text(timeString);
+
+        // build history
+        let historyVerts = new Float32Array( 3 * historyPositions.length );
+        let historyCols  = new Float32Array( 6 * historyPositions.length );
+
+        for (let i = 0; i < historyPositions.length; i++)
+        {
+            historyVerts[i*3 + 0] = historyPositions[i].x;
+            historyVerts[i*3 + 1] = historyPositions[i].y;
+            historyVerts[i*3 + 2] = historyPositions[i].z;
+
+            tmpColor.setHSL( i / historyPositions.length, 1.0, 0.75);
+
+            historyCols[ i*6 + 0 ] = tmpColor.r;
+            historyCols[ i*6 + 1 ] = tmpColor.g;
+            historyCols[ i*6 + 2 ] = tmpColor.b;
+            historyCols[ i*6 + 0+3 ] = tmpColor.r;
+            historyCols[ i*6 + 1+3 ] = tmpColor.g;
+            historyCols[ i*6 + 2+3 ] = tmpColor.b;
+        }
+
+        let historyGeometery =  new THREE.BufferGeometry();
+
+        historyGeometery.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
+        historyGeometery.setAttribute( 'position', new THREE.BufferAttribute( historyVerts, 3 ) );
+
+        // let meshLine = new MeshLine(); // this is a geometry;
+        historyLine.setPoints(historyVerts);
+        historyLine.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
+
+        historyMesh.visible = true;
 
         gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeSize});
     }
@@ -552,7 +608,7 @@ var animate = function () {
     // update the compass
     if (arrowMesh != null) {
         arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
-        arrowMesh.applyQuaternion( camera.quaternion.clone().inverse() );
+        arrowMesh.applyQuaternion( camera.quaternion.clone().invert() );
     }
 
     // camera trail
@@ -572,7 +628,7 @@ var animate = function () {
         }
     }
     // spawn new
-    if ( lastTrailCameraPosition.distanceTo( camera.position ) > collisionDistance ) {
+    if ( lastTrailCameraPosition.distanceToSquared( camera.position ) > collisionDistance**2 ) {
         lastTrailCameraPosition.copy( camera.position );
 
         let partMaterial = new THREE.PointsMaterial( { color: `hsl(${Math.random() * 360}, 100%, 50%)`, sizeAttenuation: false, size: trailPointSize, map: dotSprite, alphaTest: 0.8, transparent: true } );
@@ -587,6 +643,14 @@ var animate = function () {
 
         scene.add( partPoints );
     }
+    if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( camera.position ) > (0.1 * collisionDistance)**2 )
+    {
+        // add to history
+        let newHistoryPosition = new THREE.Vector3();
+        newHistoryPosition.copy(camera.position);
+        historyPositions.push( newHistoryPosition );
+    }
+
 
     // make the goal dots spin
     if (finishedMaze && dotRotationAnim < 1) {
