@@ -551,6 +551,7 @@ function collisionUpdate() {
             timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
         $('#mazeTimeSpan').text(timeString);
+        $('#mazeSizeSpan').text(mazeSize);
 
         // build history
         let historyVerts = new Float32Array( 3 * historyPositions.length );
