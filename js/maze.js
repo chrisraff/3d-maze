@@ -32,6 +32,10 @@ function getMazePos(pos) {
 }
 
 function generateMaze(size) {
+    let mazeData = {
+        bounds: [size, size, size],
+        size_string: `${size}`
+    }
     let segments = size * 2 + 1
     function coord2num(x, y, z) {
         return x + segments*y + segments*segments*z;
@@ -130,17 +134,17 @@ function generateMaze(size) {
     }
 
     // convert to boolean and return
-    let output = Array(segments);
+    mazeData.collision_map = Array(segments);
     for (let i = 0; i < segments; i++) {
-        output[i] = Array(segments);
+        mazeData.collision_map[i] = Array(segments);
         for (let j = 0; j < segments; j++) {
-            output[i][j] = board[i][j].map((n) => n == 0);
+            mazeData.collision_map[i][j] = board[i][j].map((n) => n == 0);
         }
     }
     // open start and end
-    output[1][1][0] = false;
-    output[segments - 2][segments - 2][segments - 1] = false;
-    return output;
+    mazeData.collision_map[1][1][0] = false;
+    mazeData.collision_map[segments - 2][segments - 2][segments - 1] = false;
+    return mazeData;
 }
 
 export { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos };

@@ -149,7 +149,7 @@ function init() {
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
     renderer.setSize( window.innerWidth, window.innerHeight );
     renderer.domElement.id = "mainCanvas";
-    $('body').append( renderer.domElement )
+    $('body').append( renderer.domElement );
 
     // add 3d compass
     compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, powerPreference: "high-performance" } );
@@ -378,11 +378,11 @@ function buildMaze(size=mazeSize) {
     let blockMatrices = [];
 
     mazeData = maze.generateMaze(mazeSize);
-    for (let i = 0; i < mazeData.length; i++) {
-        for (let j = 0; j < mazeData[i].length; j++) {
-            for (let k = 0; k < mazeData[i].length; k++) {
-                if (    !mazeData[i][j][k] ||
-                        (i!=0 && i!=mazeSize*2 && j!=0 && j!=mazeSize*2 && k!=0 && k!=mazeSize*2 && // if we're inside...
+    for (let i = 0; i < mazeData.collision_map.length; i++) {
+        for (let j = 0; j < mazeData.collision_map[i].length; j++) {
+            for (let k = 0; k < mazeData.collision_map[i][j].length; k++) {
+                if (    !mazeData.collision_map[i][j][k] ||
+                        (i!=0 && i!=mazeData.bounds[0]*2 && j!=0 && j!=mazeData.bounds[1]*2 && k!=0 && k!=mazeData.bounds[2]*2 && // if we're inside...
                             i%2==0 && j%2==0 && k%2==0)) // don't create unseen blocks
                     continue;
 
@@ -465,12 +465,12 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
     function getMazeData(idx0, idx1) {
         indices[axes[othA0]] = idx0;
         indices[axes[othA1]] = idx1;
-        return mazeData[indices[0]][indices[1]][indices[2]];
+        return mazeData.collision_map[indices[0]][indices[1]][indices[2]];
     }
     // check for collisions on orthogonal axes
-    for (let i = Math.max(min0, 0); i <= Math.min(mazeSize*2, max0); i++) {
-        for (let j = Math.max(min1, 0); j <= Math.min(mazeSize*2, max1); j++) {
-            if (colAx >= 0 && colAx <= mazeSize*2 && getMazeData(i, j)) {
+    for (let i = Math.max(min0, 0); i <= Math.min(mazeData.bounds[axes[othA0]]*2, max0); i++) {
+        for (let j = Math.max(min1, 0); j <= Math.min(mazeData.bounds[axes[othA1]]*2, max1); j++) {
+            if (colAx >= 0 && colAx <= mazeData.bounds[axes[majorAxis]]*2 && getMazeData(i, j)) {
                 collided = true;
                 break;
             }
@@ -532,7 +532,7 @@ function collisionUpdate() {
         startedMaze = false;
     } else if (!startedMaze && mazePosFar.z == 1 && mazePosFar.x == 1 && mazePosFar.y == 1) {
         startedMaze = true;
-    } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeSize * 2) {
+    } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeData.bounds[2] * 2) {
         finishedMaze = true;
         $('#completionMessage').removeClass('hide');
 
@@ -551,7 +551,7 @@ function collisionUpdate() {
             timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
         $('#mazeTimeSpan').text(timeString);
-        $('#mazeSizeSpan').text(mazeSize);
+        $('#mazeSizeSpan').text( mazeData.size_string );
 
         // build history
         let historyVerts = new Float32Array( 3 * historyPositions.length );
@@ -584,7 +584,7 @@ function collisionUpdate() {
 
         historyMesh.visible = true;
 
-        gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeSize});
+        gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeData.size_string});
     }
 };
 

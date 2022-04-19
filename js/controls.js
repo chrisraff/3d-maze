@@ -275,7 +275,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
             scope.tmpEulerAngle.y += rotationVector_.y * scaleFactor;
             scope.tmpEulerAngle.x += rotationVector_.x * scaleFactor;
 
-            scope.tmpEulerAngle.x = clamp(scope.tmpEulerAngle.x, -Math.PI * 0.45, Math.PI * 0.45);
+            scope.tmpEulerAngle.x = clamp(scope.tmpEulerAngle.x, -Math.PI * 0.49, Math.PI * 0.49);
 
             scope.object.quaternion.setFromEuler( scope.tmpEulerAngle );
         }
