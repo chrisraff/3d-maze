@@ -15,8 +15,8 @@ function getOffset(idx) {
     return idx/2 * (majorWidth + minorWidth);
 }
 function inBounds(x,y,z, size) {
-    let ir = (a) => a >= 0 && a < 2*size + 1;
-    return ir(x) && ir(y) && ir(z);
+    let ir = (a, b) => a >= 0 && a < 2*size[b] + 1;
+    return ir(x, 0) && ir(y, 1) && ir(z, 2);
 }
 function getSegment(x) {
     x += minorWidth/2;
@@ -34,14 +34,16 @@ function getMazePos(pos) {
 function generateMaze(size) {
     let mazeData = {
         bounds: [size, size, size],
+        segments: [0,0,0], // must be set later
         size_string: `${size}`
     }
-    let segments = size * 2 + 1
+    mazeData.segments = [mazeData.bounds[0] * 2 + 1, mazeData.bounds[1] * 2 + 1, mazeData.bounds[2] * 2 + 1];
+
     function coord2num(x, y, z) {
-        return x + segments*y + segments*segments*z;
+        return x + mazeData.segments[0]*y + mazeData.segments[0]*mazeData.segments[1]*z;
     }
     function num2coord(n) {
-        return {x: n % segments, y: Math.floor(n/segments) % segments, z: Math.floor(n/(segments*segments))}
+        return {x: n % mazeData.segments[0], y: Math.floor(n/mazeData.segments[0]) % mazeData.segments[1], z: Math.floor(n/(mazeData.segments[0]*mazeData.segments[1]))}
     }
     let fullCells = [];
     function removeCell(cellNum) {
@@ -55,14 +57,14 @@ function generateMaze(size) {
         return fullCells[Math.floor(Math.random() * fullCells.length)];
     }
 
-    let board = Array(segments);
-    for (let i = 0; i < segments; i++) {
-        board[i] = Array(segments);
-        for (let j = 0; j < segments; j++) {
-            board[i][j] = Array(segments).fill(0);
+    let board = Array(mazeData.segments[0]);
+    for (let i = 0; i < mazeData.segments[0]; i++) {
+        board[i] = Array(mazeData.segments[1]);
+        for (let j = 0; j < mazeData.segments[1]; j++) {
+            board[i][j] = Array(mazeData.segments[2]).fill(0);
 
             if (i%2 == 1 && j%2 == 1) {
-                for (let k = 1; k < segments; k+=2) {
+                for (let k = 1; k < mazeData.segments[2]; k+=2) {
                     fullCells.push(coord2num(i,j,k));
                 }
             }
@@ -102,13 +104,14 @@ function generateMaze(size) {
         let start = num2coord(startNum);
         let curr = {x: start.x, y: start.y, z: start.z};
 
+
         // move around until you find an empty cell
         while (board[curr.x][curr.y][curr.z] != 1) {
             // pick random direction
             let dirNum = Math.floor(Math.random() * 6 + 2);
             let dir = num2dir(dirNum);
             // make sure the direction wouldn't move us out of bounds
-            while (!inBounds(curr.x + dir.x*2, curr.y + dir.y*2, curr.z + dir.z*2, size)) {
+            while (!inBounds(curr.x + dir.x*2, curr.y + dir.y*2, curr.z + dir.z*2, mazeData.bounds)) {
                 dirNum = Math.floor(Math.random() * 6 + 2);
                 dir = num2dir(dirNum);
             }
@@ -134,16 +137,16 @@ function generateMaze(size) {
     }
 
     // convert to boolean and return
-    mazeData.collision_map = Array(segments);
-    for (let i = 0; i < segments; i++) {
-        mazeData.collision_map[i] = Array(segments);
-        for (let j = 0; j < segments; j++) {
+    mazeData.collision_map = Array(mazeData.segments[0]);
+    for (let i = 0; i < mazeData.segments[0]; i++) {
+        mazeData.collision_map[i] = Array(mazeData.segments[1]);
+        for (let j = 0; j < mazeData.segments[1]; j++) {
             mazeData.collision_map[i][j] = board[i][j].map((n) => n == 0);
         }
     }
     // open start and end
     mazeData.collision_map[1][1][0] = false;
-    mazeData.collision_map[segments - 2][segments - 2][segments - 1] = false;
+    mazeData.collision_map[mazeData.segments[0] - 2][mazeData.segments[1] - 2][mazeData.segments[2] - 1] = false;
     return mazeData;
 }
 

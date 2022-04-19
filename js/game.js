@@ -413,9 +413,9 @@ function buildMaze(size=mazeSize) {
                     wallMatrices.push( dummyWall.matrix.clone() );
 
                     wallColors.push(
-                        0.15 + 0.7 * (i-1)/(mazeSize*2+1),
-                        0.15 + 0.7 * (j-1)/(mazeSize*2+1),
-                        0.15 + 0.7 * (k-1)/(mazeSize*2+1)
+                        0.15 + 0.7 * (i-1)/(mazeData.segments[0]),
+                        0.15 + 0.7 * (j-1)/(mazeData.segments[1]),
+                        0.15 + 0.7 * (k-1)/(mazeData.segments[2])
                     );
 
                 } else {
@@ -578,7 +578,6 @@ function collisionUpdate() {
         historyGeometery.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
         historyGeometery.setAttribute( 'position', new THREE.BufferAttribute( historyVerts, 3 ) );
 
-        // let meshLine = new MeshLine(); // this is a geometry;
         historyLine.setPoints(historyVerts);
         historyLine.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
 
