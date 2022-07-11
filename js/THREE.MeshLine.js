@@ -1,7 +1,7 @@
 // https://github.com/spite/THREE.MeshLine/blob/master/src/THREE.MeshLine.js @ 358d2f8
 // modified to work with vertex colors (2 per point)
 
-import * as THREE from 'three';
+import * as THREE from 'https://unpkg.com/three@0.128.0/build/three.module.js';
 
 class MeshLine extends THREE.BufferGeometry {
   constructor()

@@ -1,9 +1,9 @@
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
-import * as THREE from 'three';
-import { MeshLine, MeshLineMaterial } from 'three.meshline';
-import { GLTFLoader } from 'GLTFLoader';
+import * as THREE from 'https://unpkg.com/three@0.127.0/build/three.module.js';
+import { MeshLine, MeshLineMaterial } from './THREE.MeshLine.js';
+import { GLTFLoader } from 'https://unpkg.com/three@0.127.0/examples/jsm/loaders/GLTFLoader.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 
