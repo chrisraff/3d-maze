@@ -1,7 +1,7 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v10';
+const CACHE_NAME = 'static-cache-v11';
 const THIRD_PARTY_CACHE = 'third-party-cache-v4';
 
 const FILES_TO_CACHE = [
@@ -19,7 +19,6 @@ const FILES_TO_CACHE = [
 const RESOURCES_TO_CACHE = [
     'https://unpkg.com/three@0.127.0/build/three.module.js',
     'https://unpkg.com/three@0.127.0/examples/jsm/loaders/GLTFLoader.js',
-    'https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js',
 ]
 
 self.addEventListener('install', (evt) => {

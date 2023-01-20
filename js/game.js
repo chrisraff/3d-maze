@@ -149,7 +149,7 @@ function init() {
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
     renderer.setSize( window.innerWidth, window.innerHeight );
     renderer.domElement.id = "mainCanvas";
-    $('body').append( renderer.domElement );
+    document.body.appendChild( renderer.domElement );
 
     // add 3d compass
     compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, powerPreference: "high-performance" } );
@@ -158,7 +158,7 @@ function init() {
     compassRenderer.setSize( compassWindowSize, compassWindowSize );
     compassRenderer.setClearColor( 0x000000, 0 );
     compassRenderer.domElement.id = "compass";
-    $('body').append( compassRenderer.domElement );
+    document.body.appendChild( compassRenderer.domElement );
 
     compassScene = new THREE.Scene();
 
@@ -227,27 +227,27 @@ function init() {
 
     // init controls
     if (isMobile) {
-        $('.formfactor-desktop').addClass('hide');
-        $('.formfactor-non-desktop').removeClass('hide');
+        document.querySelector('.formfactor-desktop').classList.add('hide');
+        document.querySelector('.formfactor-non-desktop').classList.remove('hide');
     }
     controls = new FlyPointerLockControls(camera, renderer.domElement);
     controls.movementSpeed = maze.majorWidth;
     controls.rollSpeed = 1;
-    $('#blocker').click( function() {
+    document.querySelector('#blocker').addEventListener('click', (event) => {
         controls.lock();
     });
-    $('#blocker').on( {'touch': function(event) {
+    document.querySelector('#blocker').addEventListener('onTouch', (event) => {
         controls.lock();
-    }});
+    });
     controls.addEventListener( 'lock', function() {
-        $('#blocker').addClass('hide');
+        document.querySelector('#blocker').classList.add('hide');
         if (!timerRunning) {
             timerRunning = true;
             timerStartMillis = new Date().getTime();
         }
     } );
     controls.addEventListener( 'unlock', function() {
-        $('#blocker').removeClass('hide');
+        document.querySelector('#blocker').classList.remove('hide');
     } );
 
     // goal particles
@@ -343,7 +343,7 @@ function buildMaze(size=mazeSize) {
     startedMaze = false;
     finishedMaze = false;
 
-    $('#completionMessage').addClass('hide');
+    document.querySelector('#completionMessage').classList.add('hide');
 
     mazePosNear = null;
     mazePosFar = null;
@@ -534,7 +534,7 @@ function collisionUpdate() {
         startedMaze = true;
     } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeData.bounds[2] * 2) {
         finishedMaze = true;
-        $('#completionMessage').removeClass('hide');
+        document.querySelector('#completionMessage').classList.remove('hide');
 
         // switch menu screens
         document.querySelector('#menu-intro').classList.add('hide');
@@ -554,8 +554,8 @@ function collisionUpdate() {
         } else {
             timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
-        $('#mazeTimeSpan').text(timeString);
-        $('#mazeCompSizeSpan').text( mazeData.size_string );
+        document.querySelector('#mazeTimeSpan').textContent = timeString;
+        document.querySelector('#mazeCompSizeSpan').textContent = mazeData.size_string;
 
         // build history
         let historyVerts = new Float32Array( 3 * historyPositions.length );
@@ -683,8 +683,8 @@ function buildMazeAndUpdateUI(size)
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
 }
 
-$('#mazeBuildButton').click((event) => {
-    buildMazeAndUpdateUI( $('#newMazeSizeSpan').text() );
+document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
+    buildMazeAndUpdateUI( document.querySelector('#newMazeSizeSlider').value );
 });
 
 document.querySelector('#menu-new-maze-button').addEventListener('click', (event) =>
