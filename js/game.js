@@ -536,6 +536,10 @@ function collisionUpdate() {
         finishedMaze = true;
         $('#completionMessage').removeClass('hide');
 
+        // switch menu screens
+        document.querySelector('#menu-intro').classList.add('hide');
+        document.querySelector('#menu-new-maze').classList.remove('hide');
+
         let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
         let timeString = seconds;
         if (seconds >= 60) {
@@ -551,7 +555,7 @@ function collisionUpdate() {
             timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
         }
         $('#mazeTimeSpan').text(timeString);
-        $('#mazeSizeSpan').text( mazeData.size_string );
+        $('#mazeCompSizeSpan').text( mazeData.size_string );
 
         // build history
         let historyVerts = new Float32Array( 3 * historyPositions.length );
@@ -670,11 +674,24 @@ init();
 
 animate();
 
-$('#mazeBuildButton').click((event) => {
-    buildMaze($('#newMazeSizeSpan').text());
-    $('#mazeSizeSpan').text(mazeSize);
+function buildMazeAndUpdateUI(size)
+{
+    buildMaze(size);
+
+    document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
+}
+
+$('#mazeBuildButton').click((event) => {
+    buildMazeAndUpdateUI( $('#newMazeSizeSpan').text() );
+});
+
+document.querySelector('#menu-new-maze-button').addEventListener('click', (event) =>
+{
+    buildMazeAndUpdateUI( document.querySelector('#menu-new-maze-size-slider').value );
+
+    controls.lock();
 });
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
