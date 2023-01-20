@@ -81,7 +81,7 @@
                 left: env(safe-area-inset-left);
             }
 
-            #adjustments {
+            #options-corner {
                 position: absolute;
                 top: env(safe-area-inset-top);
                 right: env(safe-area-inset-right);
@@ -90,6 +90,12 @@
                 color: #ffffff;
                 font-family: Arial;
                 line-height: 36px;
+            }
+
+            #options-body {
+                border: 1px solid rgba(128, 128, 128, 0.5);
+                background-color: rgba(0,0,0,0.25);
+                padding: 1em;
             }
 
             #version {
@@ -174,7 +180,6 @@
                         Look: MOUSE, Q and E to roll<br/>
                         Find the exit of the maze. The compass (top left) points towards the exit, and the colors are brighter there.<br/>
                         Feel free to look at the maze from the outside, but to solve the maze you must start from the entrance.<br/>
-                        Try larger or smaller mazes with the slider in the top right.<br/>
                         <br/>
                         Try adding this game to your phone's home screen!
                     </span>
@@ -189,20 +194,26 @@
                     </span>
                 </div>
 
-                <div id="adjustments" onclick="event.stopPropagation();">
-                    New Size: <span id="newMazeSizeSpan">3</span> <br/>
-                    <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.querySelector('#newMazeSizeSpan').innerHTML = this.value"> <br/>
-                    <span style="font-size: 150%">Size: <span id="mazeSizeSpan">3</span></span> <br/>
-                    <button id='mazeBuildButton'>Build New Maze</button>
+                <div id="options-corner" onclick="event.stopPropagation();">
+                    <div >
+                        <button style="width: 100%" onclick="document.querySelector('#options-body').classList.toggle('hide')">Options</button>
+                    </div>
 
-                    <br/>
+                    <div id="options-body" class="hide">
+                        New Size: <span id="newMazeSizeSpan">3</span> <br/>
+                        <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.querySelector('#newMazeSizeSpan').innerHTML = this.value"> <br/>
+                        <span style="font-size: 150%">Size: <span id="mazeSizeSpan">3</span></span> <br/>
+                        <button id='mazeBuildButton'>Build New Maze</button>
 
-                    <input type="checkbox" id="setting-fixed-camera" name="setting-fixed-camera" checked />
-                    <label for="setting-fixed-camera">Fixed Camera</label>
+                        <br/>
+
+                        <input type="checkbox" id="setting-fixed-camera" name="setting-fixed-camera" checked />
+                        <label for="setting-fixed-camera">Fixed Camera</label>
+                    </div>
                 </div>
 
                 <div id="copyright">
-                    © Chris Raff 2022
+                    © Chris Raff 2020 - 2023
                 </div>
 
                 <div id="version">
