@@ -227,8 +227,7 @@ function init() {
 
     // init controls
     if (isMobile) {
-        document.querySelector('.formfactor-desktop').classList.add('hide');
-        document.querySelector('.formfactor-non-desktop').classList.remove('hide');
+        document.body.classList.add('formfactor-non-desktop');
     }
     controls = new FlyPointerLockControls(camera, renderer.domElement);
     controls.movementSpeed = maze.majorWidth;

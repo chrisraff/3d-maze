@@ -72,11 +72,18 @@
                 margin: auto;
                 padding: 1em;
             }
-            #menu-new-maze button {
+            body.formfactor-non-desktop #menu-new-maze {
+                font-size: 110%;
+            }
+            body:not(.formfactor-non-desktop) #menu-new-maze button {
                 font-size: 150%;
+            }
+            body.formfactor-non-desktop #menu-new-maze button {
+                font-size: 120%;
             }
             #menu-new-maze input[type='range'] {
                 width: 80%;
+                min-width: 20em;
             }
 
             #completionMessage {
@@ -149,6 +156,13 @@
             .frosted {
                 backdrop-filter: blur(0.3em);
             }
+
+            body.formfactor-non-desktop .formfactor-desktop {
+                display: none;
+            }
+            body:not(.formfactor-non-desktop) .formfactor-non-desktop {
+                display: none;
+            }
         </style>
 
         <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -180,7 +194,7 @@
                 Maze Completed!<br/>
                 <span styel="font-size:18px">Time: <span id="mazeTimeSpan"></span>, Size: <span id="mazeCompSizeSpan"></span></span><br/>
                 <span style="font-size:14px" class="formfactor-desktop">Press escape to start a new maze</span>
-                <span style="font-size:14px;" class="formfactor-non-desktop hide">Tap here to start a new maze</span>
+                <span style="font-size:14px;" class="formfactor-non-desktop">Tap here to start a new maze</span>
             </div>
 
             <div id="blocker">
@@ -192,36 +206,33 @@
                     <div id="menu-intro">
                         <br/><br /><br class="formfactor-desktop"/>
                         <span style="font-size:36px" class="formfactor-desktop">Click to play</span>
-                        <span style="font-size:36px;" class="formfactor-non-desktop hide">Tap to play</span>
+                        <span style="font-size:36px;" class="formfactor-non-desktop">Tap to play</span>
                         <br /><br class="formfactor-desktop"/>
                         <span class="formfactor-desktop">
                             Move: WASD, space and shift<br/>
                             Look: MOUSE, Q and E to roll<br/>
                             Find the exit of the maze. The compass (top left) points towards the exit, and the colors are brighter there.<br/>
-                            Feel free to look at the maze from the outside, but to solve the maze you must start from the entrance.<br/>
                             <br/>
                             Try adding this game to your phone's home screen!
                         </span>
-                        <span class="formfactor-non-desktop hide">
+                        <span class="formfactor-non-desktop">
                             Move: Left side of screen<br/>
                             Look: Right side of screen<br/>
                             Find the exit of the maze. The compass (top left) points towards the exit.<br/>
-                            Feel free to look at the maze from the outside,<br/>
-                            but to solve the maze you must start from the entrance.<br/>
-                            Try larger or smaller mazes with the slider in the top right.<br/>
-                            Tap the compass to return to this screen.
+                            Tap the compass to return to the menu.
                         </span>
                     </div>
 
                     <div id="menu-new-maze" class="hide" onclick="event.stopPropagation();">
-                        <br />
+                        <br class="formfactor-desktop"/>
                         <input type="range" min="2" max="12" value="3" class="slider" id="menu-new-maze-size-slider" oninput="document.querySelector('#menu-new-maze-size-span').innerHTML = this.value">
-                        <br/>
+                        <br class="formfactor-desktop"/>
                         <br/>
                         <span style="font-size: 150%">Size: <span id="menu-new-maze-size-span">3</span></span>
+                        <br class="formfactor-desktop"/>
                         <br/>
-                        <br/>
-                        <button id='menu-new-maze-button'>Start New Maze!</button>
+                        <button id='menu-new-maze-button'>Start New Maze</button>
+                        <br class="formfactor-non-desktop"/>
                     </div>
                 </div>
 
