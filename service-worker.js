@@ -1,7 +1,7 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v11';
+const CACHE_NAME = 'static-cache-v12';
 const THIRD_PARTY_CACHE = 'third-party-cache-v4';
 
 const FILES_TO_CACHE = [

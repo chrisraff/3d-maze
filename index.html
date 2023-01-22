@@ -75,6 +75,9 @@
             body.formfactor-non-desktop #menu-new-maze {
                 font-size: 110%;
             }
+            #menu-new-maze button {
+                padding: 0.5em;
+            }
             body:not(.formfactor-non-desktop) #menu-new-maze button {
                 font-size: 150%;
             }
@@ -225,15 +228,16 @@
 
                     <div id="menu-new-maze" class="hide" onclick="event.stopPropagation();">
                         <br class="formfactor-desktop"/>
+                        <button id='menu-new-maze-button'>Start New Maze</button>
+                        <br class="formfactor-desktop"/>
+                        <br/>
                         <input type="range" min="2" max="12" value="3" class="slider" id="menu-new-maze-size-slider" oninput="document.querySelector('#menu-new-maze-size-span').innerHTML = this.value">
                         <br class="formfactor-desktop"/>
                         <br/>
                         <span style="font-size: 150%">Size: <span id="menu-new-maze-size-span">3</span></span>
-                        <br class="formfactor-desktop"/>
-                        <br/>
-                        <button id='menu-new-maze-button'>Start New Maze</button>
                         <br class="formfactor-non-desktop"/>
                     </div>
+                    <br class="formfactor-non-desktop"/>
                 </div>
 
                 <div id="options-corner" onclick="event.stopPropagation();">
@@ -260,7 +264,7 @@
                 </div>
 
                 <div id="version">
-                    Version 0.0.9
+                    Version 0.0.10
                 </div>
             </div>
         </div>
