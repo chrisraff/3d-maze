@@ -327,7 +327,6 @@ function init() {
     historyLine = new MeshLine(); // this is a geometry;
 
     historyMesh = new THREE.Mesh(historyLine, historyLineMaterial);
-    // historyMesh.material = historyLineMaterial;
     scene.add( historyMesh );
 
     // setup window resize handlers
@@ -586,7 +585,14 @@ function collisionUpdate() {
 
         historyMesh.visible = true;
 
-        gtag('event', 'maze_completed', {'event_category': '3d-maze', 'value': mazeData.size_string});
+        gtag('event', 'maze_completed', {
+                'event_category': '3d-maze',
+                'value': mazeData.size_string,
+                'solution_length': mazeData.analytics.distance_to_end,
+                'branches_on_solution': mazeData.analytics.branches_on_solution,
+                'branches_total': mazeData.analytics.branches_on_solution,
+                'time_since_start': new Date().getTime() - timerStartMillis
+        });
     }
 };
 
@@ -675,11 +681,30 @@ animate();
 
 function buildMazeAndUpdateUI(size)
 {
+    verifyAndReportAbandonedMaze();
+
     buildMaze(size);
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
+}
+
+function verifyAndReportAbandonedMaze()
+{
+    // check if maze was started and if time has passed
+    const elapsed_time = new Date().getTime() - timerStartMillis;
+    if (startedMaze && !finishedMaze && elapsed_time > 7000)
+    {
+        gtag('event', 'maze_abandoned', {
+                'event_category': '3d-maze',
+                'value': mazeData.size_string,
+                'solution_length': mazeData.analytics.distance_to_end,
+                'branches_on_solution': mazeData.analytics.branches_on_solution,
+                'branches_total': mazeData.analytics.branches_on_solution,
+                'time_since_start': elapsed_time
+        });
+    }
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
@@ -696,3 +721,5 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
     controls.setGimbalLocked( event.target.checked );
 });
+
+window.addEventListener('beforeunload', verifyAndReportAbandonedMaze);
