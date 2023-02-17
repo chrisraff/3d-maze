@@ -75,17 +75,18 @@ function generateMaze(size) {
         Wilson maze generation
         0: filled cell (block starts full and gets hollowed out)
         1: empty cell
+        2: empty cell that is impenetrable
         directions:
-        2: x-
-        3: y-
-        4: z-
-        5: x+
-        6: y+
-        7: z+
+        3: x-
+        4: y-
+        5: z-
+        6: x+
+        7: y+
+        8: z+
     */
     function num2dir(num) {
         let out = {x: 0, y: 0, z: 0};
-        num -= 2;
+        num -= 3;
         out[ axes[num % 3] ] = (num >= 3 ? 1 : -1);
         return out;
     }
@@ -94,6 +95,63 @@ function generateMaze(size) {
         board[c.x][c.y][c.z] = 1;
         removeCell(num);
     }
+
+    // biased step: prevent dumb branches next to exit
+    // pick a direction
+    const exit_dir_axis = Math.floor(Math.random() * 3);
+    let exit_dir = num2dir(exit_dir_axis + 3);
+    let exit_length = 1;
+    let exit_bias_pos = [mazeData.segments[0] - 2, mazeData.segments[1] - 2, mazeData.segments[2] - 2];
+    console.log(exit_dir)
+    console.log(exit_bias_pos);
+
+    // assign the exit cell to be impenetrable.
+    const IMPEN = 2;
+    board[exit_bias_pos[0]][exit_bias_pos[1]][exit_bias_pos[2]] = IMPEN;
+    removeCell(coord2num(...exit_bias_pos));
+
+    // while within bounds
+    while (exit_length < mazeData.bounds[exit_dir_axis])
+    {
+        exit_bias_pos[0] += exit_dir.x;
+        exit_bias_pos[1] += exit_dir.y;
+        exit_bias_pos[2] += exit_dir.z;
+
+        // empty the wall along hallway
+        board[exit_bias_pos[0]][exit_bias_pos[1]][exit_bias_pos[2]] = 1;
+
+        exit_bias_pos[0] += exit_dir.x;
+        exit_bias_pos[1] += exit_dir.y;
+        exit_bias_pos[2] += exit_dir.z;
+
+        // assign impenetrable hallway cell
+        board[exit_bias_pos[0]][exit_bias_pos[1]][exit_bias_pos[2]] = IMPEN;
+        removeCell(coord2num(...exit_bias_pos));
+
+        console.log(exit_bias_pos);
+
+        exit_length += 1;
+
+        // possibly continue in this direction
+        if (Math.random() > 0.33)
+            break;
+    }
+    // finally, open hallway to rest of maze
+    // pick from remaining 2 axese: flip a coin and map appropriately
+    let exit_dir_entrance_axis = Math.round(Math.random());
+    if (exit_dir_axis == 0)
+        exit_dir_entrance_axis += 1;
+    else if (exit_dir_axis == 1)
+        exit_dir_entrance_axis *= 2;
+    // open only one wall to the hallway
+    exit_dir = num2dir(exit_dir_entrance_axis + 3);
+    exit_bias_pos[0] += exit_dir.x;
+    exit_bias_pos[1] += exit_dir.y;
+    exit_bias_pos[2] += exit_dir.z;
+    board[exit_bias_pos[0]][exit_bias_pos[1]][exit_bias_pos[2]] = 1;
+    console.log(exit_bias_pos);
+
+    // back to Wilson:
     // empty one cell to start
     emptyCell(randomCellNum());
 
@@ -108,11 +166,13 @@ function generateMaze(size) {
         // move around until you find an empty cell
         while (board[curr.x][curr.y][curr.z] != 1) {
             // pick random direction
-            let dirNum = Math.floor(Math.random() * 6 + 2);
+            let dirNum = Math.floor(Math.random() * 6 + 3);
             let dir = num2dir(dirNum);
-            // make sure the direction wouldn't move us out of bounds
-            while (!inBounds(curr.x + dir.x*2, curr.y + dir.y*2, curr.z + dir.z*2, mazeData.bounds)) {
-                dirNum = Math.floor(Math.random() * 6 + 2);
+            // make sure the direction wouldn't move us out of bounds or to impenetrable cell
+            while (!inBounds(curr.x + dir.x*2, curr.y + dir.y*2, curr.z + dir.z*2, mazeData.bounds)
+                    || board[curr.x + dir.x*2][curr.y + dir.y*2][curr.z + dir.z*2] == IMPEN)
+            {
+                dirNum = Math.floor(Math.random() * 6 + 3);
                 dir = num2dir(dirNum);
             }
             // record the direction and advance
