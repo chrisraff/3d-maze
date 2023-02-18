@@ -162,6 +162,10 @@
                 backdrop-filter: blur(0.3em);
             }
 
+            .transparent-text-50 {
+                color:rgba(255,255,255,0.5);
+            }
+
             body.formfactor-non-desktop .formfactor-desktop {
                 display: none;
             }
@@ -206,7 +210,7 @@
                 <div id="menu-body" class="blocker-tab">
                     <br/>
                     <span style="font-size:56px">3D Maze</span> <br/>
-                    <a href="https://www.chrisraff.com" style="color:rgba(255,255,255,0.5)">ChrisRaff.com</a>
+                    <a href="https://www.chrisraff.com" class="transparent-text-50">ChrisRaff.com</a>
 
                     <div id="menu-intro">
                         <br/><br /><br class="formfactor-desktop"/>
@@ -239,6 +243,15 @@
                         <span style="font-size: 150%">Size: <span id="menu-new-maze-size-span">3</span></span>
                         <br class="formfactor-non-desktop"/>
                     </div>
+
+                    <div id="menu-pause" class="hide">
+                        <br/>
+                        <span class="formfactor-desktop">Click anywhere to continue</span>
+                        <span class="formfactor-non-desktop">Tap anywhere to continue</span>
+                        <br/>
+                        <span class="transparent-text-50" style="font-size: 75%;">Use "Options" to start a new maze</span>
+                    </div>
+
                     <br class="formfactor-non-desktop"/>
                 </div>
 

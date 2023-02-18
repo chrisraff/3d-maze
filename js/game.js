@@ -342,8 +342,6 @@ function buildMaze(size=mazeSize) {
     startedMaze = false;
     finishedMaze = false;
 
-    document.querySelector('#completionMessage').classList.add('hide');
-
     mazePosNear = null;
     mazePosFar = null;
 
@@ -533,65 +531,72 @@ function collisionUpdate() {
     } else if (!startedMaze && mazePosFar.z == 1 && mazePosFar.x == 1 && mazePosFar.y == 1) {
         startedMaze = true;
     } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeData.bounds[2] * 2) {
-        finishedMaze = true;
-        document.querySelector('#completionMessage').classList.remove('hide');
-
-        // switch menu screens
-        document.querySelector('#menu-intro').classList.add('hide');
-        document.querySelector('#menu-new-maze').classList.remove('hide');
-
-        let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
-        let timeString = seconds;
-        if (seconds >= 60) {
-            let minutes = Math.floor(seconds / 60);
-            let secondString = "" + seconds % 60;
-            if (secondString < 10) {
-                secondString = `0${secondString.toFixed(2)}`;
-            }
-            // toFixed can't be trusted
-            secondString = secondString.substring(0, 5);
-            timeString = `${minutes}:${secondString}`;
-        } else {
-            timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
-        }
-        document.querySelector('#mazeTimeSpan').textContent = timeString;
-        document.querySelector('#mazeCompSizeSpan').textContent = mazeData.size_string;
-
-        // build history
-        let historyVerts = new Float32Array( 3 * historyPositions.length );
-        let historyCols  = new Float32Array( 6 * historyPositions.length );
-
-        for (let i = 0; i < historyPositions.length; i++)
-        {
-            historyVerts[i*3 + 0] = historyPositions[i].x;
-            historyVerts[i*3 + 1] = historyPositions[i].y;
-            historyVerts[i*3 + 2] = historyPositions[i].z;
-
-            tmpColor.setHSL( i / historyPositions.length, 1.0, 0.75);
-
-            historyCols[ i*6 + 0 ] = tmpColor.r;
-            historyCols[ i*6 + 1 ] = tmpColor.g;
-            historyCols[ i*6 + 2 ] = tmpColor.b;
-            historyCols[ i*6 + 0+3 ] = tmpColor.r;
-            historyCols[ i*6 + 1+3 ] = tmpColor.g;
-            historyCols[ i*6 + 2+3 ] = tmpColor.b;
-        }
-
-        historyLine.setPoints(historyVerts);
-        historyLine.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
-
-        historyMesh.visible = true;
-
-        gtag('event', 'maze_completed', {
-                'event_category': '3d-maze',
-                'value': mazeData.size_string,
-                'solution_length': mazeData.analytics.distance_to_end,
-                'branches_on_solution': mazeData.analytics.branches_on_solution,
-                'branches_total': mazeData.analytics.branches_on_solution,
-                'time_since_start': new Date().getTime() - timerStartMillis
-        });
+        onMazeCompletion();
     }
 };
+
+function onMazeCompletion()
+{
+    finishedMaze = true;
+    document.querySelector('#completionMessage').classList.remove('hide');
+
+    // switch menu screens
+    document.querySelector('#menu-intro').classList.add('hide');
+    document.querySelector('#menu-pause').classList.add('hide');
+    document.querySelector('#options-body').classList.add('hide');
+    document.querySelector('#menu-new-maze').classList.remove('hide');
+
+    let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
+    let timeString = seconds;
+    if (seconds >= 60) {
+        let minutes = Math.floor(seconds / 60);
+        let secondString = "" + seconds % 60;
+        if (secondString < 10) {
+            secondString = `0${secondString.toFixed(2)}`;
+        }
+        // toFixed can't be trusted
+        secondString = secondString.substring(0, 5);
+        timeString = `${minutes}:${secondString}`;
+    } else {
+        timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
+    }
+    document.querySelector('#mazeTimeSpan').textContent = timeString;
+    document.querySelector('#mazeCompSizeSpan').textContent = mazeData.size_string;
+
+    // build history
+    let historyVerts = new Float32Array( 3 * historyPositions.length );
+    let historyCols  = new Float32Array( 6 * historyPositions.length );
+
+    for (let i = 0; i < historyPositions.length; i++)
+    {
+        historyVerts[i*3 + 0] = historyPositions[i].x;
+        historyVerts[i*3 + 1] = historyPositions[i].y;
+        historyVerts[i*3 + 2] = historyPositions[i].z;
+
+        tmpColor.setHSL( i / historyPositions.length, 1.0, 0.75);
+
+        historyCols[ i*6 + 0 ] = tmpColor.r;
+        historyCols[ i*6 + 1 ] = tmpColor.g;
+        historyCols[ i*6 + 2 ] = tmpColor.b;
+        historyCols[ i*6 + 0+3 ] = tmpColor.r;
+        historyCols[ i*6 + 1+3 ] = tmpColor.g;
+        historyCols[ i*6 + 2+3 ] = tmpColor.b;
+    }
+
+    historyLine.setPoints(historyVerts);
+    historyLine.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
+
+    historyMesh.visible = true;
+
+    gtag('event', 'maze_completed', {
+            'event_category': '3d-maze',
+            'value': mazeData.size_string,
+            'solution_length': mazeData.analytics.distance_to_end,
+            'branches_on_solution': mazeData.analytics.branches_on_solution,
+            'branches_total': mazeData.analytics.branches_on_solution,
+            'time_since_start': new Date().getTime() - timerStartMillis
+    });
+}
 
 function onWindowResize() {
 
@@ -681,6 +686,12 @@ function buildMazeAndUpdateUI(size)
     verifyAndReportAbandonedMaze();
 
     buildMaze(size);
+
+    document.querySelector('#completionMessage').classList.add('hide');
+    document.querySelector('#menu-new-maze').classList.add('hide');
+    // show the pause text if the intro has been cleared
+    if (document.querySelector('#menu-intro').classList.contains('hide'))
+        document.querySelector('#menu-pause').classList.remove('hide');
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
