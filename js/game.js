@@ -178,6 +178,7 @@ function init() {
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+    camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
 
     tmpColor = new THREE.Color();
 
@@ -300,7 +301,7 @@ function init() {
 
     // maze variables
     mazeSize = 3;
-    mazeData = maze.generateMaze(mazeSize);
+    mazeData = null;
     mazeGroup = new THREE.Group();
     scene.add( mazeGroup );
     // checkpoints
