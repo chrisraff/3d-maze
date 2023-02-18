@@ -526,6 +526,7 @@ function collisionUpdate() {
     mazePosNear = newMazePosNear;
     mazePosFar = newMazePosFar;
 
+    // check for maze completion
     if (mazePosFar.z == -1 && startedMaze) {
         startedMaze = false;
     } else if (!startedMaze && mazePosFar.z == 1 && mazePosFar.x == 1 && mazePosFar.y == 1) {
@@ -574,11 +575,6 @@ function collisionUpdate() {
             historyCols[ i*6 + 1+3 ] = tmpColor.g;
             historyCols[ i*6 + 2+3 ] = tmpColor.b;
         }
-
-        let historyGeometery =  new THREE.BufferGeometry();
-
-        historyGeometery.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
-        historyGeometery.setAttribute( 'position', new THREE.BufferAttribute( historyVerts, 3 ) );
 
         historyLine.setPoints(historyVerts);
         historyLine.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
