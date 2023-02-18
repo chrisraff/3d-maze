@@ -102,9 +102,6 @@ function generateMaze(size) {
     let exit_dir = num2dir(exit_dir_axis + 3);
     let exit_length = 1;
     let exit_bias_pos = [mazeData.segments[0] - 2, mazeData.segments[1] - 2, mazeData.segments[2] - 2];
-    console.log(exit_dir)
-    console.log(exit_bias_pos);
-
     // assign the exit cell to be impenetrable.
     const IMPEN = 2;
     board[exit_bias_pos[0]][exit_bias_pos[1]][exit_bias_pos[2]] = IMPEN;
@@ -128,8 +125,6 @@ function generateMaze(size) {
         board[exit_bias_pos[0]][exit_bias_pos[1]][exit_bias_pos[2]] = IMPEN;
         removeCell(coord2num(...exit_bias_pos));
 
-        console.log(exit_bias_pos);
-
         exit_length += 1;
 
         // possibly continue in this direction
@@ -149,7 +144,6 @@ function generateMaze(size) {
     exit_bias_pos[1] += exit_dir.y;
     exit_bias_pos[2] += exit_dir.z;
     board[exit_bias_pos[0]][exit_bias_pos[1]][exit_bias_pos[2]] = 1;
-    console.log(exit_bias_pos);
 
     // back to Wilson:
     // empty one cell to start
