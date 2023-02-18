@@ -248,6 +248,7 @@ function init() {
     } );
     controls.addEventListener( 'unlock', function() {
         document.querySelector('#blocker').classList.remove('hide');
+        updateMenuCentering();
     } );
 
     // goal particles
@@ -334,6 +335,7 @@ function init() {
     window.addEventListener( 'resize', onWindowResize, false );
     window.addEventListener( 'orientationchange', onWindowResize, false );
 
+    updateMenuCentering();
 }
 
 function buildMaze(size=mazeSize) {
@@ -605,6 +607,7 @@ function onWindowResize() {
 
     renderer.setSize( window.innerWidth, window.innerHeight );
 
+    updateMenuCentering();
 }
 
 var animate = function () {
@@ -712,6 +715,20 @@ function verifyAndReportAbandonedMaze()
                 'branches_total': mazeData.analytics.branches_on_solution,
                 'time_since_start': elapsed_time
         });
+    }
+}
+
+function updateMenuCentering()
+{
+    const menu_height = document.querySelector('#menu-body').offsetHeight;
+    const menu_space_to_fit = document.querySelector('#blocker').offsetHeight;
+
+    document.querySelector('#blocker').classList.toggle('center-menu', menu_space_to_fit > menu_height);
+
+    // if the new maze menu is showing, make sure the slider is visible
+    if (!document.querySelector('#menu-new-maze').classList.contains('hide'))
+    {
+        document.querySelector('#menu-new-maze-size-slider').scrollIntoView();
     }
 }
 
