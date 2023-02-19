@@ -532,7 +532,7 @@ function collisionUpdate() {
         startedMaze = false;
     } else if (!startedMaze && mazePosFar.z == 1 && mazePosFar.x == 1 && mazePosFar.y == 1) {
         startedMaze = true;
-    } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeData.bounds[2] * 2) {
+    } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeData.bounds[2] * 2 + 1) {
         onMazeCompletion();
     }
 };
