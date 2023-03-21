@@ -698,6 +698,8 @@ function buildMazeAndUpdateUI(size)
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
+    updateMenuCentering();
+
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
 }
 
@@ -720,8 +722,17 @@ function verifyAndReportAbandonedMaze()
 
 function updateMenuCentering()
 {
-    const menu_height = document.querySelector('#menu-body').offsetHeight;
+    const menu_title = document.querySelector('#menu-title');
+    menu_title.classList.remove('hide');
+
+    let menu_height = document.querySelector('#menu-body').offsetHeight;
     const menu_space_to_fit = document.querySelector('#blocker').offsetHeight;
+
+    // if there is not enough room, hide the title
+    if (menu_space_to_fit < menu_height)
+    {
+        menu_title.classList.add('hide');
+    }
 
     document.querySelector('#blocker').classList.toggle('center-menu', menu_space_to_fit > menu_height);
 
