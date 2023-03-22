@@ -15,6 +15,10 @@ var compassRenderer;
 var compassScene;
 var compassCamera;
 
+// tutorial variables
+var showTutorial = true;
+var inTutorial = false;
+
 // basic objects
 var fpsClock;
 var timerStartMillis;
@@ -234,10 +238,10 @@ function init() {
     controls.movementSpeed = maze.majorWidth;
     controls.rollSpeed = 1;
     document.querySelector('#blocker').addEventListener('click', (event) => {
-        controls.lock();
+        lockControlsAndCheckForTutorial();
     });
     document.querySelector('#blocker').addEventListener('onTouch', (event) => {
-        controls.lock();
+        lockControlsAndCheckForTutorial();
     });
     controls.addEventListener( 'lock', function() {
         document.querySelector('#blocker').classList.add('hide');
@@ -590,6 +594,10 @@ function onMazeCompletion()
 
     historyMesh.visible = true;
 
+    // complete tutorial
+    showTutorial = false;
+    resetTutorial();
+
     gtag('event', 'maze_completed', {
             'event_category': '3d-maze',
             'value': mazeData.size_string,
@@ -676,6 +684,11 @@ var animate = function () {
         mesh.applyQuaternion( dotTmpQuaternion );
     }
 
+    if (inTutorial)
+    {
+        handleTutorial();
+    }
+
     renderer.render( scene, camera );
     compassRenderer.render( compassScene, compassCamera );
 };
@@ -699,6 +712,8 @@ function buildMazeAndUpdateUI(size)
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
     updateMenuCentering();
+
+    resetTutorial();
 
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
 }
@@ -741,6 +756,72 @@ function updateMenuCentering()
     {
         document.querySelector('#menu-new-maze-size-slider').scrollIntoView();
     }
+}
+
+function lockControlsAndCheckForTutorial()
+{
+    controls.lock();
+
+    if (showTutorial && !inTutorial)
+    {
+        initTutorial();
+    }
+}
+
+function initTutorial()
+{
+    // show how to look
+    document.querySelector('#touch-tutorial-look').classList.remove('hide');
+    document.querySelector('#touch-tutorial-look').style.animationName = 'touch-tutorial-animation-look';
+
+    inTutorial = true;
+    tutorialData.state = 'look';
+}
+
+var tutorialData =
+{
+    state: 'look', // look, move
+    cameraPos: new THREE.Vector3()
+}
+function handleTutorial()
+{
+    switch (tutorialData.state)
+    {
+        case 'look':
+        {
+            // check if the user has moved the camera
+            console.log(camera.getWorldDirection(tmpVector).z)
+            if (camera.getWorldDirection(tmpVector).z < 0.975)
+            {
+                tutorialData.state = 'move';
+                document.querySelector('#touch-tutorial-look').classList.add('hide');
+                document.querySelector('#touch-tutorial-look').style.animationName = '';
+                document.querySelector('#touch-tutorial-move').classList.remove('hide');
+                document.querySelector('#touch-tutorial-move').style.animationName = 'touch-tutorial-animation-move';
+                tutorialData.cameraPos.copy(camera.position)
+            }
+        }
+        break;
+        case 'move':
+        {
+            // check if the user has moved enough
+            if (camera.position.distanceToSquared(tutorialData.cameraPos) > 4)
+            {
+                // complete the tutorial
+                showTutorial = false;
+                resetTutorial();
+            }
+        }
+        break;
+    }
+}
+function resetTutorial()
+{
+    inTutorial = false;
+    document.querySelector('#touch-tutorial-look').classList.add('hide');
+    document.querySelector('#touch-tutorial-move').classList.add('hide');
+    document.querySelector('#touch-tutorial-look').style.animationName = '';
+    document.querySelector('#touch-tutorial-move').style.animationName = '';
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
