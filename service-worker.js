@@ -1,7 +1,7 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v13';
+const CACHE_NAME = 'static-cache-v14';
 const THIRD_PARTY_CACHE = 'third-party-cache-v4';
 
 const FILES_TO_CACHE = [
@@ -10,6 +10,7 @@ const FILES_TO_CACHE = [
     '/js/game.js',
     '/js/maze.js',
     '/js/controls.js',
+    '/js/storage.js',
     '/js/detectmobilebrowser.js',
     '/js/THREE.MeshLine.js',
     '/models/wall.glb',

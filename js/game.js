@@ -6,6 +6,7 @@ import { MeshLine, MeshLineMaterial } from './THREE.MeshLine.js';
 import { GLTFLoader } from 'https://unpkg.com/three@0.127.0/examples/jsm/loaders/GLTFLoader.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
+import { storageGetItem, storageSetItem } from './storage.js';
 
 // webpage objects
 
@@ -147,7 +148,14 @@ function dotGroupRandomize() {
 
 };
 
+function loadSavedVariables()
+{
+    showTutorial = storageGetItem('completedTutorial', true) == "false";
+}
+
 function init() {
+
+    loadSavedVariables();
 
     renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
@@ -595,8 +603,7 @@ function onMazeCompletion()
     historyMesh.visible = true;
 
     // complete tutorial
-    showTutorial = false;
-    resetTutorial();
+    resetTutorial(true);
 
     gtag('event', 'maze_completed', {
             'event_category': '3d-maze',
@@ -790,7 +797,6 @@ function handleTutorial()
         case 'look':
         {
             // check if the user has moved the camera
-            console.log(camera.getWorldDirection(tmpVector).z)
             if (camera.getWorldDirection(tmpVector).z < 0.975)
             {
                 tutorialData.state = 'move';
@@ -808,15 +814,20 @@ function handleTutorial()
             if (camera.position.distanceToSquared(tutorialData.cameraPos) > 4)
             {
                 // complete the tutorial
-                showTutorial = false;
-                resetTutorial();
+                resetTutorial(true);
             }
         }
         break;
     }
 }
-function resetTutorial()
+function resetTutorial(complete = false)
 {
+    showTutorial = !complete;
+    if (complete)
+    {
+        storageSetItem('completedTutorial', true);
+    }
+
     inTutorial = false;
     document.querySelector('#touch-tutorial-look').classList.add('hide');
     document.querySelector('#touch-tutorial-move').classList.add('hide');
