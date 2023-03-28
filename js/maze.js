@@ -1,7 +1,7 @@
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
-import * as THREE from 'https://unpkg.com/three@0.128.0/build/three.module.js';
+import * as THREE from 'three';
 
 var majorWidth = 2;
 var minorWidth = 2 * 1/32

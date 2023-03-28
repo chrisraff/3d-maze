@@ -2,7 +2,7 @@
 
 // The cache name should be updated any time the cached files change
 const CACHE_NAME = 'static-cache-v14';
-const THIRD_PARTY_CACHE = 'third-party-cache-v4';
+const THIRD_PARTY_CACHE = 'third-party-cache-v5';
 
 const FILES_TO_CACHE = [
     '/',
@@ -18,8 +18,9 @@ const FILES_TO_CACHE = [
     '/textures/dot.png',
 ];
 const RESOURCES_TO_CACHE = [
-    'https://unpkg.com/three@0.127.0/build/three.module.js',
-    'https://unpkg.com/three@0.127.0/examples/jsm/loaders/GLTFLoader.js',
+    'https://unpkg.com/three@0.128.0/build/three.module.js',
+    'https://unpkg.com/three@0.128.0/examples/jsm/loaders/GLTFLoader.js',
+    'https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js',
 ]
 
 self.addEventListener('install', (evt) => {
