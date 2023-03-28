@@ -626,7 +626,7 @@ function onWindowResize() {
 }
 
 var animate = function () {
-    let delta = fpsClock.getDelta();
+    let delta = Math.min(fpsClock.getDelta(), 0.1);
 
     requestAnimationFrame( animate );
 
