@@ -4,7 +4,7 @@
 import * as THREE from 'https://unpkg.com/three@0.128.0/build/three.module.js';
 
 var majorWidth = 2;
-var minorWidth = 0.125/2;
+var minorWidth = 2 * 1/32
 
 var axes = ['x', 'y', 'z'];
 
@@ -203,9 +203,18 @@ function generateMaze(size) {
     mazeData.collision_map[mazeData.segments[0] - 2][mazeData.segments[1] - 2][mazeData.segments[2] - 1] = false;
 
     // analytics
-    let branches = 0;
+    let branches_total = 0;
     let dead_ends = [];
-    let stack = [ {position: [1, 1, 1], distance_from_start: 1, distance_from_last_branch: 1, branches_on_this_path: 1} ];
+    let stack = [
+        {
+            position: [1, 1, 1],
+            distance_from_start: 1,
+            distance_from_last_branch: 1,
+            branches_on_this_path: 1,
+            last_pos: null, // start has no last pos
+            on_solution: true
+        }
+    ];
     let end_analysis = null;
     let seen = [coord2num(...stack[0].position)];
     let longest_path = 0;
@@ -266,13 +275,13 @@ function generateMaze(size) {
         }
 
         let branched = new_positions.length > 1;
-        if (new_positions.length == 0)
+        if (new_positions.length == 0 && current_item != end_analysis)
         {
             dead_ends.push(current_item);
         }
         else if (branched)
         {
-            branches += new_positions.length - 1;
+            branches_total += new_positions.length - 1;
         }
 
 
@@ -283,18 +292,59 @@ function generateMaze(size) {
                     position: new_positions[pos_idx],
                     distance_from_start: current_item.distance_from_start + 1,
                     distance_from_last_branch: (branched ? 1 : current_item.distance_from_last_branch + 1),
-                    branches_on_this_path: current_item.branches_on_this_path + Math.max(0, new_positions.length - 1)
+                    branches_on_this_path: current_item.branches_on_this_path + Math.max(0, new_positions.length - 1),
+                    last_pos: current_item,
+                    on_solution: false
                 }
             );
         }
     }
 
+    let branches_on_solution = [];
+    // average longest length of a branch that starts from soln:
+    // from end, work back to entrance to assign solution nodes
+    let node = end_analysis;
+    while (!node.on_solution)
+    {
+        node.on_solution = true;
+        node = node.last_pos;
+    }
+    // for all dead ends, work back to solution
+    let longest_dead_end_from_solution = 0;
+    for (let i = 0; i < dead_ends.length; i++)
+    {
+        node = dead_ends[i];
+        let length = 0;
+        while (!node.on_solution)
+        {
+            // node.dead_end_length = 
+            length++;
+            node = node.last_pos;
+        }
+        // node is now the branch on the solution
+        // check if we've seen it before
+        if (node.longest_dead_end == undefined)
+        {
+            branches_on_solution.push(node);
+            node.longest_dead_end = 0;
+        }
+        node.longest_dead_end = Math.max(length, node.longest_dead_end);
+        longest_dead_end_from_solution = Math.max(length, longest_dead_end_from_solution);
+    }
+
+    let average_longest_dead_end_per_solution_branch =  0;
+    branches_on_solution.forEach((x) => average_longest_dead_end_per_solution_branch += x.longest_dead_end);
+    average_longest_dead_end_per_solution_branch /= branches_on_solution.length;
+
     mazeData.analytics =
     {
         distance_to_end: end_analysis.distance_from_start,
-        branches_total: branches,
-        branches_on_solution: end_analysis.branches_on_this_path,
-        dead_ends_data: dead_ends // note that the goal may or may not count as a dead end
+        longest_dead_end_from_solution: longest_dead_end_from_solution,
+        branches_total: branches_total,
+        branches_on_solution: branches_on_solution,
+        branches: branches_total,
+        dead_ends_data: dead_ends,
+        average_longest_dead_end_per_solution_branch: average_longest_dead_end_per_solution_branch
     }
     // console.log(mazeData.analytics);
 
