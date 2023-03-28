@@ -822,10 +822,10 @@ function handleTutorial()
 }
 function resetTutorial(complete = false)
 {
-    showTutorial = !complete;
     if (complete)
     {
         storageSetItem('completedTutorial', true);
+        showTutorial = false;
     }
 
     inTutorial = false;
