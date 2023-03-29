@@ -20,6 +20,9 @@ var compassCamera;
 var showTutorial = true;
 var inTutorial = false;
 
+// ui variables
+var focusedMenu = null;
+
 // basic objects
 var fpsClock;
 var timerStartMillis;
@@ -156,6 +159,8 @@ function loadSavedVariables()
 function init() {
 
     loadSavedVariables();
+
+    focusedMenu = document.querySelector('#menu-intro');
 
     renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
@@ -549,16 +554,25 @@ function collisionUpdate() {
     }
 };
 
+function updateFocusedMenuScreen(newFocusedMenuSelector = null)
+{
+    if (newFocusedMenuSelector != null)
+        focusedMenu = document.querySelector(newFocusedMenuSelector);
+
+    document.querySelectorAll('.focusable-menu').forEach((e => {
+        e.classList.add('hide');
+    }));
+
+    focusedMenu.classList.remove('hide');
+}
+
 function onMazeCompletion()
 {
     finishedMaze = true;
     document.querySelector('#completionMessage').classList.remove('hide');
 
     // switch menu screens
-    document.querySelector('#menu-intro').classList.add('hide');
-    document.querySelector('#menu-pause').classList.add('hide');
-    document.querySelector('#options-body').classList.add('hide');
-    document.querySelector('#menu-new-maze').classList.remove('hide');
+    updateFocusedMenuScreen('#menu-new-maze');
 
     let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
     let timeString = seconds;
@@ -713,8 +727,8 @@ function buildMazeAndUpdateUI(size)
     document.querySelector('#completionMessage').classList.add('hide');
     document.querySelector('#menu-new-maze').classList.add('hide');
     // show the pause text if the intro has been cleared
-    if (document.querySelector('#menu-intro').classList.contains('hide'))
-        document.querySelector('#menu-pause').classList.remove('hide');
+    if (focusedMenu.id != 'menu-intro')
+        updateFocusedMenuScreen('#menu-pause');
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
