@@ -161,6 +161,20 @@
                 text-align: center;
             }
 
+            .tutorial-text {
+                position: absolute;
+                top: 50%;
+                text-align: center;
+                width: 100%;
+                pointer-events: none;
+
+                font-family: Arial;
+                font-size: 25pt;
+
+                animation-duration: 0.5s;
+                animation-iteration-count: 1;
+            }
+
             .touch-tutorial {
                 background-color: rgba(0,0,0,0.5);
                 border: 1px solid rgba(230, 230, 230, 0.5);
@@ -173,7 +187,7 @@
                 pointer-events: none;
             }
             #touch-tutorial-move {
-                animation-duration: 1.5s;
+                animation-duration: 2.5s;
                 animation-iteration-count: infinite;
             }
             @keyframes touch-tutorial-animation-move
@@ -184,23 +198,43 @@
                     left: 20%;
                     top: 70%;
                 }
-                10% {
+                5% {
                     background-color: rgba(0,0,0,0.5);
                     border-color: rgba(230, 230, 230, 0.5);
                 }
-                80% {
+                40% {
                     left: 21%;
                     top: 30%;
                 }
-                90% {
+                45% {
                     background-color: rgba(0,0,0,0.5);
                     border-color: rgba(230, 230, 230, 0.5);
                 }
-                100% {
+                50% {
                     left: 21%;
                     top: 30%;
                     background-color: rgba(0,0,0,0.0);
                     border-color: rgba(230, 230, 230, 0.0);
+                }
+                51% {
+                    background-color: rgba(0,0,0,0.0);
+                    border-color: rgba(230, 230, 230, 0.0);
+                    left: 20%;
+                    top: 70%;
+                }
+                55% {
+                    background-color: rgba(0,0,0,0.5);
+                    border-color: rgba(230, 230, 230, 0.5);
+                }
+                95% {
+                    background-color: rgba(0,0,0,0.5);
+                    border-color: rgba(230, 230, 230, 0.5);
+                }
+                100% {
+                    background-color: rgba(0,0,0,0.0);
+                    border-color: rgba(230, 230, 230, 0.0);
+                    left: 35%;
+                    top: 65%;
                 }
             }
             #touch-tutorial-look {
@@ -232,6 +266,23 @@
                     top: 38%;
                     background-color: rgba(0,0,0,0.0);
                     border-color: rgba(230, 230, 230, 0.0);
+                }
+            }
+
+            @keyframes tutorial-text-fade-in {
+                0% {
+                    color: rgba(255,255,255,0.0);
+                }
+                100% {
+                    color: rgba(255,255,255,1.0);
+                }
+            }
+            @keyframes tutorial-text-fade-out {
+                0% {
+                    color: rgba(255,255,255,1.0);
+                }
+                100% {
+                    color: rgba(255,255,255,0.0);
                 }
             }
 
@@ -292,9 +343,18 @@
             }
         </script>
 
-        <div id="touch-tutorial-move" class="touch-tutorial hide formfactor-non-desktop">
+        <div id="touch-tutorial-move" class="touch-tutorial tutorial-element hide formfactor-non-desktop">
         </div>
-        <div id="touch-tutorial-look" class="touch-tutorial hide formfactor-non-desktop">
+        <div id="touch-tutorial-look" class="touch-tutorial tutorial-element hide formfactor-non-desktop">
+        </div>
+
+        <div id="computer-tutorial-move" class="tutorial-text tutorial-element hide">
+            <span class='formfactor-desktop'>Use the WASD keys to move</span>
+            <span class='formfactor-non-desktop'>Move</span>
+        </div>
+        <div id="computer-tutorial-look" class="tutorial-text tutorial-element hide">
+            <span class='formfactor-desktop'>Move the mouse to look</span>
+            <span class='formfactor-non-desktop'>Look</span>
         </div>
 
         <div id="overlay">
@@ -319,9 +379,7 @@
                         <span style="font-size:36px;" class="formfactor-non-desktop">Tap to play</span>
                         <br /><br />
                         <span class="formfactor-desktop">
-                            Move: WASD, space and shift<br/>
-                            Look: MOUSE, Q and E to roll<br/>
-                            Find the exit of the maze. The compass (top left) points towards the exit, and the colors are brighter there.<br/>
+                            Find the exit of the maze. The compass (top left) points towards the exit.<br/>
                             <br/>
                             Try adding this game to your phone's home screen!
                         </span>

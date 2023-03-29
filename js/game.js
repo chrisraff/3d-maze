@@ -781,14 +781,19 @@ function initTutorial()
     document.querySelector('#touch-tutorial-look').classList.remove('hide');
     document.querySelector('#touch-tutorial-look').style.animationName = 'touch-tutorial-animation-look';
 
+    document.querySelector('#computer-tutorial-look').classList.remove('hide');
+    document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-in';
+    document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
+
     inTutorial = true;
     tutorialData.state = 'look';
 }
 
 var tutorialData =
 {
-    state: 'look', // look, move
-    cameraPos: new THREE.Vector3()
+    state: 'look', // look, move, finalFadeout
+    cameraPos: new THREE.Vector3(),
+    finalFadeoutStart: 0
 }
 function handleTutorial()
 {
@@ -800,11 +805,19 @@ function handleTutorial()
             if (camera.getWorldDirection(tmpVector).z < 0.975)
             {
                 tutorialData.state = 'move';
+                tutorialData.cameraPos.copy(camera.position);
+
                 document.querySelector('#touch-tutorial-look').classList.add('hide');
                 document.querySelector('#touch-tutorial-look').style.animationName = '';
                 document.querySelector('#touch-tutorial-move').classList.remove('hide');
                 document.querySelector('#touch-tutorial-move').style.animationName = 'touch-tutorial-animation-move';
-                tutorialData.cameraPos.copy(camera.position)
+
+                document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-out';
+                document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
+                document.querySelector('#computer-tutorial-move').classList.remove('hide');
+                document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-in';
+                document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
+
             }
         }
         break;
@@ -812,6 +825,22 @@ function handleTutorial()
         {
             // check if the user has moved enough
             if (camera.position.distanceToSquared(tutorialData.cameraPos) > 4)
+            {
+                tutorialData.state = 'finalFadeout';
+                tutorialData.finalFadeoutStart = Date.now();
+
+                document.querySelector('#touch-tutorial-move').classList.add('hide');
+                document.querySelector('#touch-tutorial-move').style.animationName = '';
+
+                document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-out';
+                document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
+            }
+        }
+        break;
+        case 'finalFadeout':
+        {
+            // check if 5 seconds have passed
+            if (Date.now() - tutorialData.finalFadeoutStart > 500)
             {
                 // complete the tutorial
                 resetTutorial(true);
@@ -829,10 +858,10 @@ function resetTutorial(complete = false)
     }
 
     inTutorial = false;
-    document.querySelector('#touch-tutorial-look').classList.add('hide');
-    document.querySelector('#touch-tutorial-move').classList.add('hide');
-    document.querySelector('#touch-tutorial-look').style.animationName = '';
-    document.querySelector('#touch-tutorial-move').style.animationName = '';
+    document.querySelectorAll('.tutorial-element').forEach(element => {
+        element.classList.add('hide');
+        element.style.animationName = '';
+    });
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
