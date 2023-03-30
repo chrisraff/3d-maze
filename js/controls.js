@@ -163,7 +163,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     function onPointerlockChange() {
         // prevent android's fake pointerlocks on first load
-        if ( scope.touchable && scope.lastLockDate !== undefined && (new Date().getTime() - scope.lastLockDate) < 250 ) {
+        if ( (scope.touchable && scope.lastLockDate !== undefined && (new Date().getTime() - scope.lastLockDate) < 250) ||
+              (moveTouchDragging || panTouchDragging) ) {
             return;
         }
 
