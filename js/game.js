@@ -160,8 +160,6 @@ function init() {
 
     loadSavedVariables();
 
-    focusedMenu = document.querySelector('#menu-intro');
-
     renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
     renderer.setSize( window.innerWidth, window.innerHeight );
@@ -251,10 +249,10 @@ function init() {
     controls.movementSpeed = maze.majorWidth;
     controls.rollSpeed = 1;
     document.querySelector('#blocker').addEventListener('click', (event) => {
-        lockControlsAndCheckForTutorial();
+        menuLockControls();
     });
     document.querySelector('#blocker').addEventListener('onTouch', (event) => {
-        lockControlsAndCheckForTutorial();
+        menuLockControls();
     });
     controls.addEventListener( 'lock', function() {
         document.querySelector('#blocker').classList.add('hide');
@@ -351,6 +349,10 @@ function init() {
     // setup window resize handlers
     window.addEventListener( 'resize', onWindowResize, false );
     window.addEventListener( 'orientationchange', onWindowResize, false );
+
+    // init UI
+    focusedMenu = document.querySelector('#menu-intro');
+    updateUIDeviceRotation();
 
     updateMenuCentering();
 }
@@ -483,7 +485,7 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
         indices[axes[othA1]] = idx1;
         return mazeData.collision_map[indices[0]][indices[1]][indices[2]];
     }
-    // check for collisions on orthogonal axes
+    // check for collisions on orthogonal axese
     for (let i = Math.max(min0, 0); i <= Math.min(mazeData.bounds[axes[othA0]]*2, max0); i++) {
         for (let j = Math.max(min1, 0); j <= Math.min(mazeData.bounds[axes[othA1]]*2, max1); j++) {
             if (colAx >= 0 && colAx <= mazeData.bounds[axes[majorAxis]]*2 && getMazeData(i, j)) {
@@ -554,7 +556,7 @@ function collisionUpdate() {
     }
 };
 
-function updateFocusedMenuScreen(newFocusedMenuSelector = null)
+function updateFocusedMenu(newFocusedMenuSelector = null)
 {
     if (newFocusedMenuSelector != null)
         focusedMenu = document.querySelector(newFocusedMenuSelector);
@@ -562,6 +564,9 @@ function updateFocusedMenuScreen(newFocusedMenuSelector = null)
     document.querySelectorAll('.focusable-menu').forEach((e => {
         e.classList.add('hide');
     }));
+
+    if (!document.querySelector('#menu-rotate-phone').classList.contains('hide'))
+        return;
 
     focusedMenu.classList.remove('hide');
 }
@@ -572,7 +577,7 @@ function onMazeCompletion()
     document.querySelector('#completionMessage').classList.remove('hide');
 
     // switch menu screens
-    updateFocusedMenuScreen('#menu-new-maze');
+    updateFocusedMenu('#menu-new-maze');
 
     let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
     let timeString = seconds;
@@ -636,7 +641,36 @@ function onWindowResize() {
 
     renderer.setSize( window.innerWidth, window.innerHeight );
 
+    updateUIDeviceRotation();
+
     updateMenuCentering();
+}
+
+// returns false if the device is in portrait and has a screen ratio steeper than 4:3
+function isValidMobileAspectRatio()
+{
+    return window.innerWidth * 3.95 / 3.0 > window.innerHeight;
+}
+
+function updateUIDeviceRotation()
+{
+    // if mobile and the aspect ratio is steeper than 4:3, require the user to rotate the phone
+    if (isMobile && !isValidMobileAspectRatio())
+    {
+        if (controls.isLocked)
+        {
+            controls.disableLock(new Event(''));
+        }
+
+        focusedMenu.classList.add('hide');
+        document.querySelector('#menu-rotate-phone').classList.remove('hide');
+    }
+    // if the rotation hint is showing and the user has rotated, restore the menu
+    else if (!document.querySelector('#menu-rotate-phone').classList.contains('hide'))
+    {
+        document.querySelector('#menu-rotate-phone').classList.add('hide');
+        updateFocusedMenu();
+    }
 }
 
 var animate = function () {
@@ -728,7 +762,7 @@ function buildMazeAndUpdateUI(size)
     document.querySelector('#menu-new-maze').classList.add('hide');
     // show the pause text if the intro has been cleared
     if (focusedMenu.id != 'menu-intro')
-        updateFocusedMenuScreen('#menu-pause');
+        updateFocusedMenu('#menu-pause');
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
@@ -779,9 +813,11 @@ function updateMenuCentering()
     }
 }
 
-function lockControlsAndCheckForTutorial()
+function menuLockControls()
 {
-    controls.lock();
+    // do not allow locking on mobile when in portrait mode
+    if (!isMobile || isValidMobileAspectRatio())
+        controls.lock();
 
     if (showTutorial && !inTutorial)
     {
@@ -886,7 +922,7 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 {
     buildMazeAndUpdateUI( document.querySelector('#menu-new-maze-size-slider').value );
 
-    controls.lock();
+    menuLockControls();
 });
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
