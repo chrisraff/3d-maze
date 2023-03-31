@@ -258,7 +258,7 @@ function init() {
         document.querySelector('#blocker').classList.add('hide');
         if (!timerRunning) {
             timerRunning = true;
-            timerStartMillis = new Date().getTime();
+            timerStartMillis = Date.now();
         }
     } );
     controls.addEventListener( 'unlock', function() {
@@ -579,7 +579,7 @@ function onMazeCompletion()
     // switch menu screens
     updateFocusedMenu('#menu-new-maze');
 
-    let seconds = ( (new Date().getTime() - timerStartMillis) / 1000).toFixed(2);
+    let seconds = ( (Date.now() - timerStartMillis) / 1000).toFixed(2);
     let timeString = seconds;
     if (seconds >= 60) {
         let minutes = Math.floor(seconds / 60);
@@ -630,7 +630,7 @@ function onMazeCompletion()
             'solution_length': mazeData.analytics.distance_to_end,
             'branches_on_solution': mazeData.analytics.branches_on_solution,
             'branches_total': mazeData.analytics.branches_on_solution,
-            'time_since_start': new Date().getTime() - timerStartMillis
+            'time_since_start': Date.now() - timerStartMillis
     });
 }
 
@@ -776,7 +776,7 @@ function buildMazeAndUpdateUI(size)
 function verifyAndReportAbandonedMaze()
 {
     // check if maze was started and if time has passed
-    const elapsed_time = new Date().getTime() - timerStartMillis;
+    const elapsed_time = Date.now() - timerStartMillis;
     if (startedMaze && !finishedMaze && elapsed_time > 7000)
     {
         gtag('event', 'maze_abandoned', {
