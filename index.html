@@ -115,10 +115,26 @@
                 background-color: rgba(0,0,0,0.25);
             }
 
-            #compass {
+            #compass-container {
                 position: absolute;
                 top: env(safe-area-inset-top);
                 left: env(safe-area-inset-left);
+                animation-duration: 0.5s;
+                animation-iteration-count: 12;
+            }
+
+            @keyframes compass-tutorial-highlight {
+                0% {
+                    background: radial-gradient( rgba(255, 255, 255, 0.0) 10%, rgba(255, 255, 255, 0.0) 60%);
+                }
+
+                50% {
+                    background: radial-gradient( rgba(200, 255, 255, 1.0) 20%, rgba(255, 255, 255, 0.0) 60%);
+                }
+
+                100% {
+                    background: radial-gradient( rgba(255, 255, 255, 0.0) 10%, rgba(255, 255, 255, 0.0) 60%);
+                }
             }
 
             #options-corner {
@@ -346,6 +362,8 @@
             }
         </script>
 
+        <div id="compass-container"></div>
+
         <div id="touch-tutorial-move" class="touch-tutorial tutorial-element hide formfactor-non-desktop">
         </div>
         <div id="touch-tutorial-look" class="touch-tutorial tutorial-element hide formfactor-non-desktop">
@@ -358,6 +376,11 @@
         <div id="computer-tutorial-look" class="tutorial-text tutorial-element hide">
             <span class='formfactor-desktop'>Move the mouse to look</span>
             <span class='formfactor-non-desktop'>Look</span>
+        </div>
+        <div id="computer-tutorial-compass" class="tutorial-text tutorial-element hide">
+            <span>The compass points towards the exit</span>
+            <br class='formfactor-non-desktop' />
+            <span style="font-size: 50%;" class='formfactor-non-desktop'>Tap the compass to pause</span>
         </div>
 
         <div id="overlay">
@@ -382,13 +405,12 @@
                         <span style="font-size:36px;" class="formfactor-non-desktop">Tap to play</span>
                         <br /><br />
                         <span class="formfactor-desktop">
-                            Find the exit of the maze. The compass (top left) points towards the exit.<br/>
+                            Explore the maze and find the exit!<br/>
                             <br/>
-                            Try adding this game to your phone's home screen!
+                            Try adding this game to your phone's home screen.
                         </span>
                         <span class="formfactor-non-desktop">
-                            Find the exit of the maze. The compass (top left) points towards the exit.<br/>
-                            Tap the compass to return to the menu.
+                            Explore the maze and find the exit!<br/>
                         </span>
                     </div>
 

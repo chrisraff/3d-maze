@@ -173,7 +173,7 @@ function init() {
     compassRenderer.setSize( compassWindowSize, compassWindowSize );
     compassRenderer.setClearColor( 0x000000, 0 );
     compassRenderer.domElement.id = "compass";
-    document.body.appendChild( compassRenderer.domElement );
+    document.querySelector('#compass-container').appendChild( compassRenderer.domElement );
 
     compassScene = new THREE.Scene();
 
@@ -843,7 +843,7 @@ var tutorialData =
 {
     state: 'look', // look, move, finalFadeout
     cameraPos: new THREE.Vector3(),
-    finalFadeoutStart: 0
+    lastLoggedTime: 0
 }
 function handleTutorial()
 {
@@ -876,21 +876,40 @@ function handleTutorial()
             // check if the user has moved enough
             if (camera.position.distanceToSquared(tutorialData.cameraPos) > 4)
             {
-                tutorialData.state = 'finalFadeout';
-                tutorialData.finalFadeoutStart = Date.now();
+                tutorialData.state = 'compass';
+                tutorialData.lastLoggedTime = Date.now();
 
                 document.querySelector('#touch-tutorial-move').classList.add('hide');
                 document.querySelector('#touch-tutorial-move').style.animationName = '';
 
                 document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-out';
                 document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
+
+                document.querySelector('#computer-tutorial-compass').classList.remove('hide');
+                document.querySelector('#computer-tutorial-compass').style.animationName = 'tutorial-text-fade-in';
+                document.querySelector('#computer-tutorial-compass').style.animationFillMode = 'forwards';
+
+                document.querySelector('#compass-container').style.animationName = 'compass-tutorial-highlight';
+            }
+        }
+        break;
+        case 'compass':
+        {
+            // check if 6 seconds have passed
+            if (Date.now() - tutorialData.lastLoggedTime > 6000)
+            {
+                tutorialData.state = 'finalFadeout';
+                tutorialData.lastLoggedTime = Date.now();
+
+                document.querySelector('#computer-tutorial-compass').style.animationName = 'tutorial-text-fade-out';
+                document.querySelector('#computer-tutorial-compass').style.animationFillMode = 'forwards';
             }
         }
         break;
         case 'finalFadeout':
         {
-            // check if 5 seconds have passed
-            if (Date.now() - tutorialData.finalFadeoutStart > 500)
+            // check if 0.5 seconds have passed
+            if (Date.now() - tutorialData.lastLoggedTime > 500)
             {
                 // complete the tutorial
                 resetTutorial(true);
@@ -912,6 +931,7 @@ function resetTutorial(complete = false)
         element.classList.add('hide');
         element.style.animationName = '';
     });
+    document.querySelector('#compass-container').style.animationName = '';
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
