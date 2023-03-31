@@ -335,6 +335,10 @@
         gtag('config', 'UA-120805992-1');
         </script>
 
+        <!-- Import maps polyfill -->
+        <!-- Remove this when import maps will be widely supported -->
+        <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
     </head>
     <body>
         <script type="text/javascript" src="js/detectmobilebrowser.js"></script>
@@ -348,10 +352,6 @@
                 });
             }
         </script>
-
-        <!-- Import maps polyfill -->
-        <!-- Remove this when import maps will be widely supported -->
-        <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
 
         <script type="importmap">
             {

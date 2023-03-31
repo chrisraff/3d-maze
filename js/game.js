@@ -153,7 +153,9 @@ function dotGroupRandomize() {
 
 function loadSavedVariables()
 {
-    showTutorial = storageGetItem('completedTutorial', true) == "false";
+    const lastMazeCompletionDate = Number(storageGetItem('lastMazeCompletionDate', '0'));
+    // show tutorial if more than 30 days have passed since the last maze completion
+    showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
 }
 
 function init() {
@@ -623,6 +625,7 @@ function onMazeCompletion()
 
     // complete tutorial
     resetTutorial(true);
+    storageSetItem('lastMazeCompletionDate', Date.now());
 
     gtag('event', 'maze_completed', {
             'event_category': '3d-maze',
@@ -922,7 +925,6 @@ function resetTutorial(complete = false)
 {
     if (complete)
     {
-        storageSetItem('completedTutorial', true);
         showTutorial = false;
     }
 
