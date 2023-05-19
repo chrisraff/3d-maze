@@ -265,6 +265,13 @@ function init() {
     } );
     controls.addEventListener( 'unlock', function() {
         document.querySelector('#blocker').classList.remove('hide');
+
+        // determine if the pause menu should be shown
+        if (!finishedMaze && focusedMenu.id != 'menu-daily-intro' && !inTutorial)
+        {
+            updateFocusedMenu('#menu-pause')
+        }
+
         updateMenuCentering();
     } );
 
@@ -765,8 +772,8 @@ function buildMazeAndUpdateUI(size)
     document.querySelector('#completionMessage').classList.add('hide');
     document.querySelector('#menu-new-maze').classList.add('hide');
     // show the pause text if the intro has been cleared
-    if (focusedMenu.id != 'menu-intro')
-        updateFocusedMenu('#menu-pause');
+    if (!showTutorial)
+        updateFocusedMenu('#menu-intro');
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
