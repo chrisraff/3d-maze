@@ -580,6 +580,7 @@ function onMazeCompletion()
 
     // switch menu screens
     updateFocusedMenu('#menu-new-maze');
+    document.querySelector('#options-body').classList.add('hide');
 
     let seconds = ( (Date.now() - timerStartMillis) / 1000).toFixed(2);
     let timeString = seconds;
