@@ -274,6 +274,23 @@ function init() {
 
         updateMenuCentering();
     } );
+    // P key listener
+    document.addEventListener('keydown', (event) => {
+        if (event.code == 'KeyP' && controls.isLocked)
+        {
+            controls.disableLock(new Event(''));
+        }
+    });
+    // change end text for Mac
+    if (navigator.userAgent.indexOf('Mac OS X') != -1)
+    {
+        document.querySelectorAll('.os-not-mac').forEach((e => {
+            e.classList.add('hide');
+        }));
+        document.querySelectorAll('.os-mac').forEach((e => {
+            e.classList.remove('hide');
+        }));
+    }
 
     // goal particles
     dotGroup = new THREE.Group();
