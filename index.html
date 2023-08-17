@@ -123,6 +123,17 @@
                 animation-iteration-count: 12;
             }
 
+            #rotation-hint-frame {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            #rotation-hint-frame .rotation-hint-phone {
+                margin: 0.5em;
+                border: solid 2px #ffffff;
+                border-radius: 0.3em;
+            }
+
             @keyframes compass-tutorial-highlight {
                 0% {
                     background: radial-gradient( rgba(255, 255, 255, 0.0) 10%, rgba(255, 255, 255, 0.0) 60%);
@@ -437,6 +448,12 @@
                     <div id="menu-rotate-phone" style="font-size: 30px; line-height: 34px;" class="hide">
                         <br/>
                         Rotate your device to play
+                        <br/>
+                        <div id="rotation-hint-frame">
+                            <div class="rotation-hint-phone" style="width: 1.5em; height: 3em"></div>
+                            <div>&#x27A1;</div>
+                            <div class="rotation-hint-phone" style="width: 3em; height: 1.5em"></div>
+                        </div>
                     </div>
 
 
