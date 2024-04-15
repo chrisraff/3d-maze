@@ -89,6 +89,9 @@ var historyPositions;
 var	historyLineMaterial;
 var historyLine;
 var historyMesh;
+// breadcrumbs
+var breadcrumbs = [[], [], []];
+var breadcrumbGeometry;
 
 function sampleUniformSphere() {
 
@@ -340,6 +343,9 @@ function init() {
     lastTrailCameraPosition = new THREE.Vector3();
 
     tmpVector = new THREE.Vector3();
+
+    // breadcrumbs
+    breadcrumbGeometry = new THREE.BoxBufferGeometry(1, 1, 1);
 
     // maze variables
     mazeSize = 3;
@@ -662,6 +668,18 @@ function onMazeCompletion()
     });
 }
 
+function handleBreadcrumbInput(idx)
+{
+    // add a breadcrumb
+    const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
+    const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
+
+    breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
+    breadcrumb.position.copy(camera.position);
+
+    scene.add(breadcrumb);
+}
+
 function onWindowResize() {
 
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -970,6 +988,14 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
     buildMazeAndUpdateUI( document.querySelector('#menu-new-maze-size-slider').value );
 
     menuLockControls();
+});
+// breadcrumbs
+document.querySelector('#mainCanvas').addEventListener('mousedown', (event) =>
+{
+    if (event.button > 0 || event.button > 2)
+        return;
+
+    handleBreadcrumbInput(event.button);
 });
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
