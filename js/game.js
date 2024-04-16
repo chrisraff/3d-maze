@@ -676,6 +676,8 @@ function handleBreadcrumbInput(idx)
 
     breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
     breadcrumb.position.copy(camera.position);
+    camera.getWorldDirection(tmpVector);
+    breadcrumb.position.addScaledVector(tmpVector, maze.minorWidth * 8);
 
     scene.add(breadcrumb);
 }
