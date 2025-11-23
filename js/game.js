@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
+import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 
 // webpage objects
 
@@ -165,7 +166,9 @@ function init() {
     renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
     renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.xr.enabled = true;
     renderer.domElement.id = "mainCanvas";
+    renderer.setAnimationLoop( animate );
     document.body.appendChild( renderer.domElement );
 
     // add 3d compass
@@ -704,8 +707,6 @@ function updateUIDeviceRotation()
 var animate = function () {
     let delta = Math.min(fpsClock.getDelta(), 0.1);
 
-    requestAnimationFrame( animate );
-
     controls.update(delta);
 
     collisionUpdate();
@@ -777,8 +778,6 @@ var animate = function () {
 };
 
 init();
-
-animate();
 
 function buildMazeAndUpdateUI(size)
 {
@@ -975,5 +974,7 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
     controls.setGimbalLocked( event.target.checked );
 });
+
+document.querySelector('#menu-body').appendChild( VRButton.createButton( renderer ) );
 
 window.addEventListener('beforeunload', verifyAndReportAbandonedMaze);
