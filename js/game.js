@@ -182,7 +182,7 @@ function init() {
     compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
     compassCamera.position.z = 2;
 
-    let compassPoint = new THREE.PointLight( 0xffffff );
+    let compassPoint = new THREE.PointLight( 0xffffff, 5, 0, 1 );
     compassPoint.position.set( -1, -2, 1 );
     compassScene.add( compassPoint );
 
@@ -201,7 +201,7 @@ function init() {
 
     // load models
     blockGeometry = new THREE.InstancedBufferGeometry();
-    THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxBufferGeometry() );
+    THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxGeometry() );
     let loader = new GLTFLoader();
     wallGeometry = new THREE.InstancedBufferGeometry();
     let arrowGeometry = new THREE.BufferGeometry();
@@ -237,7 +237,7 @@ function init() {
     darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
 
     // set up lights
-    let localLight = new THREE.PointLight( 0xffffff );
+    let localLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
     camera.add( localLight );
     scene.add( camera );
     let ambLight = new THREE.AmbientLight( 0x808080 );
@@ -457,9 +457,9 @@ function buildMaze(size=mazeSize) {
                     wallMatrices.push( dummyWall.matrix.clone() );
 
                     wallColors.push(
-                        0.15 + 0.7 * (i-1)/(mazeData.segments[0]),
-                        0.15 + 0.7 * (j-1)/(mazeData.segments[1]),
-                        0.15 + 0.7 * (k-1)/(mazeData.segments[2])
+                        0.05 + 0.9 * (i-1)/(mazeData.segments[0]),
+                        0.05 + 0.9 * (j-1)/(mazeData.segments[1]),
+                        0.05 + 0.9 * (k-1)/(mazeData.segments[2])
                     );
 
                 } else {
