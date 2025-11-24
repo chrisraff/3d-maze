@@ -31,6 +31,7 @@ var timerRunning;
 
 var scene;
 var camera;
+var cameraNode;
 
 var tmpColor;
 
@@ -198,7 +199,10 @@ function init() {
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-    camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
+
+    // put camera inside a camera node so it can be transformed as a unit
+    cameraNode = new THREE.Object3D();
+    cameraNode.add( camera );
 
     tmpColor = new THREE.Color();
 
@@ -242,7 +246,7 @@ function init() {
     // set up lights
     let localLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
     camera.add( localLight );
-    scene.add( camera );
+    scene.add( cameraNode );
     let ambLight = new THREE.AmbientLight( 0x808080 );
     scene.add( ambLight );
 
@@ -250,7 +254,7 @@ function init() {
     if (isMobile) {
         document.body.classList.add('formfactor-non-desktop');
     }
-    controls = new FlyPointerLockControls(camera, renderer.domElement);
+    controls = new FlyPointerLockControls(cameraNode, renderer.domElement);
     controls.movementSpeed = maze.majorWidth;
     controls.rollSpeed = 1;
     document.querySelector('#blocker').addEventListener('click', (event) => {
@@ -401,14 +405,15 @@ function buildMaze(size=mazeSize) {
     dotGroup.position.copy( endPos );
     dotGroupRandomize();
 
-    camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
-    camera.lookAt(maze.getOffset(1), maze.getOffset(1), 0);
+    cameraNode.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
+    cameraNode.lookAt(maze.getOffset(1), maze.getOffset(1), maze.getOffset(-3));
+    camera.rotation.set(0,0,0);
 
     historyPositions = [];
     historyLine.geometry.dispose();
     historyMesh.visible = false;
 
-    lastTrailCameraPosition.copy( camera.position );
+    lastTrailCameraPosition.copy( cameraNode.position );
     for (let i = 0; i < trailParticles.length; i++) {
         let part = trailParticles[i];
         scene.remove(part);
@@ -526,7 +531,7 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
             break;
     }
     if (collided) {
-        camera.position[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
+        cameraNode.position[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
         newMazePosRelevant[majorAxis] = mazePosRelevant[majorAxis];
     } else {
         mazePosRelevant[majorAxis] += sign;
@@ -534,10 +539,10 @@ function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazeP
 };
 function collisionUpdate() {
     let nearPos = new THREE.Vector3();
-    nearPos.copy(camera.position);
+    nearPos.copy(cameraNode.position);
     nearPos.addScalar(-collisionDistance);
     let farPos = new THREE.Vector3();
-    farPos.copy(camera.position);
+    farPos.copy(cameraNode.position);
     farPos.addScalar(collisionDistance);
     let newMazePosNear = maze.getMazePos(nearPos);
     let newMazePosFar = maze.getMazePos(farPos);
@@ -709,12 +714,15 @@ var animate = function () {
 
     controls.update(delta);
 
+    if (mazeData == null)
+        return;
+
     collisionUpdate();
 
     // update the compass
     if (arrowMesh != null) {
-        arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
-        arrowMesh.applyQuaternion( camera.quaternion.clone().invert() );
+        arrowMesh.lookAt( cameraNode.position.clone().multiplyScalar(-1).add(endPos) );
+        arrowMesh.applyQuaternion( cameraNode.quaternion.clone().invert() );
     }
 
     // camera trail
@@ -734,14 +742,14 @@ var animate = function () {
         }
     }
     // spawn new
-    if ( lastTrailCameraPosition.distanceToSquared( camera.position ) > collisionDistance**2 ) {
-        lastTrailCameraPosition.copy( camera.position );
+    if ( lastTrailCameraPosition.distanceToSquared( cameraNode.position ) > collisionDistance**2 ) {
+        lastTrailCameraPosition.copy( cameraNode.position );
 
         let partMaterial = new THREE.PointsMaterial( { color: `hsl(${Math.random() * 360}, 100%, 50%)`, sizeAttenuation: false, size: trailPointSize, map: dotSprite, alphaTest: 0.8, transparent: true } );
         let partPoints = new THREE.Points( trailGeometry, partMaterial );
 
         tmpVector.set( Math.random() * collisionDistance * 2 - collisionDistance, Math.random() * collisionDistance * 2 - collisionDistance, -maze.minorWidth );
-        tmpVector.applyMatrix4( camera.matrix );
+        tmpVector.applyMatrix4( cameraNode.matrix );
         partPoints.position.copy( tmpVector );
 
         trailParticles.push( partPoints );
@@ -749,11 +757,11 @@ var animate = function () {
 
         scene.add( partPoints );
     }
-    if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( camera.position ) > (0.1 * collisionDistance)**2 )
+    if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( cameraNode.position ) > (0.1 * collisionDistance)**2 )
     {
         // add to history
         let newHistoryPosition = new THREE.Vector3();
-        newHistoryPosition.copy(camera.position);
+        newHistoryPosition.copy(cameraNode.position);
         historyPositions.push( newHistoryPosition );
     }
 
@@ -882,7 +890,7 @@ function handleTutorial()
             if (camera.getWorldDirection(tmpVector).z < 0.975)
             {
                 tutorialData.state = 'move';
-                tutorialData.cameraPos.copy(camera.position);
+                tutorialData.cameraPos.copy(cameraNode.position);
 
                 document.querySelector('#touch-tutorial-look').classList.add('hide');
                 document.querySelector('#touch-tutorial-look').style.animationName = '';
@@ -901,7 +909,7 @@ function handleTutorial()
         case 'move':
         {
             // check if the user has moved enough
-            if (camera.position.distanceToSquared(tutorialData.cameraPos) > 4)
+            if (cameraNode.position.distanceToSquared(tutorialData.cameraPos) > 4)
             {
                 tutorialData.state = 'compass';
                 tutorialData.lastLoggedTime = Date.now();
@@ -958,6 +966,13 @@ function resetTutorial(complete = false)
         element.style.animationName = '';
     });
     document.querySelector('#compass-container').style.animationName = '';
+}
+
+function isInVr()
+{
+    return renderer.xr.isPresenting;const cameraVR = renderer.xr.getCamera();
+			// const isAR = (cameraVR.cameras.length == 0);
+			// console.log('isAR: ' + isAR );
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
