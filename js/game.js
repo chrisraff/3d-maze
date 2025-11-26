@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
+import DustEffect from './dust.js';
 
 // webpage objects
 
@@ -90,61 +91,7 @@ var	historyLineMaterial;
 var historyLine;
 var historyMesh;
 
-const NUM_PARTICLES = 2000;
-
-const geometry = new THREE.BufferGeometry();
-
-// Attribute arrays
-const positions = new Float32Array(NUM_PARTICLES * 3);
-const spawnTime = new Float32Array(NUM_PARTICLES);
-const lifeTime = new Float32Array(NUM_PARTICLES);
-const startSize = new Float32Array(NUM_PARTICLES);
-const endSize = new Float32Array(NUM_PARTICLES);
-const direction = new Float32Array(NUM_PARTICLES * 3);
-
-for (let i = 0; i < NUM_PARTICLES; i++) {
-    positions[i*3+0] = 0;
-    positions[i*3+1] = 0;
-    positions[i*3+2] = 0;
-
-    spawnTime[i] = 0;
-    lifeTime[i] = 1;
-    startSize[i] = 2.0;
-    endSize[i] = 6.0;
-    direction[i*3+0] = 0;
-    direction[i*3+1] = 0;
-    direction[i*3+2] = 0;
-}
-
-geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-geometry.setAttribute("spawnTime", new THREE.BufferAttribute(spawnTime, 1));
-geometry.setAttribute("lifeTime", new THREE.BufferAttribute(lifeTime, 1));
-geometry.setAttribute("startSize", new THREE.BufferAttribute(startSize, 1));
-geometry.setAttribute("endSize", new THREE.BufferAttribute(endSize, 1));
-geometry.setAttribute("direction", new THREE.BufferAttribute(direction, 3));
-
-const dustVertexShader = document.querySelector('#dustVertexShader').textContent;
-const dustFragmentShader = document.querySelector('#dustFragmentShader').textContent;
-const material = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-
-    uniforms: {
-        u_time: { value: 0 },
-        u_spawnRadius: { value: maze.majorWidth * 5 },
-        u_fadeIn: { value: 0.2 },
-        u_fadeOut: { value: 0.8 },
-        u_driftSpeed: { value: 0.04 }
-    },
-
-    vertexShader: dustVertexShader,
-    fragmentShader: dustFragmentShader
-});
-
-const dust = new THREE.Points(geometry, material);
-// Particles are always "at 0,0,0" since they are an effect
-dust.frustumCulled = false;
+const dust = new DustEffect({ count: 1000, spawnRadius: maze.majorWidth * 5 })
 
 function sampleUniformSphere() {
 
@@ -253,7 +200,8 @@ function init() {
     camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
 
-    scene.add( dust );
+    dust.followObject(camera);
+    dust.addTo(scene);  
 
     tmpColor = new THREE.Color();
 
@@ -765,6 +713,7 @@ var animate = function () {
     requestAnimationFrame( animate );
 
     controls.update(delta);
+    dust.update(delta);
 
     collisionUpdate();
 
@@ -824,8 +773,6 @@ var animate = function () {
         dotTmpQuaternion.setFromAxisAngle( dotRotationAxes[i], (2.2 + i*0.4) * delta * (0.1 + dotRotationAnim * 0.9) );
         mesh.applyQuaternion( dotTmpQuaternion );
     }
-
-    updateDust( delta );
 
     if (inTutorial)
     {
@@ -1019,44 +966,6 @@ function resetTutorial(complete = false)
         element.style.animationName = '';
     });
     document.querySelector('#compass-container').style.animationName = '';
-}
-
-function updateDust(deltaTime) {
-    material.uniforms.u_time.value += deltaTime;
-
-    const t = material.uniforms.u_time.value;
-
-    for (let i = 0; i < NUM_PARTICLES; i++) {
-        const age = t - spawnTime[i];
-        if (age > lifeTime[i]) {
-            respawnParticle(i, camera.position);
-        }
-    }
-}
-
-function respawnParticle(i, playerPos) {
-    const r = material.uniforms.u_spawnRadius.value;
-    
-    positions[i*3+0] = playerPos.x + (Math.random() * 2 - 1) * r;
-    positions[i*3+1] = playerPos.y + (Math.random() * 2 - 1) * r * 0.3; // more flat vertically
-    positions[i*3+2] = playerPos.z + (Math.random() * 2 - 1) * r;
-
-    direction[i*3+0] = (Math.random() * 2 - 1) * 0.1;
-    direction[i*3+1] = (Math.random() * 2 - 1) * 0.1;
-    direction[i*3+2] = (Math.random() * 2 - 1) * 0.1;
-
-    spawnTime[i] = material.uniforms.u_time.value;
-    lifeTime[i] = 2.0 + Math.random() * 3.0;
-
-    startSize[i] = 1 + Math.random() * 2;
-    endSize[i] = 3 + Math.random() * 4;
-
-    geometry.attributes.position.needsUpdate = true;
-    geometry.attributes.spawnTime.needsUpdate = true;
-    geometry.attributes.lifeTime.needsUpdate = true;
-    geometry.attributes.startSize.needsUpdate = true;
-    geometry.attributes.endSize.needsUpdate = true;
-    geometry.attributes.direction.needsUpdate = true;
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
