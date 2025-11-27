@@ -17,7 +17,8 @@ export default class DustEffect {
             count: 800,
             color: 0xffffff,
             spawnRadius: 20,
-            sizeJitter: 3,     // size randomness TODO
+            map: null,
+            size: 0.1,
         }, opts);
 
         this.count = o.count;
@@ -28,8 +29,6 @@ export default class DustEffect {
         this._positions = new Float32Array(this.count * 3);
         this._spawnTime = new Float32Array(this.count);
         this._lifeTime = new Float32Array(this.count);
-        this._startSize = new Float32Array(this.count);
-        this._endSize = new Float32Array(this.count);
         this._direction = new Float32Array(this.count * 3);
 
         for (let i = 0; i < this.count; i++) {
@@ -39,8 +38,6 @@ export default class DustEffect {
 
             this._spawnTime[i] = 0;
             this._lifeTime[i] = 1;
-            this._startSize[i] = 2.0;
-            this._endSize[i] = 6.0;
             this._direction[i*3+0] = 0;
             this._direction[i*3+1] = 0;
             this._direction[i*3+2] = 0;
@@ -49,31 +46,73 @@ export default class DustEffect {
         this._geometry.setAttribute("position", new THREE.BufferAttribute(this._positions, 3));
         this._geometry.setAttribute("spawnTime", new THREE.BufferAttribute(this._spawnTime, 1));
         this._geometry.setAttribute("lifeTime", new THREE.BufferAttribute(this._lifeTime, 1));
-        this._geometry.setAttribute("startSize", new THREE.BufferAttribute(this._startSize, 1));
-        this._geometry.setAttribute("endSize", new THREE.BufferAttribute(this._endSize, 1));
         this._geometry.setAttribute("direction", new THREE.BufferAttribute(this._direction, 3));
 
-        this._dustVertexShader = document.querySelector('#dustVertexShader').textContent;
-        this._dustFragmentShader = document.querySelector('#dustFragmentShader').textContent;
-        this._material = new THREE.ShaderMaterial({
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-
-            uniforms: {
+        this._material = new THREE.PointsMaterial({transparent: true, size: o.size, map: o.map, alphaTest: 0.8});
+        this._material.onBeforeCompile = (shader) => {
+            Object.assign(shader.uniforms, {
                 u_time: { value: 0 },
                 u_spawnRadius: { value: o.spawnRadius },
                 u_fadeIn: { value: 0.2 },
                 u_fadeOut: { value: 0.8 },
-                u_driftSpeed: { value: 0.04 }
-            },
+            });
+            shader.vertexShader = shader.vertexShader.replace('#include <common>', `
+                #include <common>
+                uniform float u_time;
+                uniform float u_spawnRadius;
 
-            vertexShader: this._dustVertexShader,
-            fragmentShader: this._dustFragmentShader
-        });
+                uniform float u_fadeIn;
+                uniform float u_fadeOut;
+
+                attribute float spawnTime;
+                attribute float lifeTime;
+                attribute float startSize;
+                attribute float endSize;
+                attribute vec3 direction;
+
+                varying float v_alpha;
+            `).replace('#include <begin_vertex>', `
+                // compute particle age and move the vertex by direction * age
+                float age = u_time - spawnTime;
+                float t = clamp(age / lifeTime, 0.0, 1.0);
+
+                vec3 transformed = position + direction * age;
+
+                // Fade in & out
+                float fadeInStage = smoothstep(0.0, u_fadeIn, t);
+                float fadeOutStage = 1.0 - smoothstep(u_fadeOut, 1.0, t);
+                v_alpha = fadeInStage * fadeOutStage;
+
+                // Distance-based fade: compute world position and distance to camera
+                vec3 worldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                float dist = length(worldPos - cameraPosition);
+                float distFade = clamp(dist - 0.5, 0.0, 1.0);
+                v_alpha *= distFade;
+            `);
+            shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `
+                #include <common>
+                varying float v_alpha;
+            `).replace('#include <premultiplied_alpha_fragment>', `
+                #include <premultiplied_alpha_fragment>
+                gl_FragColor = vec4( outgoingLight, diffuseColor.a * v_alpha );
+            `);
+            shader.fragmentShader = shader.fragmentShader
+                .replace('#include <map_fragment>', `
+                    #include <map_fragment>
+                    #ifdef USE_MAP
+                    diffuseColor.a *= texture2D(map, vUv).a;
+                    #endif
+                `)
+                .replace('#include <premultiplied_alpha_fragment>', `
+                    #include <premultiplied_alpha_fragment>
+                    gl_FragColor = vec4(outgoingLight, diffuseColor.a);
+                `);
+            this._shader = shader;
+        }
 
         this.object = new THREE.Points(this._geometry, this._material);
-        // Particles are always "at 0,0,0" since they are an effect
+        // Particles are always "at 0,0,0" since they are an effect,
+        // so disable frustum culling
         this.object.frustumCulled = false;
     }
 
@@ -90,9 +129,10 @@ export default class DustEffect {
 
     // Update must be called each frame with deltaSeconds
     update(dt) {
-        this._material.uniforms.u_time.value += dt;
+        if (!this._shader) return;
+        this._shader.uniforms.u_time.value += dt;
 
-        const t = this._material.uniforms.u_time.value;
+        const t = this._shader.uniforms.u_time.value;
 
         for (let i = 0; i < this.count; i++) {
             const age = t - this._spawnTime[i];
@@ -103,7 +143,7 @@ export default class DustEffect {
     }
 
     respawnParticle(i) {
-        const r = this._material.uniforms.u_spawnRadius.value;
+        const r = this._shader.uniforms.u_spawnRadius.value;
 
         this._positions[i*3+0] = this.followed.position.x + (Math.random() * 2 - 1) * r;
         this._positions[i*3+1] = this.followed.position.y + (Math.random() * 2 - 1) * r * 0.3; // more flat vertically
@@ -113,18 +153,19 @@ export default class DustEffect {
         this._direction[i*3+1] = (Math.random() * 2 - 1) * 0.1;
         this._direction[i*3+2] = (Math.random() * 2 - 1) * 0.1;
 
-        this._spawnTime[i] = this._material.uniforms.u_time.value;
+        this._spawnTime[i] = this._shader.uniforms.u_time.value;
         this._lifeTime[i] = 2.0 + Math.random() * 3.0;
-
-        this._startSize[i] = 1 + Math.random() * 2;
-        this._endSize[i] = 3 + Math.random() * 4;
 
         this._geometry.attributes.position.needsUpdate = true;
         this._geometry.attributes.spawnTime.needsUpdate = true;
         this._geometry.attributes.lifeTime.needsUpdate = true;
-        this._geometry.attributes.startSize.needsUpdate = true;
-        this._geometry.attributes.endSize.needsUpdate = true;
         this._geometry.attributes.direction.needsUpdate = true;
+    }
+
+    respawnAllParticles() {
+        for (let i = 0; i < this.count; i++) {
+            this.respawnParticle(i);
+        }
     }
 
     // Dispose geometry, textures, material

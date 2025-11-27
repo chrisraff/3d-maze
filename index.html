@@ -493,59 +493,6 @@
             </div>
         </div>
 
-        <script id="dustVertexShader" type="x-shader/x-vertex">
-            uniform float u_time;
-            uniform vec3 u_playerPos;
-            uniform float u_spawnRadius;
-
-            uniform float u_fadeIn;
-            uniform float u_fadeOut;
-
-            attribute float spawnTime;
-            attribute float lifeTime;
-            attribute float startSize;
-            attribute float endSize;
-            attribute vec3 direction;
-
-            varying float v_alpha;
-
-            float hash(float n) {
-                return fract(sin(n) * 43758.5453123);
-            }
-
-            void main() {
-                float age = u_time - spawnTime;
-                float t = clamp(age / lifeTime, 0.0, 1.0);
-
-                // Fade in & out
-                float fadeInStage = smoothstep(0.0, u_fadeIn, t);
-                float fadeOutStage = 1.0 - smoothstep(u_fadeOut, 1.0, t);
-                v_alpha = fadeInStage * fadeOutStage;
-
-                vec3 pos = position + direction * age;
-
-                // Final position
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-
-                // Size interpolation
-                float size = mix(startSize, endSize, t) * v_alpha;
-                gl_PointSize = size*2.0;
-            }
-        </script>"
-        <script id="dustFragmentShader" type="x-shader/x-fragment">
-            varying float v_alpha;
-
-            void main() {
-                vec2 uv = gl_PointCoord * 2.0 - 1.0;
-                float d = dot(uv, uv);
-                //if (d > 1.0) discard;
-
-                float alpha = (1.0 - d) * v_alpha;
-
-                gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
-            }
-
-        </script>
         <script type="module" src="js/maze.js"></script>
         <script type="module" src="js/game.js"></script>
         <script type="module" src="js/dust.js"></script>

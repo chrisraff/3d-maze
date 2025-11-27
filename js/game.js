@@ -91,7 +91,7 @@ var	historyLineMaterial;
 var historyLine;
 var historyMesh;
 
-const dust = new DustEffect({ count: 1000, spawnRadius: maze.majorWidth * 5 })
+var dust;
 
 function sampleUniformSphere() {
 
@@ -199,9 +199,6 @@ function init() {
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
     camera.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
-
-    dust.followObject(camera);
-    dust.addTo(scene);  
 
     tmpColor = new THREE.Color();
 
@@ -347,6 +344,11 @@ function init() {
 
     tmpVector = new THREE.Vector3();
 
+    // dust effect
+    dust = new DustEffect({ count: 2000, spawnRadius: maze.majorWidth * 5, map: dotSprite, size: 0.025 });
+    dust.followObject(camera);
+    dust.addTo(scene);  
+
     // maze variables
     mazeSize = 3;
     mazeData = null;
@@ -410,6 +412,8 @@ function buildMaze(size=mazeSize) {
     historyPositions = [];
     historyLine.geometry.dispose();
     historyMesh.visible = false;
+
+    dust.respawnAllParticles();
 
     lastTrailCameraPosition.copy( camera.position );
     for (let i = 0; i < trailParticles.length; i++) {
