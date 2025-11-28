@@ -189,6 +189,7 @@ export default class DustEffect {
     respawnAllParticles() {
         for (let i = 0; i < this.count; i++) {
             this.respawnParticle(i);
+            this._spawnTime[i] -= Math.random() * this._lifeTime[i];
         }
     }
 
