@@ -18,8 +18,8 @@ const FILES_TO_CACHE = [
     '/textures/dot.png',
 ];
 const RESOURCES_TO_CACHE = [
-    'https://unpkg.com/three@0.128.0/build/three.module.js',
-    'https://unpkg.com/three@0.128.0/examples/jsm/loaders/GLTFLoader.js',
+    'https://unpkg.com/three@0.181.0/build/three.module.js',
+    'https://unpkg.com/three@0.181.0/examples/jsm/loaders/GLTFLoader.js',
     'https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js',
 ]
 
