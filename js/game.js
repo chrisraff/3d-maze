@@ -8,6 +8,7 @@ import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
+import TrailEffect from './trail.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
 
 // webpage objects
@@ -62,12 +63,6 @@ var dotGeometries;
 var dotTmpQuaternion;
 var dotRotationAnim;
 
-// trail particles
-var trailParticles;
-var trailMotions;
-var trailGeometry;
-var trailPointSize;
-
 var lastTrailCameraPosition;
 
 var tmpVector;
@@ -93,6 +88,7 @@ var historyLine;
 var historyMesh;
 
 var dust;
+var trail;
 
 function dotGroupRandomize() {
 
@@ -303,15 +299,6 @@ function init() {
 
     scene.add( dotGroup );
 
-    // trail particles
-    trailParticles = [];
-    trailMotions = [];
-    trailGeometry = new THREE.BufferGeometry();
-    trailGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3 ) );
-    trailPointSize = window.innerHeight / 25;
-
-    lastTrailCameraPosition = new THREE.Vector3();
-
     tmpVector = new THREE.Vector3();
 
     // dust effect
@@ -324,6 +311,16 @@ function init() {
     });
     dust.followObject(camera);
     dust.addTo(scene);  
+
+    // trail effect
+    trail = new TrailEffect({
+        count: 1000,
+        map: dotSprite,
+        size: window.innerHeight / 25,
+        collisionDistance: collisionDistance
+    });
+    trail.followObject(camera);
+    trail.addTo(scene);
 
     // maze variables
     mazeSize = 3;
@@ -390,15 +387,7 @@ function buildMaze(size=mazeSize) {
     historyMesh.visible = false;
 
     dust.respawnAllParticles();
-
-    lastTrailCameraPosition.copy( camera.position );
-    for (let i = 0; i < trailParticles.length; i++) {
-        let part = trailParticles[i];
-        scene.remove(part);
-        part.material.dispose();
-    }
-    trailParticles = [];
-    trailMotions = [];
+    trail.reset();
 
     mazeGroup.remove(...mazeGroup.children);
 
@@ -694,6 +683,7 @@ var animate = function () {
 
     controls.update(delta);
     dust.update(delta);
+    trail.update(delta);
 
     collisionUpdate();
 
@@ -703,38 +693,6 @@ var animate = function () {
         arrowMesh.applyQuaternion( camera.quaternion.clone().invert() );
     }
 
-    // camera trail
-    // shrink and disappear
-    for (let i = 0; i < trailParticles.length; i++) {
-        let part = trailParticles[i];
-
-        part.material.size -= delta * trailPointSize/10;
-        part.position.addScaledVector( trailMotions[i], delta * 0.02 );
-
-        if (part.material.size <= 0.01) {
-            scene.remove(part);
-            part.material.dispose();
-            trailParticles = trailParticles.splice(1); // remove earliest
-            trailMotions = trailMotions.splice(1);
-            i--;
-        }
-    }
-    // spawn new
-    if ( lastTrailCameraPosition.distanceToSquared( camera.position ) > collisionDistance**2 ) {
-        lastTrailCameraPosition.copy( camera.position );
-
-        let partMaterial = new THREE.PointsMaterial( { color: `hsl(${Math.random() * 360}, 100%, 50%)`, sizeAttenuation: false, size: trailPointSize, map: dotSprite, alphaTest: 0.8, transparent: true } );
-        let partPoints = new THREE.Points( trailGeometry, partMaterial );
-
-        tmpVector.set( Math.random() * collisionDistance * 2 - collisionDistance, Math.random() * collisionDistance * 2 - collisionDistance, -maze.minorWidth );
-        tmpVector.applyMatrix4( camera.matrix );
-        partPoints.position.copy( tmpVector );
-
-        trailParticles.push( partPoints );
-        trailMotions.push( new THREE.Vector3( ...sampleUniformSphere() ) );
-
-        scene.add( partPoints );
-    }
     if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( camera.position ) > (0.1 * collisionDistance)**2 )
     {
         // add to history

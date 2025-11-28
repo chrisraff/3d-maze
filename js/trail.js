@@ -1,30 +1,40 @@
 import * as THREE from 'three';
+import * as maze from './maze.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
 
 /**
+ * TrailEffect
  * @author Chris Raff / http://www.ChrisRaff.com/
- * Drop-in Three.js Dust Effect
+ * Drop-in Three.js Trail Effect
+ *
  * Usage (ESM):
- * import DustEffect from './dust.js';
- * const dust = new DustEffect({ count:1000 });
- * dust.addTo(scene);
- * dust.followObject(camera); // optional: make dust follow camera
- * In your render loop: dust.update(deltaSeconds);
+ * import TrailEffect from './trail.js';
+ * const trail = new TrailEffect({
+ *   count: 800,                // number of particles
+ *   map: particleTexture,      // optional sprite texture
+ *   size: 0.1,                 // base point size
+ *   collisionDistance: 0.5     // spawn distance threshold
+ * });
+ * trail.addTo(scene);
+ * trail.followObject(camera); // make trail spawn from camera or any Object3D
+ * In your render loop: trail.update(deltaSeconds);
  */
 
-export default class DustEffect {
+export default class TrailEffect {
     constructor(opts = {}) {
         const o = Object.assign({
             count: 800,
-            color: 0xffffff,
-            spawnRadius: 20,
             map: null,
             size: 0.1,
-            colorSampler: () => THREE.Color(1,1,1)
+            collisionDistance: 0.5
         }, opts);
 
         this.count = o.count;
-        this.colorSampler = o.colorSampler;
+        this.collisionDistance = o.collisionDistance;
+
+        this.lastTrailCameraPosition = new THREE.Vector3();
+
+        this._nextSpawnIndex = 0;
 
         this._geometry = new THREE.BufferGeometry();
 
@@ -40,20 +50,13 @@ export default class DustEffect {
             this._positions[i*3+1] = 0;
             this._positions[i*3+2] = 0;
 
-            this._spawnTime[i] = 0;
-            this._lifeTime[i] = 1;
             this._direction[i*3+0] = 0;
             this._direction[i*3+1] = 0;
             this._direction[i*3+2] = 0;
-
-            this._colors[i*3+0] = ((o.color >> 16) & 0xff) / 255;
-            this._colors[i*3+1] = ((o.color >> 8) & 0xff) / 255;
-            this._colors[i*3+2] = (o.color & 0xff) / 255;
         }
 
         this._geometry.setAttribute("position", new THREE.BufferAttribute(this._positions, 3));
         this._geometry.setAttribute("spawnTime", new THREE.BufferAttribute(this._spawnTime, 1));
-        this._geometry.setAttribute("lifeTime", new THREE.BufferAttribute(this._lifeTime, 1));
         this._geometry.setAttribute("direction", new THREE.BufferAttribute(this._direction, 3));
         this._geometry.setAttribute("color", new THREE.BufferAttribute(this._colors, 3));
 
@@ -62,48 +65,36 @@ export default class DustEffect {
             size: o.size,
             map: o.map,
             alphaTest: 0.8,
-            depthWrite: false,
-            vertexColors: true
+            vertexColors: true,
+            sizeAttenuation: false,
         });
         this._material.onBeforeCompile = (shader) => {
             Object.assign(shader.uniforms, {
-                u_time: { value: 0 },
-                u_spawnRadius: { value: o.spawnRadius },
-                u_fadeIn: { value: 0.2 },
-                u_fadeOut: { value: 0.8 },
+                u_time: { value: 0 }
             });
             shader.vertexShader = shader.vertexShader.replace('#include <common>', `
                 #include <common>
                 uniform float u_time;
-                uniform float u_spawnRadius;
-
-                uniform float u_fadeIn;
-                uniform float u_fadeOut;
 
                 attribute float spawnTime;
-                attribute float lifeTime;
-                attribute float startSize;
-                attribute float endSize;
                 attribute vec3 direction;
 
                 varying float v_alpha;
             `).replace('#include <begin_vertex>', `
                 // compute particle age and move the vertex by direction * age
                 float age = u_time - spawnTime;
-                float t = clamp(age / lifeTime, 0.0, 1.0);
 
                 vec3 transformed = position + direction * age;
-
-                // Fade in & out
-                float fadeInStage = smoothstep(0.0, u_fadeIn, t);
-                float fadeOutStage = 1.0 - smoothstep(u_fadeOut, 1.0, t);
-                v_alpha = fadeInStage * fadeOutStage;
 
                 // Distance-based fade: compute world position and distance to camera
                 vec3 worldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 float dist = length(worldPos - cameraPosition);
-                float distFade = clamp(dist - 0.5, 0.0, 1.0);
-                v_alpha *= distFade;
+                float distFade = clamp(dist*3.0 - 0.25, 0.0, 1.0);
+                v_alpha = distFade;
+            `).replace('gl_PointSize = size;', `
+                // Compute size over lifetime
+                float subtraction = size * 0.1;
+                gl_PointSize = clamp(size - age * subtraction, 0.0, size);
             `);
             shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `
                 #include <common>
@@ -127,9 +118,10 @@ export default class DustEffect {
         this.parent = parent;
     }
 
-    // the object to spawn dust around, likely a camera
+    // the object to spawn trail from, likely a camera
     followObject(object) {
-        this.followed = object
+        this.followed = object;
+        this.lastTrailCameraPosition.copy( object.position );
     }
 
     // Update must be called each frame with deltaSeconds
@@ -137,48 +129,41 @@ export default class DustEffect {
         if (!this._shader) return;
         this._shader.uniforms.u_time.value += dt;
 
-        const t = this._shader.uniforms.u_time.value;
+        // spawn new
+        if ( this.lastTrailCameraPosition.distanceToSquared( this.followed.position ) > this.collisionDistance**2 ) {
+            this.lastTrailCameraPosition.copy( this.followed.position );
 
-        for (let i = 0; i < this.count; i++) {
-            const age = t - this._spawnTime[i];
-            if (age > this._lifeTime[i]) {
-                this.respawnParticle(i);
-            }
+            const tmpVector = new THREE.Vector3( Math.random() * this.collisionDistance * 2 - this.collisionDistance, Math.random() * this.collisionDistance * 2 - this.collisionDistance, -maze.minorWidth );
+            tmpVector.applyMatrix4( this.followed.matrix );
+
+            this._positions[this._nextSpawnIndex*3+0] = tmpVector.x;
+            this._positions[this._nextSpawnIndex*3+1] = tmpVector.y;
+            this._positions[this._nextSpawnIndex*3+2] = tmpVector.z;
+
+            this._spawnTime[this._nextSpawnIndex] = this._shader.uniforms.u_time.value;
+    
+            const motion = sampleUniformSphere();
+            this._direction[this._nextSpawnIndex*3+0] = motion[0] * 0.02;
+            this._direction[this._nextSpawnIndex*3+1] = motion[1] * 0.02;
+            this._direction[this._nextSpawnIndex*3+2] = motion[2] * 0.02;
+
+            const tmpColor = new THREE.Color( `hsl(${Math.random() * 360}, 100%, 50%)` );
+            this._colors[this._nextSpawnIndex*3+0] = tmpColor.r;
+            this._colors[this._nextSpawnIndex*3+1] = tmpColor.g;
+            this._colors[this._nextSpawnIndex*3+2] = tmpColor.b;
+    
+            this._nextSpawnIndex = ( this._nextSpawnIndex + 1 ) % this.count;
+            this._geometry.attributes.position.needsUpdate = true;
+            this._geometry.attributes.spawnTime.needsUpdate = true;
+            this._geometry.attributes.direction.needsUpdate = true;
+            this._geometry.attributes.color.needsUpdate = true;
         }
     }
 
-    respawnParticle(i) {
-        const r = this._shader.uniforms.u_spawnRadius.value;
-
-        const spawnPos = sampleUniformSphere();
-        this._positions[i*3+0] = this.followed.position.x + spawnPos[0] * r;
-        this._positions[i*3+1] = this.followed.position.y + spawnPos[1] * r;
-        this._positions[i*3+2] = this.followed.position.z + spawnPos[2] * r;
-
-        this._direction[i*3+0] = (Math.random() * 2 - 1) * 0.1;
-        this._direction[i*3+1] = (Math.random() * 2 - 1) * 0.1;
-        this._direction[i*3+2] = (Math.random() * 2 - 1) * 0.1;
-
-        this._spawnTime[i] = this._shader.uniforms.u_time.value;
-        this._lifeTime[i] = 2.0 + Math.random() * 3.0;
-
-        // Color from sampler
-        const color = this.colorSampler(this._positions[i*3+0], this._positions[i*3+1], this._positions[i*3+2]);
-        this._colors[i*3+0] = color.r;
-        this._colors[i*3+1] = color.g;
-        this._colors[i*3+2] = color.b;
-
-        this._geometry.attributes.position.needsUpdate = true;
-        this._geometry.attributes.spawnTime.needsUpdate = true;
-        this._geometry.attributes.lifeTime.needsUpdate = true;
-        this._geometry.attributes.direction.needsUpdate = true;
-        this._geometry.attributes.color.needsUpdate = true;
-    }
-
-    respawnAllParticles() {
+    reset() {
+        this._nextSpawnIndex = 0;
         for (let i = 0; i < this.count; i++) {
-            this.respawnParticle(i);
-            this._spawnTime[i] -= Math.random() * this._lifeTime[i];
+            this._spawnTime[i] = -10.0;
         }
     }
 
