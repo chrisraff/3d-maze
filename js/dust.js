@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import sampleUniformSphere from './sampleUniformSphere.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -48,7 +49,7 @@ export default class DustEffect {
         this._geometry.setAttribute("lifeTime", new THREE.BufferAttribute(this._lifeTime, 1));
         this._geometry.setAttribute("direction", new THREE.BufferAttribute(this._direction, 3));
 
-        this._material = new THREE.PointsMaterial({transparent: true, size: o.size, map: o.map, alphaTest: 0.8});
+        this._material = new THREE.PointsMaterial({transparent: true, size: o.size, map: o.map, alphaTest: 0.8, depthWrite: false });
         this._material.onBeforeCompile = (shader) => {
             Object.assign(shader.uniforms, {
                 u_time: { value: 0 },
@@ -145,9 +146,10 @@ export default class DustEffect {
     respawnParticle(i) {
         const r = this._shader.uniforms.u_spawnRadius.value;
 
-        this._positions[i*3+0] = this.followed.position.x + (Math.random() * 2 - 1) * r;
-        this._positions[i*3+1] = this.followed.position.y + (Math.random() * 2 - 1) * r * 0.3; // more flat vertically
-        this._positions[i*3+2] = this.followed.position.z + (Math.random() * 2 - 1) * r;
+        const spawnPos = sampleUniformSphere();
+        this._positions[i*3+0] = this.followed.position.x + spawnPos[0] * r;
+        this._positions[i*3+1] = this.followed.position.y + spawnPos[1] * r;
+        this._positions[i*3+2] = this.followed.position.z + spawnPos[2] * r;
 
         this._direction[i*3+0] = (Math.random() * 2 - 1) * 0.1;
         this._direction[i*3+1] = (Math.random() * 2 - 1) * 0.1;

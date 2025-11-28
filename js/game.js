@@ -8,6 +8,7 @@ import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
+import sampleUniformSphere from './sampleUniformSphere.js';
 
 // webpage objects
 
@@ -92,37 +93,6 @@ var historyLine;
 var historyMesh;
 
 var dust;
-
-function sampleUniformSphere() {
-
-    let x12 = 1;
-    let x22 = 1;
-    let x1 = 0;
-    let x2 = 0;
-
-    while (x12 + x22 >= 1) {
-
-        x1 = Math.random() * 2 - 1;
-        x2 = Math.random() * 2 - 1;
-
-        x12 = x1*x1;
-        x22 = x2*x2;
-
-    }
-
-    let sqrroot = Math.sqrt(1 - x12 - x22);
-
-    let r = Math.random();
-    r *= r;
-    r = 1 - r;
-
-    return [
-        r * (2 * x1 * sqrroot),
-        r * (2 * x2 * sqrroot),
-        r * (1 - 2 * (x12 + x22))
-    ];
-
-}
 
 function dotGroupRandomize() {
 
@@ -345,7 +315,7 @@ function init() {
     tmpVector = new THREE.Vector3();
 
     // dust effect
-    dust = new DustEffect({ count: 2000, spawnRadius: maze.majorWidth * 5, map: dotSprite, size: 0.025 });
+    dust = new DustEffect({ count: 1000, spawnRadius: maze.majorWidth * 5, map: dotSprite, size: 0.025 });
     dust.followObject(camera);
     dust.addTo(scene);  
 
