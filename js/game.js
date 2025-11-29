@@ -10,14 +10,16 @@ import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
 import TrailEffect from './trail.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
+import CompassManager from './compassManagager.js';
 
 // webpage objects
 
 var renderer;
-var compassRenderer;
+// var compassRenderer;
 
-var compassScene;
-var compassCamera;
+// var compassScene;
+// var compassCamera;
+var compassManager;
 
 // tutorial variables
 var showTutorial = true;
@@ -138,24 +140,9 @@ function init() {
     document.body.appendChild( renderer.domElement );
 
     // add 3d compass
-    compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, powerPreference: "high-performance" } );
-    compassRenderer.setPixelRatio( renderer.getPixelRatio() );
-    let compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeight)/6 );
-    compassRenderer.setSize( compassWindowSize, compassWindowSize );
-    compassRenderer.setClearColor( 0x000000, 0 );
-    compassRenderer.domElement.id = "compass";
-    document.querySelector('#compass-container').appendChild( compassRenderer.domElement );
+    compassManager = new CompassManager();
 
-    compassScene = new THREE.Scene();
-
-    compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
-    compassCamera.position.z = 2;
-
-    let compassPoint = new THREE.PointLight( 0xffffff, 5, 0, 1 );
-    compassPoint.position.set( -1, -2, 1 );
-    compassScene.add( compassPoint );
-
-    compassScene.add( new THREE.AmbientLight( 'gray' ) );
+    compassManager.renderer.setPixelRatio( renderer.getPixelRatio() );
 
     // setup basic objects
     fpsClock = new THREE.Clock();
@@ -182,16 +169,6 @@ function init() {
         // build maze for first time
         // (must wait for this model to load or the colors don't work)
         buildMaze();
-    }, undefined, function ( error ) {
-
-        console.error( error );
-
-    } );
-    loader.load( 'models/arrow.glb', function ( gltf ) {
-        let modelArrow = gltf.scene.getObjectByName('arrow');
-        THREE.BufferGeometry.prototype.copy.call(arrowGeometry, modelArrow.geometry);
-        arrowMesh = new THREE.Mesh( arrowGeometry, new THREE.MeshLambertMaterial( { color: 0xd92e18 } ) );
-        compassScene.add( arrowMesh );
     }, undefined, function ( error ) {
 
         console.error( error );
@@ -320,6 +297,8 @@ function init() {
     });
     trail.followObject(camera);
     trail.addTo(scene);
+    
+    compassManager.followObject(camera);
 
     // maze variables
     mazeSize = 3;
@@ -374,6 +353,7 @@ function buildMaze(size=mazeSize) {
 
     segments = mazeSize * 2 - 1;
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
+    compassManager.setEndPos( endPos );
 
     dotGroup.position.copy( endPos );
     dotGroupRandomize();
@@ -683,14 +663,9 @@ var animate = function () {
     controls.update(delta);
     dust.update(delta);
     trail.update(delta);
+    compassManager.update();
 
     collisionUpdate();
-
-    // update the compass
-    if (arrowMesh != null) {
-        arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
-        arrowMesh.applyQuaternion( camera.quaternion.clone().invert() );
-    }
 
     if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( camera.position ) > (0.1 * collisionDistance)**2 )
     {
@@ -717,7 +692,8 @@ var animate = function () {
     }
 
     renderer.render( scene, camera );
-    compassRenderer.render( compassScene, compassCamera );
+    compassManager.render();
+    
 };
 
 init();
