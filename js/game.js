@@ -306,8 +306,7 @@ function init() {
         count: 1000,
         spawnRadius: maze.majorWidth * 5,
         map: dotSprite,
-        size: 0.025,
-        colorSampler: samplerColorBlock
+        size: 0.025
     });
     dust.followObject(camera);
     dust.addTo(scene);  
@@ -796,30 +795,6 @@ function menuLockControls()
     {
         initTutorial();
     }
-}
-
-function sigmoid(x) {
-    return 1 / (1 + Math.exp(-x));
-}
-
-function samplerColorBlock(x, y, z, rand=0.1) {
-    if (!mazeData)
-        return new THREE.Color(1,1,1);
-
-    const mazeUnit = maze.majorWidth + maze.minorWidth;
-
-    // check if outside maze bounds
-    if (x < 0 || y < 0 || z < 0 ||
-        x > mazeData.bounds[0] * mazeUnit ||
-        y > mazeData.bounds[1] * mazeUnit ||
-        z > mazeData.bounds[2] * mazeUnit)
-        return new THREE.Color(1,1,1);
-
-    tmpColor.setRGB( x * mazeUnit / mazeData.segments[0], y * mazeUnit / mazeData.segments[1], z * mazeUnit / mazeData.segments[2]);
-    tmpColor.r = Math.min( Math.max( tmpColor.r + rand*sigmoid(8*Math.random() - 4), 0.05 ), 0.95 );
-    tmpColor.g = Math.min( Math.max( tmpColor.g + rand*sigmoid(8*Math.random() - 4), 0.05 ), 0.95 );
-    tmpColor.b = Math.min( Math.max( tmpColor.b + rand*sigmoid(8*Math.random() - 4), 0.05 ), 0.95 );
-    return tmpColor.clone();
 }
 
 function initTutorial()

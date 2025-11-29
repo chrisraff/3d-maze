@@ -16,15 +16,13 @@ export default class DustEffect {
     constructor(opts = {}) {
         const o = Object.assign({
             count: 800,
-            color: 0xffffff,
+            color: new THREE.Color(0.4, 0.4, 0.4),
             spawnRadius: 20,
             map: null,
-            size: 0.1,
-            colorSampler: () => THREE.Color(1,1,1)
+            size: 0.1
         }, opts);
 
         this.count = o.count;
-        this.colorSampler = o.colorSampler;
 
         this._geometry = new THREE.BufferGeometry();
 
@@ -33,7 +31,6 @@ export default class DustEffect {
         this._spawnTime = new Float32Array(this.count);
         this._lifeTime = new Float32Array(this.count);
         this._direction = new Float32Array(this.count * 3);
-        this._colors = new Float32Array(this.count * 3);
 
         for (let i = 0; i < this.count; i++) {
             this._positions[i*3+0] = 0;
@@ -45,17 +42,12 @@ export default class DustEffect {
             this._direction[i*3+0] = 0;
             this._direction[i*3+1] = 0;
             this._direction[i*3+2] = 0;
-
-            this._colors[i*3+0] = ((o.color >> 16) & 0xff) / 255;
-            this._colors[i*3+1] = ((o.color >> 8) & 0xff) / 255;
-            this._colors[i*3+2] = (o.color & 0xff) / 255;
         }
 
         this._geometry.setAttribute("position", new THREE.BufferAttribute(this._positions, 3));
         this._geometry.setAttribute("spawnTime", new THREE.BufferAttribute(this._spawnTime, 1));
         this._geometry.setAttribute("lifeTime", new THREE.BufferAttribute(this._lifeTime, 1));
         this._geometry.setAttribute("direction", new THREE.BufferAttribute(this._direction, 3));
-        this._geometry.setAttribute("color", new THREE.BufferAttribute(this._colors, 3));
 
         this._material = new THREE.PointsMaterial({
             transparent: true,
@@ -63,7 +55,8 @@ export default class DustEffect {
             map: o.map,
             alphaTest: 0.8,
             depthWrite: false,
-            vertexColors: true
+            color: o.color,
+            blending: THREE.AdditiveBlending
         });
         this._material.onBeforeCompile = (shader) => {
             Object.assign(shader.uniforms, {
@@ -162,17 +155,10 @@ export default class DustEffect {
         this._spawnTime[i] = this._shader.uniforms.u_time.value;
         this._lifeTime[i] = 2.0 + Math.random() * 3.0;
 
-        // Color from sampler
-        const color = this.colorSampler(this._positions[i*3+0], this._positions[i*3+1], this._positions[i*3+2]);
-        this._colors[i*3+0] = color.r;
-        this._colors[i*3+1] = color.g;
-        this._colors[i*3+2] = color.b;
-
         this._geometry.attributes.position.needsUpdate = true;
         this._geometry.attributes.spawnTime.needsUpdate = true;
         this._geometry.attributes.lifeTime.needsUpdate = true;
         this._geometry.attributes.direction.needsUpdate = true;
-        this._geometry.attributes.color.needsUpdate = true;
     }
 
     respawnAllParticles() {
