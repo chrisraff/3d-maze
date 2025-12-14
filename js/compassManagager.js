@@ -28,6 +28,12 @@ export default class CompassManager {
 
         let compassPoint = new THREE.PointLight( 0xffffff, 5, 0, 1 );
         compassPoint.position.set( -1, -2, 1 );
+
+        let compassSecondaryDirectional = new THREE.DirectionalLight( 0xffffff, 0.5 );
+        compassSecondaryDirectional.position.set( 1, 0, 1);
+        compassSecondaryDirectional.target.position.set(0,0,0);
+
+        this.scene.add( compassSecondaryDirectional )
         this.scene.add( compassPoint );
     
         this.scene.add( new THREE.AmbientLight( 'gray' ) );
