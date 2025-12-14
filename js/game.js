@@ -280,7 +280,7 @@ function init() {
 
     // dust effect
     dust = new DustEffect({
-        count: 1000,
+        count: 2000,
         spawnRadius: maze.majorWidth * 5,
         map: dotSprite,
         size: 0.025
