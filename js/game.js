@@ -15,10 +15,7 @@ import CompassManager from './compassManagager.js';
 // webpage objects
 
 var renderer;
-// var compassRenderer;
 
-// var compassScene;
-// var compassCamera;
 var compassManager;
 
 // tutorial variables
@@ -282,7 +279,7 @@ function init() {
     tmpVector = new THREE.Vector3();
 
     // breadcrumbs
-    breadcrumbGeometry = new THREE.BoxBufferGeometry(1, 1, 1);
+    breadcrumbGeometry = new THREE.BoxGeometry(1, 1, 1);
 
     // dust effect
     dust = new DustEffect({
@@ -299,7 +296,7 @@ function init() {
         count: 1000,
         map: dotSprite,
         size: window.innerHeight / 25,
-        collisionDistance: collisionDistance
+        collisionDistance: CameraCollisionDistance
     });
     trail.followObject(camera);
     trail.addTo(scene);
