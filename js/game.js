@@ -7,14 +7,19 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
+import DustEffect from './dust.js';
+import TrailEffect from './trail.js';
+import sampleUniformSphere from './sampleUniformSphere.js';
+import CompassManager from './compassManagager.js';
 
 // webpage objects
 
 var renderer;
-var compassRenderer;
+// var compassRenderer;
 
-var compassScene;
-var compassCamera;
+// var compassScene;
+// var compassCamera;
+var compassManager;
 
 // tutorial variables
 var showTutorial = true;
@@ -60,12 +65,6 @@ var dotGeometries;
 var dotTmpQuaternion;
 var dotRotationAnim;
 
-// trail particles
-var trailParticles;
-var trailMotions;
-var trailGeometry;
-var trailPointSize;
-
 var lastTrailCameraPosition;
 
 var tmpVector;
@@ -93,36 +92,8 @@ var historyMesh;
 var breadcrumbs = [[], [], []];
 var breadcrumbGeometry;
 
-function sampleUniformSphere() {
-
-    let x12 = 1;
-    let x22 = 1;
-    let x1 = 0;
-    let x2 = 0;
-
-    while (x12 + x22 >= 1) {
-
-        x1 = Math.random() * 2 - 1;
-        x2 = Math.random() * 2 - 1;
-
-        x12 = x1*x1;
-        x22 = x2*x2;
-
-    }
-
-    let sqrroot = Math.sqrt(1 - x12 - x22);
-
-    let r = Math.random();
-    r *= r;
-    r = 1 - r;
-
-    return [
-        r * (2 * x1 * sqrroot),
-        r * (2 * x2 * sqrroot),
-        r * (1 - 2 * (x12 + x22))
-    ];
-
-}
+var dust;
+var trail;
 
 function dotGroupRandomize() {
 
@@ -172,24 +143,9 @@ function init() {
     document.body.appendChild( renderer.domElement );
 
     // add 3d compass
-    compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, powerPreference: "high-performance" } );
-    compassRenderer.setPixelRatio( renderer.getPixelRatio() );
-    let compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeight)/6 );
-    compassRenderer.setSize( compassWindowSize, compassWindowSize );
-    compassRenderer.setClearColor( 0x000000, 0 );
-    compassRenderer.domElement.id = "compass";
-    document.querySelector('#compass-container').appendChild( compassRenderer.domElement );
+    compassManager = new CompassManager();
 
-    compassScene = new THREE.Scene();
-
-    compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
-    compassCamera.position.z = 2;
-
-    let compassPoint = new THREE.PointLight( 0xffffff );
-    compassPoint.position.set( -1, -2, 1 );
-    compassScene.add( compassPoint );
-
-    compassScene.add( new THREE.AmbientLight( 'gray' ) );
+    compassManager.renderer.setPixelRatio( renderer.getPixelRatio() );
 
     // setup basic objects
     fpsClock = new THREE.Clock();
@@ -204,7 +160,7 @@ function init() {
 
     // load models
     blockGeometry = new THREE.InstancedBufferGeometry();
-    THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxBufferGeometry() );
+    THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxGeometry() );
     let loader = new GLTFLoader();
     wallGeometry = new THREE.InstancedBufferGeometry();
     let arrowGeometry = new THREE.BufferGeometry();
@@ -221,16 +177,6 @@ function init() {
         console.error( error );
 
     } );
-    loader.load( 'models/arrow.glb', function ( gltf ) {
-        let modelArrow = gltf.scene.getObjectByName('arrow');
-        THREE.BufferGeometry.prototype.copy.call(arrowGeometry, modelArrow.geometry);
-        arrowMesh = new THREE.Mesh( arrowGeometry, new THREE.MeshLambertMaterial( { color: 0xd92e18 } ) );
-        compassScene.add( arrowMesh );
-    }, undefined, function ( error ) {
-
-        console.error( error );
-
-    } );
 
     // load texture
     dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
@@ -240,7 +186,7 @@ function init() {
     darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
 
     // set up lights
-    let localLight = new THREE.PointLight( 0xffffff );
+    let localLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
     camera.add( localLight );
     scene.add( camera );
     let ambLight = new THREE.AmbientLight( 0x808080 );
@@ -333,19 +279,32 @@ function init() {
 
     scene.add( dotGroup );
 
-    // trail particles
-    trailParticles = [];
-    trailMotions = [];
-    trailGeometry = new THREE.BufferGeometry();
-    trailGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3 ) );
-    trailPointSize = window.innerHeight / 25;
-
-    lastTrailCameraPosition = new THREE.Vector3();
-
     tmpVector = new THREE.Vector3();
 
     // breadcrumbs
     breadcrumbGeometry = new THREE.BoxBufferGeometry(1, 1, 1);
+
+    // dust effect
+    dust = new DustEffect({
+        count: 2000,
+        spawnRadius: maze.majorWidth * 5,
+        map: dotSprite,
+        size: 0.025
+    });
+    dust.followObject(camera);
+    dust.addTo(scene);  
+
+    // trail effect
+    trail = new TrailEffect({
+        count: 1000,
+        map: dotSprite,
+        size: window.innerHeight / 25,
+        collisionDistance: collisionDistance
+    });
+    trail.followObject(camera);
+    trail.addTo(scene);
+    
+    compassManager.followObject(camera);
 
     // maze variables
     mazeSize = 3;
@@ -400,6 +359,7 @@ function buildMaze(size=mazeSize) {
 
     segments = mazeSize * 2 - 1;
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
+    compassManager.setEndPos( endPos );
 
     dotGroup.position.copy( endPos );
     dotGroupRandomize();
@@ -411,14 +371,8 @@ function buildMaze(size=mazeSize) {
     historyLine.geometry.dispose();
     historyMesh.visible = false;
 
-    lastTrailCameraPosition.copy( camera.position );
-    for (let i = 0; i < trailParticles.length; i++) {
-        let part = trailParticles[i];
-        scene.remove(part);
-        part.material.dispose();
-    }
-    trailParticles = [];
-    trailMotions = [];
+    dust.respawnAllParticles();
+    trail.reset();
 
     mazeGroup.remove(...mazeGroup.children);
 
@@ -463,9 +417,9 @@ function buildMaze(size=mazeSize) {
                     wallMatrices.push( dummyWall.matrix.clone() );
 
                     wallColors.push(
-                        0.15 + 0.7 * (i-1)/(mazeData.segments[0]),
-                        0.15 + 0.7 * (j-1)/(mazeData.segments[1]),
-                        0.15 + 0.7 * (k-1)/(mazeData.segments[2])
+                        0.05 + 0.9 * (i-1)/(mazeData.segments[0]),
+                        0.05 + 0.9 * (j-1)/(mazeData.segments[1]),
+                        0.05 + 0.9 * (k-1)/(mazeData.segments[2])
                     );
 
                 } else {
@@ -757,47 +711,12 @@ var animate = function () {
     requestAnimationFrame( animate );
 
     controls.update(delta);
+    dust.update(delta);
+    trail.update(delta);
+    compassManager.update();
 
     collisionUpdate();
 
-    // update the compass
-    if (arrowMesh != null) {
-        arrowMesh.lookAt( camera.position.clone().multiplyScalar(-1).add(endPos) );
-        arrowMesh.applyQuaternion( camera.quaternion.clone().invert() );
-    }
-
-    // camera trail
-    // shrink and disappear
-    for (let i = 0; i < trailParticles.length; i++) {
-        let part = trailParticles[i];
-
-        part.material.size -= delta * trailPointSize/10;
-        part.position.addScaledVector( trailMotions[i], delta * 0.02 );
-
-        if (part.material.size <= 0.01) {
-            scene.remove(part);
-            part.material.dispose();
-            trailParticles = trailParticles.splice(1); // remove earliest
-            trailMotions = trailMotions.splice(1);
-            i--;
-        }
-    }
-    // spawn new
-    if ( lastTrailCameraPosition.distanceToSquared( camera.position ) > CameraCollisionDistance**2 ) {
-        lastTrailCameraPosition.copy( camera.position );
-
-        let partMaterial = new THREE.PointsMaterial( { color: `hsl(${Math.random() * 360}, 100%, 50%)`, sizeAttenuation: false, size: trailPointSize, map: dotSprite, alphaTest: 0.8, transparent: true } );
-        let partPoints = new THREE.Points( trailGeometry, partMaterial );
-
-        tmpVector.set( Math.random() * CameraCollisionDistance * 2 - CameraCollisionDistance, Math.random() * CameraCollisionDistance * 2 - CameraCollisionDistance, -maze.minorWidth );
-        tmpVector.applyMatrix4( camera.matrix );
-        partPoints.position.copy( tmpVector );
-
-        trailParticles.push( partPoints );
-        trailMotions.push( new THREE.Vector3( ...sampleUniformSphere() ) );
-
-        scene.add( partPoints );
-    }
     if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( camera.position ) > (0.1 * CameraCollisionDistance)**2 )
     {
         // add to history
@@ -823,7 +742,8 @@ var animate = function () {
     }
 
     renderer.render( scene, camera );
-    compassRenderer.render( compassScene, compassCamera );
+    compassManager.render();
+    
 };
 
 init();
