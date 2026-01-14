@@ -10,7 +10,9 @@ import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
 import TrailEffect from './trail.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
+import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import CompassManager from './compassManagager.js';
+import BreadcrumbManager from './BreadcrumbManager.js';
 
 // webpage objects
 
@@ -61,8 +63,6 @@ var dotColorArrays;
 var dotGeometries;
 var dotTmpQuaternion;
 var dotRotationAnim;
-
-var lastTrailCameraPosition;
 
 var tmpVector;
 
@@ -279,7 +279,8 @@ function init() {
     tmpVector = new THREE.Vector3();
 
     // breadcrumbs
-    breadcrumbGeometry = new THREE.BoxGeometry(1, 1, 1);
+    breadcrumbs = new BreadcrumbManager();
+    breadcrumbs.addTo(scene);
 
     // dust effect
     dust = new DustEffect({
@@ -431,6 +432,8 @@ function buildMaze(size=mazeSize) {
         }
     }
 
+    breadcrumbs.initializeMaze(mazeData);
+
     wallGeometry.setAttribute( 'color', new THREE.InstancedBufferAttribute( new Float32Array( wallColors ), 3 ) );
     let wallInstancedMesh = new THREE.InstancedMesh( wallGeometry, wallMaterial, wallMatrices.length );
     let i = 0;
@@ -451,41 +454,6 @@ function buildMaze(size=mazeSize) {
 };
 
 const CameraCollisionDistance = 0.25;
-var axes = {x: 0, y: 1, z: 2};
-function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazePosRelevant, mazePosOther, sign, targetVector = camera.position, collisionDistance = CameraCollisionDistance) {
-    let min0 = Math.min(mazePosRelevant[othA0], mazePosOther[othA0]);
-    let max0 = Math.max(mazePosRelevant[othA0], mazePosOther[othA0]);
-    let min1 = Math.min(mazePosRelevant[othA1], mazePosOther[othA1]);
-    let max1 = Math.max(mazePosRelevant[othA1], mazePosOther[othA1]);
-
-    let collided = false;
-    let colAx = mazePosRelevant[majorAxis] + sign;
-    // solution for reading into maze xyz in correct order
-    let indices = Array(3);
-    indices[axes[majorAxis]] = colAx;
-    function getMazeData(idx0, idx1) {
-        indices[axes[othA0]] = idx0;
-        indices[axes[othA1]] = idx1;
-        return mazeData.collision_map[indices[0]][indices[1]][indices[2]];
-    }
-    // check for collisions on orthogonal axese
-    for (let i = Math.max(min0, 0); i <= Math.min(mazeData.bounds[axes[othA0]]*2, max0); i++) {
-        for (let j = Math.max(min1, 0); j <= Math.min(mazeData.bounds[axes[othA1]]*2, max1); j++) {
-            if (colAx >= 0 && colAx <= mazeData.bounds[axes[majorAxis]]*2 && getMazeData(i, j)) {
-                collided = true;
-                break;
-            }
-        }
-        if (collided)
-            break;
-    }
-    if (collided) {
-        targetVector[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
-        newMazePosRelevant[majorAxis] = mazePosRelevant[majorAxis];
-    } else {
-        mazePosRelevant[majorAxis] += sign;
-    }
-};
 function collisionUpdate() {
     let nearPos = new THREE.Vector3();
     nearPos.copy(camera.position);
@@ -505,24 +473,24 @@ function collisionUpdate() {
     // actual collision checking goes here
     if (newMazePosNear.distanceToSquared(mazePosNear) != 0) {
         if (newMazePosNear.x - mazePosNear.x < 0) {
-            checkCollisionOnAxis('x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1, camera.position, CameraCollisionDistance);
         }
         if (newMazePosNear.y - mazePosNear.y < 0) {
-            checkCollisionOnAxis('y', 'x', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', mazePosNear, newMazePosNear, mazePosFar, -1, camera.position, CameraCollisionDistance);
         }
         if (newMazePosNear.z - mazePosNear.z < 0) {
-            checkCollisionOnAxis('z', 'y', 'x', mazePosNear, newMazePosNear, mazePosFar, -1);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', mazePosNear, newMazePosNear, mazePosFar, -1, camera.position, CameraCollisionDistance);
         }
     }
     if (newMazePosFar.distanceToSquared(mazePosFar) != 0) {
         if (newMazePosFar.x - mazePosFar.x > 0) {
-            checkCollisionOnAxis('x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1, camera.position, CameraCollisionDistance);
         }
         if (newMazePosFar.y - mazePosFar.y > 0) {
-            checkCollisionOnAxis('y', 'x', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', mazePosFar, newMazePosFar, mazePosNear, 1, camera.position, CameraCollisionDistance);
         }
         if (newMazePosFar.z - mazePosFar.z > 0) {
-            checkCollisionOnAxis('z', 'y', 'x', mazePosFar, newMazePosFar, mazePosNear, 1);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', mazePosFar, newMazePosFar, mazePosNear, 1, camera.position, CameraCollisionDistance);
         }
     }
 
@@ -617,50 +585,6 @@ function onMazeCompletion()
             'branches_total': mazeData.analytics.branches_on_solution,
             'time_since_start': Date.now() - timerStartMillis
     });
-}
-
-function handleBreadcrumbInput(idx)
-{
-    // add a breadcrumb
-    const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
-    const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
-
-    breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
-    breadcrumb.position.copy(camera.position);
-    camera.getWorldDirection(tmpVector);
-    breadcrumb.position.addScaledVector(tmpVector, maze.minorWidth * 8);
-
-    tmpVector.copy(breadcrumb.position);
-    tmpVector.addScalar(maze.minorWidth);
-    const breadcrumbMazePosFar = maze.getMazePos(tmpVector);
-    tmpVector.addScalar(-2*maze.minorWidth);
-    const breadcrumbMazePosNear = maze.getMazePos(tmpVector);
-    const cameraMazePos = maze.getMazePos(camera.position);
-
-    if (cameraMazePos.distanceToSquared(breadcrumbMazePosNear) != 0) {
-        if (breadcrumbMazePosNear.x - cameraMazePos.x < 0) {
-            checkCollisionOnAxis('x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
-        }
-        if (breadcrumbMazePosNear.y - cameraMazePos.y < 0) {
-            checkCollisionOnAxis('y', 'x', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
-        }
-        if (breadcrumbMazePosNear.z - cameraMazePos.z < 0) {
-            checkCollisionOnAxis('z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
-        }
-    }
-    if (breadcrumbMazePosFar.distanceToSquared(mazePosFar) != 0) {
-        if (breadcrumbMazePosFar.x - cameraMazePos.x > 0) {
-            checkCollisionOnAxis('x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
-        }
-        if (breadcrumbMazePosFar.y - cameraMazePos.y > 0) {
-            checkCollisionOnAxis('y', 'x', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
-        }
-        if (breadcrumbMazePosFar.z - cameraMazePos.z > 0) {
-            checkCollisionOnAxis('z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
-        }
-    }
-
-    scene.add(breadcrumb);
 }
 
 function onWindowResize() {
@@ -944,7 +868,7 @@ document.querySelector('#mainCanvas').addEventListener('mousedown', (event) =>
     if (event.button > 0 || event.button > 2)
         return;
 
-    handleBreadcrumbInput(event.button);
+    breadcrumbs.handleBreadcrumbInput(event.button, camera, mazeData);
 });
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
