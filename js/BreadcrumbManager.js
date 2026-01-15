@@ -23,8 +23,43 @@ export default class BreadcrumbManager {
         this.mazedata = mazedata;
 
         // clear existing breadcrumbs
+        for (let i = 0; i < this.breadcrumbs.length; i++) {
+            this.scene.remove(this.breadcrumbs[i]);
+        }
+        this.breadcrumbs = [];
 
-        // set up initial breadcrumbs at random dead ends
+        // pick X% of dead ends at random
+        const DEAD_END_FILL = 0.5;
+        let deadEndSelection = new Array(mazedata.analytics.dead_ends_data.length).fill(false);
+        const numBreadcrumbs = Math.floor(mazedata.analytics.dead_ends_data.length * DEAD_END_FILL);
+        let count = 0;
+        while (count < numBreadcrumbs) {
+            const idx = Math.floor(Math.random() * mazedata.analytics.dead_ends_data.length);
+            if (!deadEndSelection[idx]) {
+                deadEndSelection[idx] = true;
+                count++;
+            }
+        }
+
+        // add breadcrumbs
+        for (let i = 0; i < mazedata.analytics.dead_ends_data.length; i++) {
+            if (deadEndSelection[i]) {
+                const deadEnd = mazedata.analytics.dead_ends_data[i];
+                const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
+                const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
+
+                breadcrumb.position.set(
+                    deadEnd.position[0] * (maze.minorWidth + maze.majorWidth) / 2,
+                    deadEnd.position[1] * (maze.minorWidth + maze.majorWidth) / 2,
+                    deadEnd.position[2] * (maze.minorWidth + maze.majorWidth) / 2
+                );
+
+                breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
+
+                this.scene.add(breadcrumb);
+                this.breadcrumbs.push(breadcrumb);
+            }
+        }
     }
 
     handleBreadcrumbInput(idx, camera, mazeData)
@@ -67,6 +102,8 @@ export default class BreadcrumbManager {
         }
     
         this.scene.add(breadcrumb);
+
+        this.breadcrumbs.push(breadcrumb);
     }
 
 }
