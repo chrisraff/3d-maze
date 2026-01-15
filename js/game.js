@@ -638,6 +638,11 @@ var animate = function () {
 
     collisionUpdate();
 
+    // Update breadcrumb hover highlighting on non-mobile devices
+    if (!isMobile) {
+        breadcrumbs.updateHoveredBreadcrumb(camera);
+    }
+
     if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( camera.position ) > (0.1 * CameraCollisionDistance)**2 )
     {
         // add to history
@@ -645,7 +650,6 @@ var animate = function () {
         newHistoryPosition.copy(camera.position);
         historyPositions.push( newHistoryPosition );
     }
-
 
     // make the goal dots spin
     if (finishedMaze && dotRotationAnim < 1) {
@@ -865,10 +869,10 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 // breadcrumbs
 document.querySelector('#mainCanvas').addEventListener('mousedown', (event) =>
 {
-    if (event.button > 0 || event.button > 2)
+    if (event.button !== 0)
         return;
 
-    breadcrumbs.handleBreadcrumbInput(event.button, camera, mazeData);
+    breadcrumbs.handleBreadcrumbInput(camera, mazeData);
 });
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
