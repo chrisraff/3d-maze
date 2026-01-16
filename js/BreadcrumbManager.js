@@ -17,11 +17,68 @@ export default class BreadcrumbManager {
         this.mouseVector = new THREE.Vector2();
         this.hoveredBreadcrumb = null;
         this.highlightMaterial = new THREE.MeshLambertMaterial({color: 0xffff00, emissive: 0xffffff});
+
+        this.touchData = {} // map of touch identifier to touch data
     }
 
     addTo(scene) {
         this.scene = scene;
     };
+
+    addEventListeners(element, camera) {
+        // track touches - a quick single tap adds or removes a breadcrumb
+        element.addEventListener('touchstart', (event) =>
+        {
+            // get the latest touch only
+            let touch = event.touches[event.touches.length - 1];
+            this.touchData[touch.identifier] = {
+                touchStartTime: Date.now(),
+                touchStartX: touch.clientX,
+                touchStartY: touch.clientY
+            };
+
+            this.mouseVector.set(
+                (touch.clientX / window.innerWidth) * 2 - 1,
+                -(touch.clientY / window.innerHeight) * 2 + 1
+            );
+        });
+
+        element.addEventListener('touchend', (event) =>
+        {
+            // check if the touch was a quick tap (no movement)
+            if (event.changedTouches.length == 0)
+                return;
+
+            let touch = event.changedTouches[0];
+            if (!(touch.identifier in this.touchData))
+                return;
+
+            // check if the touch was a quick tap (no movement)
+            const touchData = this.touchData[touch.identifier];
+            const timeDiff = Date.now() - touchData.touchStartTime;
+            const distance = Math.sqrt(
+                Math.pow(touch.clientX - touchData.touchStartX, 2) +
+                Math.pow(touch.clientY - touchData.touchStartY, 2)
+            );
+            if (timeDiff > 500 || distance > 10) {
+                // not a quick tap
+                delete this.touchData[touch.identifier];
+                return;
+            }
+
+            delete this.touchData[touch.identifier];
+
+            this.handleBreadcrumbTap(camera, this.mazedata, 2 * touch.clientX / window.innerWidth - 1, 1 - 2 * touch.clientY / window.innerHeight);
+        });
+
+        element.addEventListener('mousedown', (event) =>
+        {
+            if (event.button !== 0)
+                return;
+
+            this.handleBreadcrumbClick(camera, this.mazedata);
+        });
+    }
 
     initializeMaze(mazedata) {
         this.mazedata = mazedata;
@@ -60,7 +117,7 @@ export default class BreadcrumbManager {
                 );
 
                 breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
-                
+
                 // Store the original material for unhighlight
                 breadcrumb.userData.originalMaterial = newMaterial;
 
@@ -70,24 +127,96 @@ export default class BreadcrumbManager {
         }
     }
 
-    handleBreadcrumbInput(camera, mazeData)
+    handleBreadcrumbTap(camera, mazeData, sceneX=0, sceneY=0)
     {
-        // if a breadcrumb is hovered
-        if (this.hoveredBreadcrumb) {
-            this.removeBreadcrumbAtMouse();
+        const breadcrumb = this.raycastSearchForBreadcrumb(camera, sceneX, sceneY);
+        if (breadcrumb !== null) {
+            // remove the breadcrumb
+            this.removeBreadcrumb(breadcrumb.object);
             return;
         }
 
-        // left click (button 0) - add a breadcrumb
+        this.addBreadcrumb(camera, mazeData, sceneX, sceneY);
+    }
+
+    handleBreadcrumbClick(camera, mazeData) {
+        // if a breadcrumb is hovered, remove it
+        if (this.hoveredBreadcrumb) {
+            this.removeBreadcrumb(this.hoveredBreadcrumb);
+            return;
+        }
+
+        this.addBreadcrumb(camera, mazeData);
+    }
+
+    updateHoveredBreadcrumb(camera)
+    {
+        const breadcrumb = this.raycastSearchForBreadcrumb(camera);
+
+        // Unhighlight the previously hovered breadcrumb
+        if (this.hoveredBreadcrumb !== null) {
+            this.hoveredBreadcrumb.material = this.hoveredBreadcrumb.userData.originalMaterial;
+        }
+
+        // Highlight the newly hovered breadcrumb
+        if (breadcrumb !== null) {
+            this.hoveredBreadcrumb = breadcrumb.object;
+            this.hoveredBreadcrumb.material = this.highlightMaterial;
+        } else {
+            this.hoveredBreadcrumb = null;
+        }
+    }
+
+    // look for a breadcrumb at a corresponding screen position
+    raycastForBreadcrumb(camera, sceneX=0, sceneY=0) {
+        this.mouseVector.set(sceneX, sceneY);
+        this.raycaster.setFromCamera(this.mouseVector, camera);
+
+        const intersects = this.raycaster.intersectObjects(this.breadcrumbs);
+
+        if (intersects.length > 0 && intersects[0].distance < maze.majorWidth * 0.75) {
+            return intersects[0];
+        }
+
+        return null;
+    }
+
+    removeBreadcrumb(breadcrumb) {
+        if (breadcrumb == null)
+            return;
+
+        this.scene.remove(breadcrumb);
+        const idx = this.breadcrumbs.indexOf(breadcrumb);
+        if (idx > -1) {
+            this.breadcrumbs.splice(idx, 1);
+        }
+        this.hoveredBreadcrumb = null;
+    }
+
+    addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
         const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
         const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
-    
+
         breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
-        breadcrumb.position.copy(camera.position);
+
         const tmpVector = new THREE.Vector3();
-        camera.getWorldDirection(tmpVector);
-        breadcrumb.position.addScaledVector(tmpVector, maze.minorWidth * 8);
-    
+
+        // If user tapped on scene, place breadcrumb at tap location,
+        // or the middle of the screen for mouse clicks
+        this.mouseVector.set(sceneX, sceneY);
+        this.raycaster.setFromCamera(this.mouseVector, camera);
+
+        // Create a plane in front of the camera to raycast against
+        const planeNormal = new THREE.Vector3();
+        camera.getWorldDirection(planeNormal);
+        const planePoint = new THREE.Vector3();
+        planePoint.copy(camera.position).addScaledVector(planeNormal, maze.minorWidth * 8);
+        const plane = new THREE.Plane(planeNormal, -planeNormal.dot(planePoint));
+
+        const intersection = new THREE.Vector3();
+        this.raycaster.ray.intersectPlane(plane, intersection);
+        breadcrumb.position.copy(intersection);
+
         tmpVector.copy(breadcrumb.position);
         tmpVector.addScalar(maze.minorWidth);
         const breadcrumbMazePosFar = maze.getMazePos(tmpVector);
@@ -104,7 +233,7 @@ export default class BreadcrumbManager {
         if (breadcrumbMazePosNear.z - cameraMazePos.z < 0) {
             checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
         }
-    
+
         if (breadcrumbMazePosFar.x - cameraMazePos.x > 0) {
             checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
         }
@@ -114,43 +243,12 @@ export default class BreadcrumbManager {
         if (breadcrumbMazePosFar.z - cameraMazePos.z > 0) {
             checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
         }
-    
+
         // Store the original material
         breadcrumb.userData.originalMaterial = newMaterial;
-        
+
         this.scene.add(breadcrumb);
 
         this.breadcrumbs.push(breadcrumb);
-    }
-
-    updateHoveredBreadcrumb(camera) {
-        this.mouseVector.set(0, 0); // center of screen
-        this.raycaster.setFromCamera(this.mouseVector, camera);
-        
-        const intersects = this.raycaster.intersectObjects(this.breadcrumbs);
-
-        // Unhighlight the previously hovered breadcrumb
-        if (this.hoveredBreadcrumb !== null) {
-            this.hoveredBreadcrumb.material = this.hoveredBreadcrumb.userData.originalMaterial;
-        }
-
-        // Highlight the newly hovered breadcrumb
-        if (intersects.length > 0 && intersects[0].distance < maze.majorWidth * 0.75) {
-            this.hoveredBreadcrumb = intersects[0].object;
-            this.hoveredBreadcrumb.material = this.highlightMaterial;
-        } else {
-            this.hoveredBreadcrumb = null;
-        }
-    }
-
-    removeBreadcrumbAtMouse() {
-        if (this.hoveredBreadcrumb !== null) {
-            this.scene.remove(this.hoveredBreadcrumb);
-            const idx = this.breadcrumbs.indexOf(this.hoveredBreadcrumb);
-            if (idx > -1) {
-                this.breadcrumbs.splice(idx, 1);
-            }
-            this.hoveredBreadcrumb = null;
-        }
     }
 }

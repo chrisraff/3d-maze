@@ -86,8 +86,7 @@ var	historyLineMaterial;
 var historyLine;
 var historyMesh;
 // breadcrumbs
-var breadcrumbs = [[], [], []];
-var breadcrumbGeometry;
+var breadcrumbs;
 
 var dust;
 var trail;
@@ -281,6 +280,7 @@ function init() {
     // breadcrumbs
     breadcrumbs = new BreadcrumbManager();
     breadcrumbs.addTo(scene);
+    breadcrumbs.addEventListeners(renderer.domElement, camera);
 
     // dust effect
     dust = new DustEffect({
@@ -290,7 +290,7 @@ function init() {
         size: 0.025
     });
     dust.followObject(camera);
-    dust.addTo(scene);  
+    dust.addTo(scene);
 
     // trail effect
     trail = new TrailEffect({
@@ -301,7 +301,7 @@ function init() {
     });
     trail.followObject(camera);
     trail.addTo(scene);
-    
+
     compassManager.followObject(camera);
 
     // maze variables
@@ -668,7 +668,6 @@ var animate = function () {
 
     renderer.render( scene, camera );
     compassManager.render();
-    
 };
 
 init();
@@ -865,14 +864,6 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
     buildMazeAndUpdateUI( document.querySelector('#menu-new-maze-size-slider').value );
 
     menuLockControls();
-});
-// breadcrumbs
-document.querySelector('#mainCanvas').addEventListener('mousedown', (event) =>
-{
-    if (event.button !== 0)
-        return;
-
-    breadcrumbs.handleBreadcrumbInput(camera, mazeData);
 });
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
