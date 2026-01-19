@@ -18,6 +18,8 @@ export default class BreadcrumbManager {
         this.hoveredBreadcrumb = null;
         this.highlightMaterial = new THREE.MeshLambertMaterial({color: 0xffff00, emissive: 0xffffff});
 
+        this.breadcrumbStack = [];
+
         this.touchData = {} // map of touch identifier to touch data
     }
 
@@ -88,6 +90,7 @@ export default class BreadcrumbManager {
             this.scene.remove(this.breadcrumbs[i]);
         }
         this.breadcrumbs = [];
+        this.breadcrumbStack = [];
         this.hoveredBreadcrumb = null;
 
         // pick X% of dead ends at random
@@ -168,7 +171,7 @@ export default class BreadcrumbManager {
     }
 
     // look for a breadcrumb at a corresponding screen position
-    raycastForBreadcrumb(camera, sceneX=0, sceneY=0) {
+    raycastSearchForBreadcrumb(camera, sceneX=0, sceneY=0) {
         this.mouseVector.set(sceneX, sceneY);
         this.raycaster.setFromCamera(this.mouseVector, camera);
 
@@ -191,13 +194,15 @@ export default class BreadcrumbManager {
             this.breadcrumbs.splice(idx, 1);
         }
         this.hoveredBreadcrumb = null;
+
+        this.breadcrumbStack.push(breadcrumb);
     }
 
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
-        const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
-        const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
+        if (this.breadcrumbStack.length === 0)
+            return;
 
-        breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
+        let breadcrumb = this.breadcrumbStack.pop();
 
         const tmpVector = new THREE.Vector3();
 
@@ -210,7 +215,7 @@ export default class BreadcrumbManager {
         const planeNormal = new THREE.Vector3();
         camera.getWorldDirection(planeNormal);
         const planePoint = new THREE.Vector3();
-        planePoint.copy(camera.position).addScaledVector(planeNormal, maze.minorWidth * 8);
+        planePoint.copy(camera.position).addScaledVector(planeNormal, maze.majorWidth * 0.33);
         const plane = new THREE.Plane(planeNormal, -planeNormal.dot(planePoint));
 
         const intersection = new THREE.Vector3();
@@ -243,9 +248,6 @@ export default class BreadcrumbManager {
         if (breadcrumbMazePosFar.z - cameraMazePos.z > 0) {
             checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
         }
-
-        // Store the original material
-        breadcrumb.userData.originalMaterial = newMaterial;
 
         this.scene.add(breadcrumb);
 
