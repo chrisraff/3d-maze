@@ -128,6 +128,8 @@ export default class BreadcrumbManager {
                 this.breadcrumbs.push(breadcrumb);
             }
         }
+
+        this.updateBreadCrumbDisplay();
     }
 
     handleBreadcrumbTap(camera, mazeData, sceneX=0, sceneY=0)
@@ -196,6 +198,8 @@ export default class BreadcrumbManager {
         this.hoveredBreadcrumb = null;
 
         this.breadcrumbStack.push(breadcrumb);
+
+        this.updateBreadCrumbDisplay();
     }
 
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
@@ -252,5 +256,15 @@ export default class BreadcrumbManager {
         this.scene.add(breadcrumb);
 
         this.breadcrumbs.push(breadcrumb);
+
+        this.updateBreadCrumbDisplay();
+    }
+
+    updateBreadCrumbDisplay() {
+        const breadcrumbContainer = document.getElementById('breadcrumb-container');
+        if (this.breadcrumbStack.length > 0)
+            breadcrumbContainer.innerText = this.breadcrumbStack.length.toString();
+        else
+            breadcrumbContainer.innerText = "";
     }
 }
