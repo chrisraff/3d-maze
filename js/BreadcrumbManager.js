@@ -7,6 +7,8 @@ import checkCollisionOnAxis from './checkCollisionOnAxis.js';
  */
 
 const breadcrumbGeometry = new THREE.BoxGeometry(1, 1, 1);
+const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
+const hitBoxMaterial = new THREE.MeshBasicMaterial();
 
 export default class BreadcrumbManager {
     constructor() {
@@ -21,6 +23,8 @@ export default class BreadcrumbManager {
         this.breadcrumbStack = [];
 
         this.touchData = {} // map of touch identifier to touch data
+
+        this.raycaster.layers.set(1);
     }
 
     addTo(scene) {
@@ -113,6 +117,13 @@ export default class BreadcrumbManager {
                 const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
                 const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
 
+                const hitBox = new THREE.Mesh(hitBoxGeometry, hitBoxMaterial);
+                hitBox.scale.multiplyScalar(2);
+                hitBox.userData.isBreadCrumbHitBox = true;
+                hitBox.userData.parentBreadcrumb = breadcrumb;
+                hitBox.layers.set(1);
+                breadcrumb.add(hitBox);
+
                 breadcrumb.position.set(
                     deadEnd.position[0] * (maze.minorWidth + maze.majorWidth) / 2,
                     deadEnd.position[1] * (maze.minorWidth + maze.majorWidth) / 2,
@@ -137,7 +148,7 @@ export default class BreadcrumbManager {
         const breadcrumb = this.raycastSearchForBreadcrumb(camera, sceneX, sceneY);
         if (breadcrumb !== null) {
             // remove the breadcrumb
-            this.removeBreadcrumb(breadcrumb.object);
+            this.removeBreadcrumb(breadcrumb);
             return;
         }
 
@@ -165,7 +176,7 @@ export default class BreadcrumbManager {
 
         // Highlight the newly hovered breadcrumb
         if (breadcrumb !== null) {
-            this.hoveredBreadcrumb = breadcrumb.object;
+            this.hoveredBreadcrumb = breadcrumb;
             this.hoveredBreadcrumb.material = this.highlightMaterial;
         } else {
             this.hoveredBreadcrumb = null;
@@ -179,10 +190,17 @@ export default class BreadcrumbManager {
 
         const intersects = this.raycaster.intersectObjects(this.breadcrumbs);
 
-        if (intersects.length > 0 && intersects[0].distance < maze.majorWidth * 0.75) {
-            return intersects[0];
+        if (intersects.length > 0) {
+            let i = -1;
+            while (++i < intersects.length) {
+                if (intersects[i].distance > maze.majorWidth * 0.75) {
+                    return null;
+                }
+                if (intersects[i].object.userData.isBreadCrumbHitBox) {
+                    return intersects[i].object.userData.parentBreadcrumb;
+                }
+            }
         }
-
         return null;
     }
 
