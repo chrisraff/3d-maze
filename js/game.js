@@ -42,14 +42,14 @@ const PI_2 = Math.PI / 2;
 // models
 var blockGeometry;
 var wallGeometry;
-
-var arrowMesh;
+var wallHitGeometry;
 
 // materials
 var dotSprite;
 
 var wallMaterial;
 var darkMaterial;
+var basicMaterial;
 
 // controls
 var controls;
@@ -154,12 +154,14 @@ function init() {
 
     tmpColor = new THREE.Color();
 
+    wallHitGeometry = new THREE.InstancedBufferGeometry();
+    THREE.BufferGeometry.prototype.copy.call( wallHitGeometry, new THREE.BoxGeometry() );
+
     // load models
     blockGeometry = new THREE.InstancedBufferGeometry();
     THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxGeometry() );
     let loader = new GLTFLoader();
     wallGeometry = new THREE.InstancedBufferGeometry();
-    let arrowGeometry = new THREE.BufferGeometry();
 
     loader.load( 'models/wall.glb', function ( gltf ) {
         let modelWall = gltf.scene.getObjectByName('wall');
@@ -180,6 +182,7 @@ function init() {
     // materials
     wallMaterial = new THREE.MeshLambertMaterial( { vertexColors: true } );
     darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
+    basicMaterial = new THREE.MeshBasicMaterial();
 
     // set up lights
     let localLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
@@ -447,7 +450,16 @@ function buildMaze(size=mazeSize) {
     blockMatrices.forEach((mat) => blockInstanceMesh.setMatrixAt( i++, mat ) );
     blockInstanceMesh.needsUpdate = true;
 
+    let wallHitInstanceMesh = new THREE.InstancedMesh( wallHitGeometry, basicMaterial, wallMatrices.length + blockMatrices.length );
+    i = 0;
+    wallMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
+    blockMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
+    wallHitInstanceMesh.needsUpdate = true;
+    wallHitInstanceMesh.layers.set(1);
+    wallHitInstanceMesh.userData.isMazeWallHitBox = true;
+
     mazeGroup.add( blockInstanceMesh );
+    mazeGroup.add( wallHitInstanceMesh );
 
     timerRunning = false;
 

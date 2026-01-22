@@ -188,12 +188,15 @@ export default class BreadcrumbManager {
         this.mouseVector.set(sceneX, sceneY);
         this.raycaster.setFromCamera(this.mouseVector, camera);
 
-        const intersects = this.raycaster.intersectObjects(this.breadcrumbs);
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
 
         if (intersects.length > 0) {
             let i = -1;
             while (++i < intersects.length) {
                 if (intersects[i].distance > maze.majorWidth * 0.75) {
+                    return null;
+                }
+                if (intersects[i].object.userData.isMazeWallHitBox) {
                     return null;
                 }
                 if (intersects[i].object.userData.isBreadCrumbHitBox) {
