@@ -6,7 +6,6 @@ import checkCollisionOnAxis from './checkCollisionOnAxis.js';
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
 
-const breadcrumbGeometry = new THREE.BoxGeometry(1, 1, 1);
 const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
 const hitBoxMaterial = new THREE.MeshBasicMaterial();
 
@@ -19,6 +18,7 @@ export default class BreadcrumbManager {
         this.mouseVector = new THREE.Vector2();
         this.hoveredBreadcrumb = null;
         this.highlightMaterial = new THREE.MeshLambertMaterial({color: 0xffff00, emissive: 0xffffff});
+        this.breadcrumbGeometry = null;
 
         this.breadcrumbStack = [];
 
@@ -86,6 +86,27 @@ export default class BreadcrumbManager {
         });
     }
 
+    setPointerGeometry(geometry) {
+        this.breadcrumbGeometry = geometry;
+
+        for (let i = 0; i < this.breadcrumbs.length; i++) {
+            this.breadcrumbs[i].remove(this.breadcrumbs[i].userData.mesh);
+            this.updateBreadcrumbMesh(this.breadcrumbs[i]);
+        }
+    }
+
+    updateBreadcrumbMesh(breadcrumb) {
+        let mesh;
+        if (this.breadcrumbGeometry === null)
+            mesh = new THREE.Object3D();
+        else
+            mesh = new THREE.Mesh(this.breadcrumbGeometry, breadcrumb.userData.originalMaterial);
+
+        breadcrumb.userData.mesh = mesh;
+
+        breadcrumb.add(mesh);
+    }
+
     initializeMaze(mazedata) {
         this.mazedata = mazedata;
 
@@ -93,6 +114,7 @@ export default class BreadcrumbManager {
         for (let i = 0; i < this.breadcrumbs.length; i++) {
             this.scene.remove(this.breadcrumbs[i]);
         }
+        this.highlightedBreadcrumb = null;
         this.breadcrumbs = [];
         this.breadcrumbStack = [];
         this.hoveredBreadcrumb = null;
@@ -114,8 +136,13 @@ export default class BreadcrumbManager {
         for (let i = 0; i < mazedata.analytics.dead_ends_data.length; i++) {
             if (deadEndSelection[i]) {
                 const deadEnd = mazedata.analytics.dead_ends_data[i];
+
+                const breadcrumb = new THREE.Object3D();
+
                 const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
-                const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
+                breadcrumb.userData.originalMaterial = newMaterial; // Store the original material for unhighlight
+
+                this.updateBreadcrumbMesh(breadcrumb);
 
                 const hitBox = new THREE.Mesh(hitBoxGeometry, hitBoxMaterial);
                 hitBox.scale.multiplyScalar(2);
@@ -131,9 +158,6 @@ export default class BreadcrumbManager {
                 );
 
                 breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
-
-                // Store the original material for unhighlight
-                breadcrumb.userData.originalMaterial = newMaterial;
 
                 this.scene.add(breadcrumb);
                 this.breadcrumbs.push(breadcrumb);
@@ -171,13 +195,13 @@ export default class BreadcrumbManager {
 
         // Unhighlight the previously hovered breadcrumb
         if (this.hoveredBreadcrumb !== null) {
-            this.hoveredBreadcrumb.material = this.hoveredBreadcrumb.userData.originalMaterial;
+            this.hoveredBreadcrumb.userData.mesh.material = this.hoveredBreadcrumb.userData.originalMaterial;
         }
 
         // Highlight the newly hovered breadcrumb
         if (breadcrumb !== null) {
             this.hoveredBreadcrumb = breadcrumb;
-            this.hoveredBreadcrumb.material = this.highlightMaterial;
+            this.hoveredBreadcrumb.userData.mesh.material = this.highlightMaterial;
         } else {
             this.hoveredBreadcrumb = null;
         }
@@ -275,6 +299,10 @@ export default class BreadcrumbManager {
         }
 
         this.scene.add(breadcrumb);
+
+        // set the breadcrumb to point away from the camera
+        breadcrumb.lookAt(camera.position);
+        breadcrumb.rotateY(Math.PI);
 
         this.breadcrumbs.push(breadcrumb);
 

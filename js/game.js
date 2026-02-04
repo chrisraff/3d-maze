@@ -176,6 +176,15 @@ function init() {
 
     } );
 
+    loader.load( 'models/pointer.glb', function ( gltf ) {
+        let modelPointer = gltf.scene.getObjectByName('pointer');
+        breadcrumbs.setPointerGeometry(modelPointer.geometry);
+    }, undefined, function ( error ) {
+
+        console.error( error );
+
+    } );
+
     // load texture
     dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
 
