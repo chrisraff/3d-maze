@@ -234,6 +234,7 @@ function generateMaze(size) {
         longest_path = Math.max(longest_path, current_item.distance_from_start);
 
         let new_positions = [];
+        let new_directions = [];
 
         for (let axis = 0; axis < 3; axis++)
         {
@@ -269,8 +270,9 @@ function generateMaze(size) {
                     continue;
                 seen.push(new_position_number);
 
-                // add this position to new directions
+                // add this position to new positions to explore
                 new_positions.push([new_curr_x, new_curr_y, new_curr_z]);
+                new_directions.push([new_curr_x - curr_x, new_curr_y - curr_y, new_curr_z - curr_z]);
             }
         }
 
@@ -290,6 +292,7 @@ function generateMaze(size) {
             stack.push(
                 {
                     position: new_positions[pos_idx],
+                    direction: new_directions[pos_idx],
                     distance_from_start: current_item.distance_from_start + 1,
                     distance_from_last_branch: (branched ? 1 : current_item.distance_from_last_branch + 1),
                     branches_on_this_path: current_item.branches_on_this_path + Math.max(0, new_positions.length - 1),

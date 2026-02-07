@@ -133,9 +133,11 @@ export default class BreadcrumbManager {
         }
 
         // add breadcrumbs
+        const directionVector = new THREE.Vector3();
         for (let i = 0; i < mazedata.analytics.dead_ends_data.length; i++) {
             if (deadEndSelection[i]) {
                 const deadEnd = mazedata.analytics.dead_ends_data[i];
+                directionVector.set(...deadEnd.direction);
 
                 const breadcrumb = new THREE.Object3D();
 
@@ -151,11 +153,16 @@ export default class BreadcrumbManager {
                 hitBox.layers.set(1);
                 breadcrumb.add(hitBox);
 
+                breadcrumb.lookAt(directionVector);
+                breadcrumb.rotateY(Math.PI);
+
                 breadcrumb.position.set(
                     deadEnd.position[0] * (maze.minorWidth + maze.majorWidth) / 2,
                     deadEnd.position[1] * (maze.minorWidth + maze.majorWidth) / 2,
                     deadEnd.position[2] * (maze.minorWidth + maze.majorWidth) / 2
                 );
+
+                breadcrumb.position.addScaledVector(directionVector, maze.majorWidth * 0.2);
 
                 breadcrumb.scale.multiplyScalar(maze.minorWidth * 4);
 
