@@ -145,7 +145,7 @@ export default class BreadcrumbManager {
                 this.updateBreadcrumbMesh(breadcrumb);
 
                 const hitBox = new THREE.Mesh(hitBoxGeometry, hitBoxMaterial);
-                hitBox.scale.multiplyScalar(2);
+                hitBox.scale.multiplyScalar(1.2);
                 hitBox.userData.isBreadCrumbHitBox = true;
                 hitBox.userData.parentBreadcrumb = breadcrumb;
                 hitBox.layers.set(1);
@@ -157,7 +157,7 @@ export default class BreadcrumbManager {
                     deadEnd.position[2] * (maze.minorWidth + maze.majorWidth) / 2
                 );
 
-                breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
+                breadcrumb.scale.multiplyScalar(maze.minorWidth * 4);
 
                 this.scene.add(breadcrumb);
                 this.breadcrumbs.push(breadcrumb);
@@ -248,6 +248,7 @@ export default class BreadcrumbManager {
     }
 
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
+        const breadcrumbCollisionDistance = maze.minorWidth * 2;
         if (this.breadcrumbStack.length === 0)
             return;
 
@@ -279,23 +280,23 @@ export default class BreadcrumbManager {
         const cameraMazePos = maze.getMazePos(camera.position);
 
         if (breadcrumbMazePosNear.x - cameraMazePos.x < 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosNear.y - cameraMazePos.y < 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosNear.z - cameraMazePos.z < 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
         }
 
         if (breadcrumbMazePosFar.x - cameraMazePos.x > 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosFar.y - cameraMazePos.y > 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosFar.z - cameraMazePos.z > 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
         }
 
         this.scene.add(breadcrumb);
