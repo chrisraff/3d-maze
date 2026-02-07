@@ -35,13 +35,19 @@ export default class BreadcrumbManager {
         // track touches - a quick single tap adds or removes a breadcrumb
         element.addEventListener('touchstart', (event) =>
         {
-            // get the latest touch only
-            let touch = event.touches[event.touches.length - 1];
-            this.touchData[touch.identifier] = {
-                touchStartTime: Date.now(),
-                touchStartX: touch.clientX,
-                touchStartY: touch.clientY
-            };
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                // get the latest touch only
+                if (event.changedTouches[i].identifier in this.touchData) {
+                    continue;
+                }
+
+                let touch = event.changedTouches[i];
+                this.touchData[touch.identifier] = {
+                    touchStartTime: Date.now(),
+                    touchStartX: touch.clientX,
+                    touchStartY: touch.clientY
+                };
+            }
 
             this.mouseVector.set(
                 (touch.clientX / window.innerWidth) * 2 - 1,
@@ -51,30 +57,31 @@ export default class BreadcrumbManager {
 
         element.addEventListener('touchend', (event) =>
         {
-            // check if the touch was a quick tap (no movement)
             if (event.changedTouches.length == 0)
                 return;
 
-            let touch = event.changedTouches[0];
-            if (!(touch.identifier in this.touchData))
-                return;
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                let touch = event.changedTouches[i];
+                if (!(touch.identifier in this.touchData))
+                    continue;
 
-            // check if the touch was a quick tap (no movement)
-            const touchData = this.touchData[touch.identifier];
-            const timeDiff = Date.now() - touchData.touchStartTime;
-            const distance = Math.sqrt(
-                Math.pow(touch.clientX - touchData.touchStartX, 2) +
-                Math.pow(touch.clientY - touchData.touchStartY, 2)
-            );
-            if (timeDiff > 500 || distance > 10) {
-                // not a quick tap
+                // check if the touch was a quick tap (no movement)
+                const touchData = this.touchData[touch.identifier];
+                const timeDiff = Date.now() - touchData.touchStartTime;
+                const distance = Math.sqrt(
+                    Math.pow(touch.clientX - touchData.touchStartX, 2) +
+                    Math.pow(touch.clientY - touchData.touchStartY, 2)
+                );
+                if (timeDiff > 500 || distance > 10) {
+                    // not a quick tap
+                    delete this.touchData[touch.identifier];
+                    continue;
+                }
+
                 delete this.touchData[touch.identifier];
-                return;
+
+                this.handleBreadcrumbTap(camera, this.mazedata, 2 * touch.clientX / window.innerWidth - 1, 1 - 2 * touch.clientY / window.innerHeight);
             }
-
-            delete this.touchData[touch.identifier];
-
-            this.handleBreadcrumbTap(camera, this.mazedata, 2 * touch.clientX / window.innerWidth - 1, 1 - 2 * touch.clientY / window.innerHeight);
         });
 
         element.addEventListener('mousedown', (event) =>
