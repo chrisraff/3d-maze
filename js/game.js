@@ -30,8 +30,9 @@ var timerStartMillis;
 var timerRunning;
 
 var scene;
-var camera;
 var cameraNode;
+var cameraCompensationNode;
+var camera;
 
 var tmpColor;
 
@@ -202,7 +203,9 @@ function init() {
 
     // put camera inside a camera node so it can be transformed as a unit
     cameraNode = new THREE.Object3D();
-    cameraNode.add( camera );
+    cameraCompensationNode = new THREE.Object3D();
+    cameraNode.add( cameraCompensationNode );
+    cameraCompensationNode.add( camera );
 
     tmpColor = new THREE.Color();
 
@@ -717,6 +720,22 @@ var animate = function () {
     if (mazeData == null)
         return;
 
+    if (renderer.xr.isPresenting) {
+        // in vr, compensate for user movement by updating the componensation node to put the head at the camera node position
+        let vrCamera = renderer.xr.getCamera();
+
+        tmpVector.copy( cameraCompensationNode.position );
+        tmpVector.add( vrCamera.position );
+
+        // move the player that much in the opposite direction
+        cameraNode.position.sub( tmpVector );
+
+        console.log(cameraNode.position);
+
+        // update componensation node to be opposite of vr camera position
+        cameraCompensationNode.position.copy( vrCamera.position ).multiplyScalar(-1);
+    }
+
     collisionUpdate();
 
     // update the compass
@@ -970,9 +989,7 @@ function resetTutorial(complete = false)
 
 function isInVr()
 {
-    return renderer.xr.isPresenting;const cameraVR = renderer.xr.getCamera();
-			// const isAR = (cameraVR.cameras.length == 0);
-			// console.log('isAR: ' + isAR );
+    return renderer.xr.isPresenting;
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
@@ -990,6 +1007,7 @@ document.querySelector('#setting-fixed-camera').addEventListener('change', (even
     controls.setGimbalLocked( event.target.checked );
 });
 
-document.querySelector('#menu-body').appendChild( VRButton.createButton( renderer ) );
+const vb = VRButton.createButton( renderer );
+document.querySelector('#menu-body').appendChild( vb );
 
 window.addEventListener('beforeunload', verifyAndReportAbandonedMaze);
