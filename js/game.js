@@ -49,6 +49,9 @@ var wallGeometry;
 
 var arrowMesh;
 
+// vr state
+var calibrated = false;
+
 // materials
 var dotSprite;
 
@@ -163,6 +166,34 @@ function init() {
     cameraNode.add( cameraCompensationNode );
     cameraCompensationNode.add( camera );
 
+    renderer.xr.addEventListener( 'sessionstart', () => {
+        // disable pitch
+        controls.setXRPresenting(true);
+
+        dust._material.size = 0.0075;
+
+        // let the session start and the camera update to the initial position before doing the compensation, or else the compensation will be wrong
+        setTimeout(() => {
+            cameraCompensationNode.position.copy( camera.position ).multiplyScalar(-1);
+            calibrated = true;
+        }, 1000);
+    });
+    renderer.xr.addEventListener( 'sessionend', () => {
+        // re-enable pitch
+        controls.setXRPresenting(false);
+
+        calibrated = false;
+
+        // reset camera compensation node
+        cameraCompensationNode.position.set(0, 0, 0);
+        camera.position.set(0, 0, 0);
+        camera.rotation.set(0, 0, 0);
+
+        dust._material.size = 0.025;
+
+        onWindowResize();
+    });
+
     tmpColor = new THREE.Color();
 
     // load models
@@ -230,8 +261,6 @@ function init() {
 
         updateMenuCentering();
     } );
-    // disable pitch
-    controls.setXRPresenting(true);
     // P key listener
     document.addEventListener('keydown', (event) => {
         if (event.code == 'KeyP' && controls.isLocked)
@@ -679,7 +708,7 @@ var animate = function () {
     if (mazeData == null)
         return;
 
-    if (renderer.xr.isPresenting) {
+    if (renderer.xr.isPresenting && calibrated) {
         // in vr, compensate for user movement by updating the componensation node to put the head at the camera node position
         let vrCamera = renderer.xr.getCamera();
 
@@ -907,11 +936,6 @@ function resetTutorial(complete = false)
         element.style.animationName = '';
     });
     document.querySelector('#compass-container').style.animationName = '';
-}
-
-function isInVr()
-{
-    return renderer.xr.isPresenting;
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
