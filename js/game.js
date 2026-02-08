@@ -4,18 +4,23 @@
 import * as THREE from 'three';
 import { MeshLine, MeshLineMaterial } from './THREE.MeshLine.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
-import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
+import DustEffect from './dust.js';
+import TrailEffect from './trail.js';
+import sampleUniformSphere from './sampleUniformSphere.js';
+import CompassManager from './compassManagager.js';
 
 // webpage objects
 
 var renderer;
-var compassRenderer;
+// var compassRenderer;
 
-var compassScene;
-var compassCamera;
+// var compassScene;
+// var compassCamera;
+var compassManager;
 
 // tutorial variables
 var showTutorial = true;
@@ -63,12 +68,6 @@ var dotGeometries;
 var dotTmpQuaternion;
 var dotRotationAnim;
 
-// trail particles
-var trailParticles;
-var trailMotions;
-var trailGeometry;
-var trailPointSize;
-
 var lastTrailCameraPosition;
 
 var tmpVector;
@@ -93,36 +92,8 @@ var	historyLineMaterial;
 var historyLine;
 var historyMesh;
 
-function sampleUniformSphere() {
-
-    let x12 = 1;
-    let x22 = 1;
-    let x1 = 0;
-    let x2 = 0;
-
-    while (x12 + x22 >= 1) {
-
-        x1 = Math.random() * 2 - 1;
-        x2 = Math.random() * 2 - 1;
-
-        x12 = x1*x1;
-        x22 = x2*x2;
-
-    }
-
-    let sqrroot = Math.sqrt(1 - x12 - x22);
-
-    let r = Math.random();
-    r *= r;
-    r = 1 - r;
-
-    return [
-        r * (2 * x1 * sqrroot),
-        r * (2 * x2 * sqrroot),
-        r * (1 - 2 * (x12 + x22))
-    ];
-
-}
+var dust;
+var trail;
 
 function dotGroupRandomize() {
 
@@ -174,24 +145,9 @@ function init() {
     document.body.appendChild( renderer.domElement );
 
     // add 3d compass
-    compassRenderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, powerPreference: "high-performance" } );
-    compassRenderer.setPixelRatio( renderer.getPixelRatio() );
-    let compassWindowSize = Math.floor( Math.min(window.innerWidth, window.innerHeight)/6 );
-    compassRenderer.setSize( compassWindowSize, compassWindowSize );
-    compassRenderer.setClearColor( 0x000000, 0 );
-    compassRenderer.domElement.id = "compass";
-    document.querySelector('#compass-container').appendChild( compassRenderer.domElement );
+    compassManager = new CompassManager();
 
-    compassScene = new THREE.Scene();
-
-    compassCamera = new THREE.PerspectiveCamera( 75, 1/1, 0.1, 1000 );
-    compassCamera.position.z = 2;
-
-    let compassPoint = new THREE.PointLight( 0xffffff, 5, 0, 1 );
-    compassPoint.position.set( -1, -2, 1 );
-    compassScene.add( compassPoint );
-
-    compassScene.add( new THREE.AmbientLight( 'gray' ) );
+    compassManager.renderer.setPixelRatio( renderer.getPixelRatio() );
 
     // setup basic objects
     fpsClock = new THREE.Clock();
@@ -223,16 +179,6 @@ function init() {
         // build maze for first time
         // (must wait for this model to load or the colors don't work)
         buildMaze();
-    }, undefined, function ( error ) {
-
-        console.error( error );
-
-    } );
-    loader.load( 'models/arrow.glb', function ( gltf ) {
-        let modelArrow = gltf.scene.getObjectByName('arrow');
-        THREE.BufferGeometry.prototype.copy.call(arrowGeometry, modelArrow.geometry);
-        arrowMesh = new THREE.Mesh( arrowGeometry, new THREE.MeshLambertMaterial( { color: 0xd92e18 } ) );
-        compassScene.add( arrowMesh );
     }, undefined, function ( error ) {
 
         console.error( error );
@@ -342,16 +288,29 @@ function init() {
 
     scene.add( dotGroup );
 
-    // trail particles
-    trailParticles = [];
-    trailMotions = [];
-    trailGeometry = new THREE.BufferGeometry();
-    trailGeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [0, 0, 0], 3 ) );
-    trailPointSize = window.innerHeight / 25;
-
-    lastTrailCameraPosition = new THREE.Vector3();
-
     tmpVector = new THREE.Vector3();
+
+    // dust effect
+    dust = new DustEffect({
+        count: 2000,
+        spawnRadius: maze.majorWidth * 5,
+        map: dotSprite,
+        size: 0.025
+    });
+    dust.followObject(camera);
+    dust.addTo(scene);  
+
+    // trail effect
+    trail = new TrailEffect({
+        count: 1000,
+        map: dotSprite,
+        size: window.innerHeight / 25,
+        collisionDistance: collisionDistance
+    });
+    trail.followObject(camera);
+    trail.addTo(scene);
+    
+    compassManager.followObject(camera);
 
     // maze variables
     mazeSize = 3;
@@ -406,6 +365,7 @@ function buildMaze(size=mazeSize) {
 
     segments = mazeSize * 2 - 1;
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
+    compassManager.setEndPos( endPos );
 
     dotGroup.position.copy( endPos );
     dotGroupRandomize();
@@ -418,14 +378,8 @@ function buildMaze(size=mazeSize) {
     historyLine.geometry.dispose();
     historyMesh.visible = false;
 
-    lastTrailCameraPosition.copy( cameraNode.position );
-    for (let i = 0; i < trailParticles.length; i++) {
-        let part = trailParticles[i];
-        scene.remove(part);
-        part.material.dispose();
-    }
-    trailParticles = [];
-    trailMotions = [];
+    dust.respawnAllParticles();
+    trail.reset();
 
     mazeGroup.remove(...mazeGroup.children);
 
@@ -718,6 +672,9 @@ var animate = function () {
     let delta = Math.min(fpsClock.getDelta(), 0.1);
 
     controls.update(delta);
+    dust.update(delta);
+    trail.update(delta);
+    compassManager.update();
 
     if (mazeData == null)
         return;
@@ -740,44 +697,6 @@ var animate = function () {
 
     collisionUpdate();
 
-    // update the compass
-    if (arrowMesh != null) {
-        arrowMesh.lookAt( cameraNode.position.clone().multiplyScalar(-1).add(endPos) );
-        arrowMesh.applyQuaternion( cameraNode.quaternion.clone().invert() );
-    }
-
-    // camera trail
-    // shrink and disappear
-    for (let i = 0; i < trailParticles.length; i++) {
-        let part = trailParticles[i];
-
-        part.material.size -= delta * trailPointSize/10;
-        part.position.addScaledVector( trailMotions[i], delta * 0.02 );
-
-        if (part.material.size <= 0.01) {
-            scene.remove(part);
-            part.material.dispose();
-            trailParticles = trailParticles.splice(1); // remove earliest
-            trailMotions = trailMotions.splice(1);
-            i--;
-        }
-    }
-    // spawn new
-    if ( lastTrailCameraPosition.distanceToSquared( cameraNode.position ) > collisionDistance**2 ) {
-        lastTrailCameraPosition.copy( cameraNode.position );
-
-        let partMaterial = new THREE.PointsMaterial( { color: `hsl(${Math.random() * 360}, 100%, 50%)`, sizeAttenuation: false, size: trailPointSize, map: dotSprite, alphaTest: 0.8, transparent: true } );
-        let partPoints = new THREE.Points( trailGeometry, partMaterial );
-
-        tmpVector.set( Math.random() * collisionDistance * 2 - collisionDistance, Math.random() * collisionDistance * 2 - collisionDistance, -maze.minorWidth );
-        tmpVector.applyMatrix4( cameraNode.matrix );
-        partPoints.position.copy( tmpVector );
-
-        trailParticles.push( partPoints );
-        trailMotions.push( new THREE.Vector3( ...sampleUniformSphere() ) );
-
-        scene.add( partPoints );
-    }
     if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( cameraNode.position ) > (0.1 * collisionDistance)**2 )
     {
         // add to history
@@ -803,7 +722,8 @@ var animate = function () {
     }
 
     renderer.render( scene, camera );
-    compassRenderer.render( compassScene, compassCamera );
+    compassManager.render();
+    
 };
 
 init();
