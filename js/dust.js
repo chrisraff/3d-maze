@@ -24,6 +24,9 @@ export default class DustEffect {
 
         this.count = o.count;
 
+        this.radius = o.spawnRadius;
+        this.t = 0;
+
         this._geometry = new THREE.BufferGeometry();
 
         // Attribute arrays
@@ -61,14 +64,12 @@ export default class DustEffect {
         this._material.onBeforeCompile = (shader) => {
             Object.assign(shader.uniforms, {
                 u_time: { value: 0 },
-                u_spawnRadius: { value: o.spawnRadius },
                 u_fadeIn: { value: 0.2 },
                 u_fadeOut: { value: 0.8 },
             });
             shader.vertexShader = shader.vertexShader.replace('#include <common>', `
                 #include <common>
                 uniform float u_time;
-                uniform float u_spawnRadius;
 
                 uniform float u_fadeIn;
                 uniform float u_fadeOut;
@@ -130,10 +131,10 @@ export default class DustEffect {
         if (!this._shader) return;
         this._shader.uniforms.u_time.value += dt;
 
-        const t = this._shader.uniforms.u_time.value;
+        this.t = this._shader.uniforms.u_time.value;
 
         for (let i = 0; i < this.count; i++) {
-            const age = t - this._spawnTime[i];
+            const age = this.t - this._spawnTime[i];
             if (age > this._lifeTime[i]) {
                 this.respawnParticle(i);
             }
@@ -141,7 +142,7 @@ export default class DustEffect {
     }
 
     respawnParticle(i) {
-        const r = this._shader.uniforms.u_spawnRadius.value;
+        const r = this.radius;
 
         const spawnPos = sampleUniformSphere();
         this._positions[i*3+0] = this.followed.position.x + spawnPos[0] * r;
@@ -152,7 +153,7 @@ export default class DustEffect {
         this._direction[i*3+1] = (Math.random() * 2 - 1) * 0.1;
         this._direction[i*3+2] = (Math.random() * 2 - 1) * 0.1;
 
-        this._spawnTime[i] = this._shader.uniforms.u_time.value;
+        this._spawnTime[i] = this.t;
         this._lifeTime[i] = 2.0 + Math.random() * 3.0;
 
         this._geometry.attributes.position.needsUpdate = true;

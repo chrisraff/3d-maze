@@ -297,8 +297,8 @@ function init() {
         map: dotSprite,
         size: 0.025
     });
-    dust.followObject(camera);
-    dust.addTo(scene);  
+    dust.followObject(cameraNode);
+    dust.addTo(scene);
 
     // trail effect
     trail = new TrailEffect({
@@ -307,10 +307,10 @@ function init() {
         size: window.innerHeight / 25,
         collisionDistance: collisionDistance
     });
-    trail.followObject(camera);
+    trail.followObject(cameraNode);
     trail.addTo(scene);
-    
-    compassManager.followObject(camera);
+
+    compassManager.followObject(cameraNode);
 
     // maze variables
     mazeSize = 3;
