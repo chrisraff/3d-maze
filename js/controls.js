@@ -44,6 +44,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.gimbalLocked = true;
 
+    this.isXRPresenting = false;
+
     // internals
 
     this.tmpQuaternion = new Quaternion();
@@ -93,7 +95,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
         let movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
         let movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
-        scope.tmpVector.set( - movementY, - movementX, 0 );
+        scope.tmpVector.set( - movementY * (scope.isXRPresenting ? 0 : 1), - movementX, 0 );
 
         scope.applyRotation( scope.tmpVector, 0.002 );
 
@@ -309,6 +311,25 @@ var FlyPointerLockControls = function ( object, domElement ) {
         }
     }
 
+    this.setXRPresenting = function(presenting)
+    {
+        if (presenting )
+        {
+            // reset pitch and roll
+            scope.tmpEulerAngle.setFromQuaternion(scope.object.quaternion, 'YXZ');
+            scope.tmpEulerAngle.z = 0;
+            scope.tmpEulerAngle.x = 0;
+            scope.object.rotation.copy(scope.tmpEulerAngle);
+
+            if (!scope.gimbalLocked)
+            {
+                scope.setGimbalLocked(true);
+            }
+        }
+
+        scope.isXRPresenting = presenting;
+    }
+
     this.updateMovementVector = function () {
 
         var forward = ( this.moveState.forward || ( this.autoForward && ! this.moveState.back ) ) ? 1 : 0;
@@ -323,7 +344,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.updateRotationVector = function () {
 
-        this.rotationVector.x = ( - this.moveState.pitchDown + this.moveState.pitchUp );
+        this.rotationVector.x = ( - this.moveState.pitchDown + this.moveState.pitchUp) * (this.isXRPresenting ? 0 : 1);
         this.rotationVector.y = ( - this.moveState.yawRight + this.moveState.yawLeft );
         this.rotationVector.z = ( - this.moveState.rollRight + this.moveState.rollLeft );
 

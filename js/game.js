@@ -284,6 +284,8 @@ function init() {
 
         updateMenuCentering();
     } );
+    // disable pitch
+    controls.setXRPresenting(true);
     // P key listener
     document.addEventListener('keydown', (event) => {
         if (event.code == 'KeyP' && controls.isLocked)
