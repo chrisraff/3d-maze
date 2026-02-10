@@ -53,6 +53,9 @@ var arrowMesh;
 var lastVrCameraPosition = new THREE.Vector3();
 var newVrCameraPosition = new THREE.Vector3();
 var calibrated = false;
+var vrLeftController = null;
+var vrRightController = null;
+var lastVrRotateTime = 0;
 
 // materials
 var dotSprite;
@@ -173,6 +176,8 @@ function init() {
         controls.setXRPresenting(true);
 
         dust._material.size = 0.0075;
+
+        renderer.xr.getSession().addEventListener('inputsourceschange', registerXRInputs);
 
         // let the session start and the camera update to the initial position before doing the compensation, or else the compensation will be wrong
         setTimeout(() => {
@@ -384,6 +389,21 @@ function init() {
     updateUIDeviceRotation();
 
     updateMenuCentering();
+}
+
+function registerXRInputs(event) {
+    vrLeftController = null;
+    vrRightController = null;
+
+    const session = renderer.xr.getSession();
+    for (const source of session.inputSources) {
+        console.log(source);
+        if (source.handedness == "left") {
+            vrLeftController = source;
+        } else if (source.handedness == "right") {
+            vrRightController = source;
+        }
+    }
 }
 
 function buildMaze(size=mazeSize) {
@@ -721,10 +741,26 @@ var animate = function () {
 
         cameraCompensationNode.position.sub( tmpVector );
         // rotate the tmpVector by the camera node rotation so that movement is in the correct direction relative to the maze
-        tmpVector.applyQuaternion( cameraNode.quaternion.clone() );
+        tmpVector.applyQuaternion( cameraNode.quaternion );
         cameraNode.position.add( tmpVector );
 
         lastVrCameraPosition.copy( newVrCameraPosition );
+
+        // ---
+        if (vrRightController != null) {
+
+            if (Math.abs(vrRightController.gamepad.axes[2]) > 0.9 && Date.now() - lastVrRotateTime > 500) {
+                lastVrRotateTime = Date.now();
+
+                // rotate the camera node in the direction of the stick
+                cameraNode.rotation.y -= Math.sign(vrRightController.gamepad.axes[2]) * Math.PI / 4;
+            }
+
+            // if the right stick returns to center, reset the last rotate time so that the user can immediately rotate again when they push the stick
+            if (Math.abs(vrRightController.gamepad.axes[2]) < 0.2) {
+                lastVrRotateTime = 0;
+            }
+        }
     }
 
     collisionUpdate();
@@ -736,7 +772,6 @@ var animate = function () {
         newHistoryPosition.copy(cameraNode.position);
         historyPositions.push( newHistoryPosition );
     }
-
 
     // make the goal dots spin
     if (finishedMaze && dotRotationAnim < 1) {
@@ -755,7 +790,6 @@ var animate = function () {
 
     renderer.render( scene, camera );
     compassManager.render();
-    
 };
 
 init();
