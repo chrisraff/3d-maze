@@ -50,6 +50,8 @@ var wallGeometry;
 var arrowMesh;
 
 // vr state
+var lastVrCameraPosition = new THREE.Vector3();
+var newVrCameraPosition = new THREE.Vector3();
 var calibrated = false;
 
 // materials
@@ -175,6 +177,7 @@ function init() {
         // let the session start and the camera update to the initial position before doing the compensation, or else the compensation will be wrong
         setTimeout(() => {
             cameraCompensationNode.position.copy( camera.position ).multiplyScalar(-1);
+            lastVrCameraPosition.copy( camera.position );
             calibrated = true;
         }, 1000);
     });
@@ -710,18 +713,18 @@ var animate = function () {
 
     if (renderer.xr.isPresenting && calibrated) {
         // in vr, compensate for user movement by updating the componensation node to put the head at the camera node position
-        let vrCamera = renderer.xr.getCamera();
+        newVrCameraPosition.copy( camera.position );
 
-        tmpVector.copy( cameraCompensationNode.position );
-        tmpVector.add( vrCamera.position );
+        // compute the change in position since the last frame
+        tmpVector.copy( newVrCameraPosition );
+        tmpVector.sub( lastVrCameraPosition );
 
-        // move the player that much in the opposite direction
-        cameraNode.position.sub( tmpVector );
+        cameraCompensationNode.position.sub( tmpVector );
+        // rotate the tmpVector by the camera node rotation so that movement is in the correct direction relative to the maze
+        tmpVector.applyQuaternion( cameraNode.quaternion.clone() );
+        cameraNode.position.add( tmpVector );
 
-        console.log(cameraNode.position);
-
-        // update componensation node to be opposite of vr camera position
-        cameraCompensationNode.position.copy( vrCamera.position ).multiplyScalar(-1);
+        lastVrCameraPosition.copy( newVrCameraPosition );
     }
 
     collisionUpdate();
