@@ -320,12 +320,12 @@ function init() {
     document.querySelector('#menu-body').appendChild( vrManager.getButton() );
 
     // Setup VR event listeners
-    vrManager.addEventListener('vrSessionStart', (event) => {
+    renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);
         dust._material.size = dustSizeVR;
     });
 
-    vrManager.addEventListener('vrSessionEnd', (event) => {
+    renderer.xr.addEventListener('sessionend', (event) => {
         controls.setXRPresenting(false);
         dust._material.size = dustSize;
         onWindowResize();
@@ -371,21 +371,6 @@ function init() {
     updateUIDeviceRotation();
 
     updateMenuCentering();
-}
-
-function registerXRInputs(event) {
-    vrLeftController = null;
-    vrRightController = null;
-
-    const session = renderer.xr.getSession();
-    for (const source of session.inputSources) {
-        console.log(source);
-        if (source.handedness == "left") {
-            vrLeftController = source;
-        } else if (source.handedness == "right") {
-            vrRightController = source;
-        }
-    }
 }
 
 function buildMaze(size=mazeSize) {

@@ -4,10 +4,8 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 
-export default class VRManager extends EventTarget {
+export default class VRManager {
     constructor(renderer, cameraNode, cameraCompensationNode, camera) {
-        super();
-
         this.renderer = renderer;
         this.cameraNode = cameraNode;
         this.cameraCompensationNode = cameraCompensationNode;
@@ -40,9 +38,6 @@ export default class VRManager extends EventTarget {
     }
 
     onXRSessionStart() {
-        // Emit event to notify game.js to disable pitch
-        this.dispatchEvent(new CustomEvent('vrSessionStart', {}));
-
         const session = this.renderer.xr.getSession();
         session.addEventListener('inputsourceschange', (event) => this.registerXRInputs(event));
 
@@ -55,15 +50,7 @@ export default class VRManager extends EventTarget {
     }
 
     onXRSessionEnd() {
-        // Emit event to notify game.js to re-enable pitch
-        this.dispatchEvent(new CustomEvent('vrSessionEnd', {}));
-
-        this.calibrated = false;
-
-        // reset camera compensation node
-        this.cameraCompensationNode.position.set(0, 0, 0);
-        this.camera.position.set(0, 0, 0);
-        this.camera.rotation.set(0, 0, 0);
+        this.reset();
     }
 
     registerXRInputs(event) {
@@ -83,7 +70,6 @@ export default class VRManager extends EventTarget {
 
     /**
      * Update VR state during animation loop
-     * @param {THREE.Vector3} tmpVector - Temporary vector for calculations
      */
     update() {
         if (!this.renderer.xr.isPresenting || !this.calibrated) {
@@ -133,14 +119,6 @@ export default class VRManager extends EventTarget {
      */
     isPresenting() {
         return this.renderer.xr.isPresenting;
-    }
-
-    /**
-     * Check if VR session is calibrated
-     * @returns {boolean}
-     */
-    isCalibrated() {
-        return this.calibrated;
     }
 
     /**
