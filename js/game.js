@@ -539,6 +539,26 @@ function collisionUpdate() {
         mazePosFar = newMazePosFar;
     }
 
+    // if the player moved more than 1 unit on any axis, adjust newMazePos
+    if (Math.abs(newMazePosNear.x - mazePosNear.x) > 1) {
+        newMazePosNear.x = mazePosNear.x + Math.sign(newMazePosNear.x - mazePosNear.x);
+    }
+    if (Math.abs(newMazePosNear.y - mazePosNear.y) > 1) {
+        newMazePosNear.y = mazePosNear.y + Math.sign(newMazePosNear.y - mazePosNear.y);
+    }
+    if (Math.abs(newMazePosNear.z - mazePosNear.z) > 1) {
+        newMazePosNear.z = mazePosNear.z + Math.sign(newMazePosNear.z - mazePosNear.z);
+    }
+    if (Math.abs(newMazePosFar.x - mazePosFar.x) > 1) {
+        newMazePosFar.x = mazePosFar.x + Math.sign(newMazePosFar.x - mazePosFar.x);
+    }
+    if (Math.abs(newMazePosFar.y - mazePosFar.y) > 1) {
+        newMazePosFar.y = mazePosFar.y + Math.sign(newMazePosFar.y - mazePosFar.y);
+    }
+    if (Math.abs(newMazePosFar.z - mazePosFar.z) > 1) {
+        newMazePosFar.z = mazePosFar.z + Math.sign(newMazePosFar.z - mazePosFar.z);
+    }
+
     // actual collision checking goes here
     if (newMazePosNear.distanceToSquared(mazePosNear) != 0) {
         if (newMazePosNear.x - mazePosNear.x < 0) {

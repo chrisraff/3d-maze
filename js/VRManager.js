@@ -18,6 +18,8 @@ export default class VRManager {
         this.vrLeftController = null;
         this.vrRightController = null;
         this.lastVrRotateTime = 0;
+        this.lastVrMoveTime = 0;
+        this.moveVector = new THREE.Vector3();
 
         // Temporary vector for calculations
         this.tmpVector = new THREE.Vector3();
@@ -109,6 +111,23 @@ export default class VRManager {
                 this.lastVrRotateTime = 0;
             }
         }
+
+        // Handle left controller movement
+        if (this.vrLeftController != null) {
+            this.moveVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
+
+            const moveDist = 0.5;
+
+            if (this.moveVector.lengthSq() > 0.5 && Date.now() - this.lastVrMoveTime > 500) {
+                this.lastVrMoveTime = Date.now();
+                this.moveVector.normalize().multiplyScalar(moveDist);
+                this.moveVector.applyQuaternion(this.camera.quaternion);
+                this.moveVector.applyQuaternion(this.cameraNode.quaternion);
+                this.moveVector.multiplyVectors(this.moveVector, this.cameraNode.scale);
+                this.cameraNode.position.add(this.moveVector);
+            }
+        }
+
     }
 
     /**
