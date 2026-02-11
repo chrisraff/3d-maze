@@ -4,7 +4,6 @@
 import * as THREE from 'three';
 import { MeshLine, MeshLineMaterial } from './THREE.MeshLine.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
@@ -12,6 +11,7 @@ import DustEffect from './dust.js';
 import TrailEffect from './trail.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
 import CompassManager from './compassManagager.js';
+import VRManager from './VRManager.js';
 
 // webpage objects
 
@@ -50,12 +50,7 @@ var wallGeometry;
 var arrowMesh;
 
 // vr state
-var lastVrCameraPosition = new THREE.Vector3();
-var newVrCameraPosition = new THREE.Vector3();
-var calibrated = false;
-var vrLeftController = null;
-var vrRightController = null;
-var lastVrRotateTime = 0;
+var vrManager;
 
 // materials
 var dotSprite;
@@ -103,6 +98,9 @@ var historyMesh;
 var dust;
 var trail;
 
+var dustSize   = 0.025;
+var dustSizeVR = 0.0075;
+
 function dotGroupRandomize() {
 
     dotRotationAnim = 0;
@@ -147,7 +145,6 @@ function init() {
     renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
     renderer.setSize( window.innerWidth, window.innerHeight );
-    renderer.xr.enabled = true;
     renderer.domElement.id = "mainCanvas";
     renderer.setAnimationLoop( animate );
     document.body.appendChild( renderer.domElement );
@@ -170,37 +167,6 @@ function init() {
     cameraCompensationNode = new THREE.Object3D();
     cameraNode.add( cameraCompensationNode );
     cameraCompensationNode.add( camera );
-
-    renderer.xr.addEventListener( 'sessionstart', () => {
-        // disable pitch
-        controls.setXRPresenting(true);
-
-        dust._material.size = 0.0075;
-
-        renderer.xr.getSession().addEventListener('inputsourceschange', registerXRInputs);
-
-        // let the session start and the camera update to the initial position before doing the compensation, or else the compensation will be wrong
-        setTimeout(() => {
-            cameraCompensationNode.position.copy( camera.position ).multiplyScalar(-1);
-            lastVrCameraPosition.copy( camera.position );
-            calibrated = true;
-        }, 1000);
-    });
-    renderer.xr.addEventListener( 'sessionend', () => {
-        // re-enable pitch
-        controls.setXRPresenting(false);
-
-        calibrated = false;
-
-        // reset camera compensation node
-        cameraCompensationNode.position.set(0, 0, 0);
-        camera.position.set(0, 0, 0);
-        camera.rotation.set(0, 0, 0);
-
-        dust._material.size = 0.025;
-
-        onWindowResize();
-    });
 
     tmpColor = new THREE.Color();
 
@@ -348,6 +314,22 @@ function init() {
     trail.addTo(scene);
 
     compassManager.followObject(cameraNode);
+
+    // init VR manager
+    vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera);
+    document.querySelector('#menu-body').appendChild( vrManager.getButton() );
+
+    // Setup VR event listeners
+    vrManager.addEventListener('vrSessionStart', (event) => {
+        controls.setXRPresenting(true);
+        dust._material.size = dustSizeVR;
+    });
+
+    vrManager.addEventListener('vrSessionEnd', (event) => {
+        controls.setXRPresenting(false);
+        dust._material.size = dustSize;
+        onWindowResize();
+    });
 
     // maze variables
     mazeSize = 3;
@@ -727,41 +709,10 @@ var animate = function () {
     dust.update(delta);
     trail.update(delta);
     compassManager.update();
+    vrManager.update();
 
     if (mazeData == null)
         return;
-
-    if (renderer.xr.isPresenting && calibrated) {
-        // in vr, compensate for user movement by updating the componensation node to put the head at the camera node position
-        newVrCameraPosition.copy( camera.position );
-
-        // compute the change in position since the last frame
-        tmpVector.copy( newVrCameraPosition );
-        tmpVector.sub( lastVrCameraPosition );
-
-        cameraCompensationNode.position.sub( tmpVector );
-        // rotate the tmpVector by the camera node rotation so that movement is in the correct direction relative to the maze
-        tmpVector.applyQuaternion( cameraNode.quaternion );
-        cameraNode.position.add( tmpVector );
-
-        lastVrCameraPosition.copy( newVrCameraPosition );
-
-        // ---
-        if (vrRightController != null) {
-
-            if (Math.abs(vrRightController.gamepad.axes[2]) > 0.9 && Date.now() - lastVrRotateTime > 500) {
-                lastVrRotateTime = Date.now();
-
-                // rotate the camera node in the direction of the stick
-                cameraNode.rotation.y -= Math.sign(vrRightController.gamepad.axes[2]) * Math.PI / 4;
-            }
-
-            // if the right stick returns to center, reset the last rotate time so that the user can immediately rotate again when they push the stick
-            if (Math.abs(vrRightController.gamepad.axes[2]) < 0.2) {
-                lastVrRotateTime = 0;
-            }
-        }
-    }
 
     collisionUpdate();
 
@@ -989,8 +940,5 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
     controls.setGimbalLocked( event.target.checked );
 });
-
-const vb = VRButton.createButton( renderer );
-document.querySelector('#menu-body').appendChild( vb );
 
 window.addEventListener('beforeunload', verifyAndReportAbandonedMaze);
