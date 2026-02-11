@@ -94,6 +94,10 @@ var historyPositions;
 var	historyLineMaterial;
 var historyLine;
 var historyMesh;
+// dots
+var dotMaterials;
+var dotSizes = [maze.minorWidth * 5, maze.minorWidth * 2];
+var dotSizesVR = [maze.minorWidth * 10/3, maze.minorWidth * 2/3];
 
 var dust;
 var trail;
@@ -277,9 +281,9 @@ function init() {
         dotGeometries[i].setAttribute( 'color', new THREE.BufferAttribute( dotColorArrays[i], 3 ) );
     }
 
-    let dotMaterials = [
-        new THREE.PointsMaterial( { size: maze.minorWidth * 5, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } ),
-        new THREE.PointsMaterial( { size: maze.minorWidth * 2, map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } )
+    dotMaterials = [
+        new THREE.PointsMaterial( { size: dotSizes[0], map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } ),
+        new THREE.PointsMaterial( { size: dotSizes[1], map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } )
     ];
     let dots = [
         new THREE.Points( dotGeometries[0], dotMaterials[0] ),
@@ -298,7 +302,7 @@ function init() {
         count: 2000,
         spawnRadius: maze.majorWidth * 5,
         map: dotSprite,
-        size: 0.025
+        size: dustSize
     });
     dust.followObject(cameraNode);
     dust.addTo(scene);
@@ -323,11 +327,15 @@ function init() {
     renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);
         dust._material.size = dustSizeVR;
+        dotMaterials[0].size = dotSizesVR[0];
+        dotMaterials[1].size = dotSizesVR[1];
     });
 
     renderer.xr.addEventListener('sessionend', (event) => {
         controls.setXRPresenting(false);
         dust._material.size = dustSize;
+        dotMaterials[0].size = dotSizes[0];
+        dotMaterials[1].size = dotSizes[1];
         onWindowResize();
     });
 

@@ -47,10 +47,15 @@ export default class VRManager {
             this.newVrCameraPosition.copy(this.camera.position);
             this.calibrated = true;
         }, 1000);
+
+        this.cameraNode.scale.set(1.5, 1.5, 1.5);
+        this.camera.near = 0.001;
     }
 
     onXRSessionEnd() {
         this.reset();
+        this.cameraNode.scale.set(1, 1, 1);
+        this.camera.near = 0.1;
     }
 
     registerXRInputs(event) {
@@ -87,6 +92,7 @@ export default class VRManager {
         this.cameraCompensationNode.position.sub(this.tmpVector);
         // rotate the tmpVector by the camera node rotation so that movement is in the correct direction relative to the maze
         this.tmpVector.applyQuaternion(this.cameraNode.quaternion);
+        this.tmpVector.multiplyVectors(this.tmpVector, this.cameraNode.scale);
         this.cameraNode.position.add(this.tmpVector);
 
         // Handle right controller rotation
@@ -122,7 +128,7 @@ export default class VRManager {
     }
 
     /**
-     * Reset VR state when window resizes or on session end
+     * Reset VR state on session end
      */
     reset() {
         this.calibrated = false;
