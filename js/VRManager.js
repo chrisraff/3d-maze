@@ -3,14 +3,15 @@
  */
 import * as THREE from 'three';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
+import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
 
 export default class VRManager {
-    constructor(renderer, cameraNode, cameraCompensationNode, camera) {
+    constructor(renderer, cameraNode, cameraCompensationNode, camera, scene) {
         this.renderer = renderer;
         this.cameraNode = cameraNode;
         this.cameraCompensationNode = cameraCompensationNode;
         this.camera = camera;
-
+        this.scene = scene;
         // VR state variables
         this.lastVrCameraPosition = new THREE.Vector3();
         this.newVrCameraPosition = new THREE.Vector3();
@@ -32,6 +33,10 @@ export default class VRManager {
 
         // Create VR button
         this.vrButton = VRButton.createButton(this.renderer);
+
+        this.uiMesh = new HTMLMesh(document.querySelector('body'));
+        this.uiMesh.position.set(0, 0, -1.5);
+        this.cameraNode.add(this.uiMesh);
     }
 
     setupXREventListeners() {

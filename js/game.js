@@ -210,7 +210,12 @@ function init() {
 
     // init controls
     if (isMobile) {
-        document.body.classList.add('formfactor-non-desktop');
+        document.querySelectorAll('.formfactor-desktop').forEach((e => {
+            e.style.display = 'none';
+        }));
+        document.querySelectorAll('.formfactor-non-desktop').forEach((e => {
+            e.style.display = 'inherit';
+        }));
     }
     controls = new FlyPointerLockControls(cameraNode, renderer.domElement);
     controls.movementSpeed = maze.majorWidth;
@@ -222,14 +227,14 @@ function init() {
         menuLockControls();
     });
     controls.addEventListener( 'lock', function() {
-        document.querySelector('#blocker').classList.add('hide');
+        document.querySelector('#blocker').style.display = 'none';
         if (!timerRunning) {
             timerRunning = true;
             timerStartMillis = Date.now();
         }
     } );
     controls.addEventListener( 'unlock', function() {
-        document.querySelector('#blocker').classList.remove('hide');
+        document.querySelector('#blocker').style.display = 'inherit';
 
         // determine if the pause menu should be shown
         if (!finishedMaze && focusedMenu.id != 'menu-daily-intro' && !inTutorial)
@@ -250,10 +255,10 @@ function init() {
     if (navigator.userAgent.indexOf('Mac OS X') != -1)
     {
         document.querySelectorAll('.os-not-mac').forEach((e => {
-            e.classList.add('hide');
+            e.style.display = 'none';
         }));
         document.querySelectorAll('.os-mac').forEach((e => {
-            e.classList.remove('hide');
+            e.style.display = 'inherit';
         }));
     }
 
@@ -320,7 +325,7 @@ function init() {
     compassManager.followObject(cameraNode);
 
     // init VR manager
-    vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera);
+    vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene);
     document.querySelector('#menu-body').appendChild( vrManager.getButton() );
 
     // Setup VR event listeners
@@ -602,23 +607,23 @@ function updateFocusedMenu(newFocusedMenuSelector = null)
         focusedMenu = document.querySelector(newFocusedMenuSelector);
 
     document.querySelectorAll('.focusable-menu').forEach((e => {
-        e.classList.add('hide');
+        e.style.display = 'none';
     }));
 
-    if (!document.querySelector('#menu-rotate-phone').classList.contains('hide'))
+    if (!document.querySelector('#menu-rotate-phone').style.display || document.querySelector('#menu-rotate-phone').style.display != 'none')
         return;
 
-    focusedMenu.classList.remove('hide');
+    focusedMenu.style.display = 'inherit';
 }
 
 function onMazeCompletion()
 {
     finishedMaze = true;
-    document.querySelector('#completionMessage').classList.remove('hide');
+    document.querySelector('#completionMessage').style.display = 'inherit';
 
     // switch menu screens
     updateFocusedMenu('#menu-new-maze');
-    document.querySelector('#options-body').classList.add('hide');
+    document.querySelector('#options-body').style.display = 'none';
 
     let seconds = ( (Date.now() - timerStartMillis) / 1000).toFixed(2);
     let timeString = seconds;
@@ -704,13 +709,13 @@ function updateUIDeviceRotation()
             controls.disableLock(new Event(''));
         }
 
-        focusedMenu.classList.add('hide');
-        document.querySelector('#menu-rotate-phone').classList.remove('hide');
+        focusedMenu.style.display = 'none';
+        document.querySelector('#menu-rotate-phone').style.display = 'inherit';
     }
     // if the rotation hint is showing and the user has rotated, restore the menu
-    else if (!document.querySelector('#menu-rotate-phone').classList.contains('hide'))
+    else if (!document.querySelector('#menu-rotate-phone').style.display || document.querySelector('#menu-rotate-phone').style.display != 'none')
     {
-        document.querySelector('#menu-rotate-phone').classList.add('hide');
+        document.querySelector('#menu-rotate-phone').style.display = 'none';
         updateFocusedMenu();
     }
 }
@@ -764,8 +769,8 @@ function buildMazeAndUpdateUI(size)
 
     buildMaze(size);
 
-    document.querySelector('#completionMessage').classList.add('hide');
-    document.querySelector('#menu-new-maze').classList.add('hide');
+    document.querySelector('#completionMessage').style.display = 'none';
+    document.querySelector('#menu-new-maze').style.display = 'none';
     // show the pause text if the intro has been cleared
     if (!showTutorial)
         updateFocusedMenu('#menu-intro');
@@ -799,7 +804,7 @@ function verifyAndReportAbandonedMaze()
 function updateMenuCentering()
 {
     const menu_title = document.querySelector('#menu-title');
-    menu_title.classList.remove('hide');
+    menu_title.style.display = 'inherit';
 
     let menu_height = document.querySelector('#menu-body').offsetHeight;
     const menu_space_to_fit = document.querySelector('#blocker').offsetHeight;
@@ -807,13 +812,13 @@ function updateMenuCentering()
     // if there is not enough room, hide the title
     if (menu_space_to_fit < menu_height)
     {
-        menu_title.classList.add('hide');
+        menu_title.style.display = 'none';
     }
 
     document.querySelector('#blocker').classList.toggle('center-menu', menu_space_to_fit > menu_height);
 
     // if the new maze menu is showing, make sure the slider is visible
-    if (!document.querySelector('#menu-new-maze').classList.contains('hide'))
+    if (!document.querySelector('#menu-new-maze').style.display || document.querySelector('#menu-new-maze').style.display != 'none')
     {
         document.querySelector('#menu-new-maze-size-slider').scrollIntoView();
     }
@@ -834,10 +839,10 @@ function menuLockControls()
 function initTutorial()
 {
     // show how to look
-    document.querySelector('#touch-tutorial-look').classList.remove('hide');
+    document.querySelector('#touch-tutorial-look').style.display = 'inherit';
     document.querySelector('#touch-tutorial-look').style.animationName = 'touch-tutorial-animation-look';
 
-    document.querySelector('#computer-tutorial-look').classList.remove('hide');
+    document.querySelector('#computer-tutorial-look').style.display = 'inherit';
     document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-in';
     document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
 
@@ -863,14 +868,14 @@ function handleTutorial()
                 tutorialData.state = 'move';
                 tutorialData.cameraPos.copy(cameraNode.position);
 
-                document.querySelector('#touch-tutorial-look').classList.add('hide');
+                document.querySelector('#touch-tutorial-look').style.display = 'none';
                 document.querySelector('#touch-tutorial-look').style.animationName = '';
-                document.querySelector('#touch-tutorial-move').classList.remove('hide');
+                document.querySelector('#touch-tutorial-move').style.display = 'inherit';
                 document.querySelector('#touch-tutorial-move').style.animationName = 'touch-tutorial-animation-move';
 
                 document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-out';
                 document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
-                document.querySelector('#computer-tutorial-move').classList.remove('hide');
+                document.querySelector('#computer-tutorial-move').style.display = 'inherit';
                 document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-in';
                 document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
 
@@ -885,13 +890,13 @@ function handleTutorial()
                 tutorialData.state = 'compass';
                 tutorialData.lastLoggedTime = Date.now();
 
-                document.querySelector('#touch-tutorial-move').classList.add('hide');
+                document.querySelector('#touch-tutorial-move').style.display = 'none';
                 document.querySelector('#touch-tutorial-move').style.animationName = '';
 
                 document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-out';
                 document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
 
-                document.querySelector('#computer-tutorial-compass').classList.remove('hide');
+                document.querySelector('#computer-tutorial-compass').style.display = 'inherit';
                 document.querySelector('#computer-tutorial-compass').style.animationName = 'tutorial-text-fade-in';
                 document.querySelector('#computer-tutorial-compass').style.animationFillMode = 'forwards';
 
@@ -933,7 +938,7 @@ function resetTutorial(complete = false)
 
     inTutorial = false;
     document.querySelectorAll('.tutorial-element').forEach(element => {
-        element.classList.add('hide');
+        element.style.display = 'none';
         element.style.animationName = '';
     });
     document.querySelector('#compass-container').style.animationName = '';

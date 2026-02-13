@@ -375,35 +375,35 @@
 
         <div id="compass-container"></div>
 
-        <div id="touch-tutorial-move" class="touch-tutorial tutorial-element hide formfactor-non-desktop">
+        <div id="touch-tutorial-move" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>
-        <div id="touch-tutorial-look" class="touch-tutorial tutorial-element hide formfactor-non-desktop">
+        <div id="touch-tutorial-look" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>
 
-        <div id="computer-tutorial-move" class="tutorial-text tutorial-element hide">
+        <div id="computer-tutorial-move" style="display: none;" class="tutorial-text tutorial-element">
             <span class='formfactor-desktop'>Use the WASD keys to move</span>
-            <span class='formfactor-non-desktop'>Move</span>
-            <br class='formfactor-non-desktop' />
-            <span style="font-size: 50%;" class='formfactor-non-desktop'>Drag on the left side of the screen</span>
+            <span style="display: none;" class='formfactor-non-desktop'>Move</span>
+            <br style="display: none;" class='formfactor-non-desktop' />
+            <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Drag on the left side of the screen</span>
         </div>
-        <div id="computer-tutorial-look" class="tutorial-text tutorial-element hide">
+        <div id="computer-tutorial-look" style="display: none;" class="tutorial-text tutorial-element">
             <span class='formfactor-desktop'>Move the mouse to look</span>
-            <span class='formfactor-non-desktop'>Look</span>
-            <br class='formfactor-non-desktop' />
-            <span style="font-size: 50%;" class='formfactor-non-desktop'>Drag on the right side of the screen</span>
+            <span style="display: none;" class='formfactor-non-desktop'>Look</span>
+            <br style="display: none;" class='formfactor-non-desktop' />
+            <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Drag on the right side of the screen</span>
         </div>
-        <div id="computer-tutorial-compass" class="tutorial-text tutorial-element hide">
+        <div id="computer-tutorial-compass" style="display: none;" class="tutorial-text tutorial-element">
             <span>The compass points towards the exit</span>
-            <br class='formfactor-non-desktop' />
-            <span style="font-size: 50%;" class='formfactor-non-desktop'>Tap the compass to pause</span>
+            <br style="display: none;" class='formfactor-non-desktop' />
+            <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Tap the compass to pause</span>
         </div>
 
         <div id="overlay">
-            <div id="completionMessage" class="frosted hide">
+            <div id="completionMessage" style="display: none;" class="frosted">
                 Maze Completed!<br/>
                 <span>Time: <span id="mazeTimeSpan"></span>, Size: <span id="mazeCompSizeSpan"></span></span><br/>
-                <span style="font-size:14px" class="formfactor-desktop">Press <span class="os-not-mac">escape</span><span class="hide os-mac">the P key</span> to start a new maze</span>
-                <span style="font-size:14px;" class="formfactor-non-desktop">Tap here to start a new maze</span>
+                <span style="font-size:14px" class="formfactor-desktop">Press <span class="os-not-mac">escape</span><span style="display: none;" class="os-mac">the P key</span> to start a new maze</span>
+                <span style="font-size:14px; display: none;" class="formfactor-non-desktop">Tap here to start a new maze</span>
             </div>
 
             <div id="blocker" class="center-menu">
@@ -417,19 +417,19 @@
                     <div id="menu-intro" class="focusable-menu">
                         <br/><br /><br class="formfactor-desktop"/>
                         <span style="font-size:36px" class="formfactor-desktop">Click to play</span>
-                        <span style="font-size:36px;" class="formfactor-non-desktop">Tap to play</span>
+                        <span style="font-size:36px; display: none;" class="formfactor-non-desktop">Tap to play</span>
                         <br /><br />
                         <span class="formfactor-desktop">
                             Explore the maze and find the exit!<br/>
                             <br/>
                             Try adding this game to your phone's home screen.
                         </span>
-                        <span class="formfactor-non-desktop">
+                        <span style="display: none;" class="formfactor-non-desktop">
                             Explore the maze and find the exit!<br/>
                         </span>
                     </div>
 
-                    <div id="menu-new-maze" class="focusable-menu hide" onclick="event.stopPropagation();">
+                    <div id="menu-new-maze" style="display: none;" class="focusable-menu" onclick="event.stopPropagation();">
                         <br class="formfactor-desktop"/>
                         <button id='menu-new-maze-button'>Start New Maze</button>
                         <br class="formfactor-desktop"/>
@@ -438,18 +438,18 @@
                         <br class="formfactor-desktop"/>
                         <br/>
                         <span style="font-size: 150%">Size: <span id="menu-new-maze-size-span">3</span></span>
-                        <br class="formfactor-non-desktop"/>
+                        <br style="display: none;" class="formfactor-non-desktop"/>
                     </div>
 
-                    <div id="menu-pause" class="focusable-menu hide">
+                    <div id="menu-pause" style="display: none;" class="focusable-menu">
                         <br/>
                         <span class="formfactor-desktop">Click anywhere to continue</span>
-                        <span class="formfactor-non-desktop">Tap anywhere to continue</span>
+                        <span style="display: none;" class="formfactor-non-desktop">Tap anywhere to continue</span>
                         <br/>
                         <span class="transparent-text-50" style="font-size: 75%;">Use "Options" to start a new maze</span>
                     </div>
 
-                    <div id="menu-rotate-phone" style="font-size: 30px; line-height: 34px;" class="hide">
+                    <div id="menu-rotate-phone" style="font-size: 30px; line-height: 34px; display: none;">
                         <br/>
                         Rotate your device to play
                         <br/>
@@ -461,15 +461,15 @@
                     </div>
 
 
-                    <br class="formfactor-non-desktop"/>
+                    <br style="display: none;" class="formfactor-non-desktop"/>
                 </div>
 
                 <div id="options-corner" onclick="event.stopPropagation();">
                     <div >
-                        <button style="width: 100%" onclick="document.querySelector('#options-body').classList.toggle('hide')">Options</button>
+                        <button style="width: 100%" onclick="document.querySelector('#options-body').style.display = document.querySelector('#options-body').style.display == 'none' ? 'inherit' : 'none'">Options</button>
                     </div>
 
-                    <div id="options-body" class="hide">
+                    <div id="options-body" style="display: none;">
                         New Size: <span id="newMazeSizeSpan">3</span> <br/>
                         <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.querySelector('#newMazeSizeSpan').innerHTML = this.value">
                         <br/>
@@ -484,7 +484,7 @@
                 </div>
 
                 <div id="copyright">
-                    © Chris Raff 2020 - 2025
+                    © Chris Raff 2020 - 2026
                 </div>
 
                 <div id="version">
