@@ -17,16 +17,26 @@ export default class VRManager {
         this.newVrCameraPosition = new THREE.Vector3();
         this.calibrated = false;
         this.vrLeftController = null;
+        this.vrLeftControllerIndex = null;
+        this.vrLeftControllerObject = null;
         this.vrRightController = null;
+        this.vrRightControllerIndex = null;
+        this.vrRightControllerObject = null;
         this.lastVrRotateTime = 0;
         this.lastVrMoveTime = 0;
         this.moveVector = new THREE.Vector3();
+        this.controllers = [];
+
+        this.rayCaster = new THREE.Raycaster();
+        this.rayPosition = new THREE.Vector3();
+        this.rayDirection = new THREE.Vector3(0, 0, -1);
 
         // Temporary vector for calculations
         this.tmpVector = new THREE.Vector3();
 
         // Setup XR
         this.renderer.xr.enabled = true;
+        this.renderer.xr.setReferenceSpaceType('local');
 
         // Setup event listeners
         this.setupXREventListeners();
@@ -34,9 +44,13 @@ export default class VRManager {
         // Create VR button
         this.vrButton = VRButton.createButton(this.renderer);
 
-        this.uiMesh = new HTMLMesh(document.querySelector('body'));
+        this.uiDom = document.querySelector('body');
+        this.uiMesh = new HTMLMesh(this.uiDom);
         this.uiMesh.position.set(0, 0, -1.5);
-        this.cameraNode.add(this.uiMesh);
+        this.cameraCompensationNode.add(this.uiMesh);
+
+        this.uiUv = new THREE.Vector2();
+        this.uiClickState = false;
     }
 
     setupXREventListeners() {
@@ -70,12 +84,18 @@ export default class VRManager {
         this.vrRightController = null;
 
         const session = this.renderer.xr.getSession();
-        for (const source of session.inputSources) {
+        for (let i = 0; i < session.inputSources.length; i++) {
+            const source = session.inputSources[i];
             console.log(source);
             if (source.handedness == "left") {
                 this.vrLeftController = source;
+                this.vrLeftControllerIndex = i;
+                this.vrLeftControllerObject = this.renderer.xr.getController(i);
             } else if (source.handedness == "right") {
                 this.vrRightController = source;
+                this.vrRightControllerIndex = i;
+                this.vrRightControllerObject = this.renderer.xr.getController(i);
+                this.cameraCompensationNode.add(this.vrRightControllerObject);
             }
         }
     }
@@ -114,6 +134,40 @@ export default class VRManager {
             // if the right stick returns to center, reset the last rotate time so that the user can immediately rotate again when they push the stick
             if (Math.abs(this.vrRightController.gamepad.axes[2]) < 0.2) {
                 this.lastVrRotateTime = 0;
+            }
+
+            this.rayCaster.setFromXRController(this.vrRightControllerObject);
+
+            const int = this.rayCaster.intersectObjects([this.uiMesh], true)
+            if (int.length > 0) {
+                this.uiUv.copy(int[0].uv);
+                this.uiUv.x *= this.uiDom.clientWidth;
+                this.uiUv.y = 1 - this.uiUv.y;
+                this.uiUv.y *= this.uiDom.clientHeight;
+                document.getElementById('vrMouse').style.left = `${this.uiUv.x - 10}px`;
+                document.getElementById('vrMouse').style.top = `${this.uiUv.y - 10}px`;
+            }
+            else {
+                this.uiUv.set(-1, -1);
+                document.getElementById('vrMouse').style.left = `-20px`;
+                document.getElementById('vrMouse').style.top = `-20px`;
+            }
+
+            if (this.vrRightController.gamepad.buttons[0].pressed && !this.uiClickState) {
+                this.uiClickState = true;
+                const clickEvent = new MouseEvent('click', {
+                    clientX: this.uiUv.x,
+                    clientY: this.uiUv.y,
+                    view: window,
+                    bubbles: true,
+                    cancelable: true
+                });
+                const elementAtLocation = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
+
+                (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
+            }
+            else if (!this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState) {
+                this.uiClickState = false;
             }
         }
 
