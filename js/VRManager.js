@@ -46,12 +46,6 @@ export default class VRManager {
         this.vrButton = VRButton.createButton(this.renderer);
 
         this.uiDom = document.querySelector('body');
-        this.uiMesh = new HTMLMesh(this.uiDom);
-        this.uiMesh.position.set(0, 0, -1.5);
-        // always draw the ui on top
-        this.uiMesh.material.depthTest = false;
-        this.uiMesh.renderOrder = 999;
-        this.cameraCompensationNode.add(this.uiMesh);
 
         this.pointerObject = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
             map: this.dotSprite,
@@ -65,7 +59,6 @@ export default class VRManager {
         this.pointerObject.renderOrder = 1000;
         this.pointerObject.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
         this.pointerObject.visible = false;
-        this.scene.add(this.pointerObject);
 
         this.uiUv = new THREE.Vector2();
         this.uiInteractingElement = null;
@@ -94,12 +87,25 @@ export default class VRManager {
 
         this.cameraNode.scale.set(1.5, 1.5, 1.5);
         this.camera.near = 0.001;
+
+        this.uiMesh = new HTMLMesh(this.uiDom);
+        this.uiMesh.position.set(0, 0, -1.5);
+        // always draw the ui on top
+        this.uiMesh.material.depthTest = false;
+        this.uiMesh.renderOrder = 999;
+        this.cameraCompensationNode.add(this.uiMesh);
+        this.scene.add(this.pointerObject);
     }
 
     onXRSessionEnd() {
         this.reset();
         this.cameraNode.scale.set(1, 1, 1);
         this.camera.near = 0.1;
+
+        this.uiMesh.dispose();
+        this.cameraCompensationNode.remove(this.uiMesh);
+        this.uiMesh = null;
+        this.scene.remove(this.pointerObject);
     }
 
     registerXRInputs(event) {
