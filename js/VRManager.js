@@ -17,11 +17,7 @@ export default class VRManager {
         this.newVrCameraPosition = new THREE.Vector3();
         this.calibrated = false;
         this.vrLeftController = null;
-        this.vrLeftControllerIndex = null;
-        this.vrLeftControllerObject = null;
         this.vrRightController = null;
-        this.vrRightControllerIndex = null;
-        this.vrRightControllerObject = null;
         this.lastVrRotateTime = 0;
         this.lastVrMoveTime = 0;
         this.moveVector = new THREE.Vector3();
@@ -65,6 +61,7 @@ export default class VRManager {
         this.uiUv = new THREE.Vector2();
         this.uiInteractingElement = null;
         this.uiInteractingDetails = {};
+        this.uiCurrentController = null;
 
         // Controller button state tracking
         this.rightControllerButtonPressed = false;
@@ -119,14 +116,15 @@ export default class VRManager {
             const source = session.inputSources[i];
             console.log(source);
             if (source.handedness == "left") {
-                this.vrLeftController = source;
-                this.vrLeftControllerIndex = i;
-                this.vrLeftControllerObject = this.renderer.xr.getController(i);
+                this.vrLeftController = new controller();
+                this.vrLeftController.gamepad = source.gamepad;
+                this.vrLeftController.object = this.renderer.xr.getController(i);
+                this.cameraCompensationNode.add(this.vrLeftController.object);
             } else if (source.handedness == "right") {
-                this.vrRightController = source;
-                this.vrRightControllerIndex = i;
-                this.vrRightControllerObject = this.renderer.xr.getController(i);
-                this.cameraCompensationNode.add(this.vrRightControllerObject);
+                this.vrRightController = new controller();
+                this.vrRightController.gamepad = source.gamepad;
+                this.vrRightController.object = this.renderer.xr.getController(i);
+                this.cameraCompensationNode.add(this.vrRightController.object);
             }
         }
     }
@@ -153,22 +151,47 @@ export default class VRManager {
         this.tmpVector.multiplyVectors(this.tmpVector, this.cameraNode.scale);
         this.cameraNode.position.add(this.tmpVector);
 
-        // Handle right controller rotation
-        if (this.vrRightController != null) {
-            if (Math.abs(this.vrRightController.gamepad.axes[2]) > 0.9 && Date.now() - this.lastVrRotateTime > 500) {
-                this.lastVrRotateTime = Date.now();
+        // if the ui is disabled, allow controls
+        if (!this.uiInteractionEnabled) {
+            // Handle right controller rotation
+            if (this.vrRightController != null) {
+                if (Math.abs(this.vrRightController.gamepad.axes[2]) > 0.9 && Date.now() - this.lastVrRotateTime > 500) {
+                    this.lastVrRotateTime = Date.now();
 
-                // rotate the camera node in the direction of the stick
-                this.cameraNode.rotation.y -= Math.sign(this.vrRightController.gamepad.axes[2]) * Math.PI / 4;
+                    // rotate the camera node in the direction of the stick
+                    this.cameraNode.rotation.y -= Math.sign(this.vrRightController.gamepad.axes[2]) * Math.PI / 4;
+                }
+
+                // if the right stick returns to center, reset the last rotate time so that the user can immediately rotate again when they push the stick
+                if (Math.abs(this.vrRightController.gamepad.axes[2]) < 0.2) {
+                    this.lastVrRotateTime = 0;
+                }
             }
 
-            // if the right stick returns to center, reset the last rotate time so that the user can immediately rotate again when they push the stick
-            if (Math.abs(this.vrRightController.gamepad.axes[2]) < 0.2) {
-                this.lastVrRotateTime = 0;
-            }
+            // Handle left controller movement
+            if (this.vrLeftController != null) {
+                this.moveVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
 
-            if (this.uiInteractionEnabled) {
-                this.rayCaster.setFromXRController(this.vrRightControllerObject);
+                const moveDist = 0.5;
+
+                if (this.moveVector.lengthSq() > 0.5 && Date.now() - this.lastVrMoveTime > 500) {
+                    this.lastVrMoveTime = Date.now();
+                    this.moveVector.normalize().multiplyScalar(moveDist);
+                    this.moveVector.applyQuaternion(this.camera.quaternion);
+                    this.moveVector.applyQuaternion(this.cameraNode.quaternion);
+                    this.moveVector.multiplyVectors(this.moveVector, this.cameraNode.scale);
+                    this.cameraNode.position.add(this.moveVector);
+                }
+            }
+        }
+
+        // if the ui is enabled
+        else {
+            // if a controller is interactin with the ui
+            if (this.uiCurrentController != null) {
+
+                // cast a ray from the controller
+                this.rayCaster.setFromXRController(this.uiCurrentController.object);
 
                 const int = this.rayCaster.intersectObjects([this.uiMesh], true)
                 if (int.length > 0) {
@@ -186,7 +209,8 @@ export default class VRManager {
                     this.pointerObject.visible = false;
                 }
 
-                if (this.vrRightController.gamepad.buttons[0].pressed && !this.uiClickState) {
+                // if the trigger button is pressed, pass a click to dom
+                if (this.uiCurrentController.gamepad.buttons[0].pressed && !this.uiClickState) {
                     this.uiClickState = true;
                     const clickEvent = new MouseEvent('click', {
                         clientX: this.uiUv.x,
@@ -208,7 +232,7 @@ export default class VRManager {
                         this.uiInteractingDetails.max = Number(this.uiInteractingElement.max);
                     }
                 }
-                if (this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState && this.uiInteractingElement) {
+                if (this.uiCurrentController.gamepad.buttons[0].pressed && this.uiClickState && this.uiInteractingElement) {
                     // compute slider value
                     let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
                     percent = Math.max(0, Math.min(1, percent));
@@ -221,26 +245,22 @@ export default class VRManager {
                         this.uiInteractingElement.dispatchEvent(inputEvent);
                     }
                 }
-                else if (!this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState) {
+                else if (!this.uiCurrentController.gamepad.buttons[0].pressed && this.uiClickState) {
                     this.uiClickState = false;
                     this.uiInteractingElement = null;
                 }
             }
-        }
 
-        // Handle left controller movement
-        if (this.vrLeftController != null) {
-            this.moveVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
-
-            const moveDist = 0.5;
-
-            if (this.moveVector.lengthSq() > 0.5 && Date.now() - this.lastVrMoveTime > 500) {
-                this.lastVrMoveTime = Date.now();
-                this.moveVector.normalize().multiplyScalar(moveDist);
-                this.moveVector.applyQuaternion(this.camera.quaternion);
-                this.moveVector.applyQuaternion(this.cameraNode.quaternion);
-                this.moveVector.multiplyVectors(this.moveVector, this.cameraNode.scale);
-                this.cameraNode.position.add(this.moveVector);
+            // check if either controller is trying to interact with the ui
+            if (!this.uiClickState) {
+                if (this.vrRightController != null && this.vrRightController.gamepad.buttons[0].pressed) {
+                    this.uiCurrentController = this.vrRightController;
+                    this.uiClickState = true;
+                }
+                else if (this.vrLeftController != null && this.vrLeftController.gamepad.buttons[0].pressed) {
+                    this.uiCurrentController = this.vrLeftController;
+                    this.uiClickState = true;
+                }
             }
         }
 
@@ -278,5 +298,13 @@ export default class VRManager {
         this.cameraCompensationNode.position.set(0, 0, 0);
         this.camera.position.set(0, 0, 0);
         this.camera.rotation.set(0, 0, 0);
+    }
+}
+
+class controller {
+    constructor() {
+        this.gamepad = null;
+        this.object = null;
+        this.index = null;
     }
 }
