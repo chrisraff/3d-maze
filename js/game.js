@@ -325,7 +325,7 @@ function init() {
     compassManager.followObject(cameraNode);
 
     // init VR manager
-    vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene);
+    vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite);
     document.querySelector('#menu-body').appendChild( vrManager.getButton() );
 
     // Setup VR event listeners

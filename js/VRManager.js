@@ -6,7 +6,7 @@ import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
 
 export default class VRManager {
-    constructor(renderer, cameraNode, cameraCompensationNode, camera, scene) {
+    constructor(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite) {
         this.renderer = renderer;
         this.cameraNode = cameraNode;
         this.cameraCompensationNode = cameraCompensationNode;
@@ -26,6 +26,7 @@ export default class VRManager {
         this.lastVrMoveTime = 0;
         this.moveVector = new THREE.Vector3();
         this.controllers = [];
+        this.dotSprite = dotSprite;
 
         this.rayCaster = new THREE.Raycaster();
         this.rayPosition = new THREE.Vector3();
@@ -51,6 +52,20 @@ export default class VRManager {
         this.uiMesh.material.depthTest = false;
         this.uiMesh.renderOrder = 999;
         this.cameraCompensationNode.add(this.uiMesh);
+
+        this.pointerObject = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
+            map: this.dotSprite,
+            size: 0.015,
+            color: 0x0088cc,
+            opacity: 0.75,
+            transparent: true,
+            depthTest: false,
+        }));
+        // draw the pointer even more on top
+        this.pointerObject.renderOrder = 1000;
+        this.pointerObject.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+        this.pointerObject.visible = false;
+        this.scene.add(this.pointerObject);
 
         this.uiUv = new THREE.Vector2();
         this.uiInteractingElement = null;
@@ -152,13 +167,14 @@ export default class VRManager {
                 this.uiUv.x *= this.uiDom.clientWidth;
                 this.uiUv.y = 1 - this.uiUv.y;
                 this.uiUv.y *= this.uiDom.clientHeight;
-                document.getElementById('vrMouse').style.left = `${this.uiUv.x - 10}px`;
-                document.getElementById('vrMouse').style.top = `${this.uiUv.y - 10}px`;
+
+                this.tmpVector.copy(int[0].face.normal).multiplyScalar(0.01);
+                this.pointerObject.position.copy(int[0].point).add(this.tmpVector);
+                this.pointerObject.visible = true;
             }
             else {
                 this.uiUv.set(-1, -1);
-                document.getElementById('vrMouse').style.left = `-20px`;
-                document.getElementById('vrMouse').style.top = `-20px`;
+                this.pointerObject.visible = false;
             }
 
             if (this.vrRightController.gamepad.buttons[0].pressed && !this.uiClickState) {
