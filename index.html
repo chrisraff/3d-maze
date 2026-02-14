@@ -327,13 +327,6 @@
             .transparent-text-50 {
                 color:rgba(255,255,255,0.5);
             }
-
-            body.formfactor-non-desktop .formfactor-desktop {
-                display: none;
-            }
-            body:not(.formfactor-non-desktop) .formfactor-non-desktop {
-                display: none;
-            }
         </style>
 
         <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -400,12 +393,10 @@
 
         <div id="overlay">
             <div id="completionMessage" style="display: none;" class="frosted">
-                <div style="display: block; text-align: center; margin: auto;">
-                    Maze Completed!<br/>
-                    <span>Time: <span id="mazeTimeSpan"></span>, Size: <span id="mazeCompSizeSpan"></span></span><br/>
-                    <span style="font-size:14px" class="formfactor-desktop">Press <span class="os-not-mac">escape </span><span style="display: none;" class="os-mac">the P key </span>to start a new maze</span>
-                    <span style="font-size:14px; display: none;" class="formfactor-non-desktop">Tap here to start a new maze</span>
-                </div>
+                Maze Completed!<br/>
+                <span>Time: <span id="mazeTimeSpan"></span>, Size: <span id="mazeCompSizeSpan"></span></span><br/>
+                <span style="font-size:14px" class="formfactor-desktop">Press <span class="os-not-mac">escape </span><span style="display: none;" class="os-mac">the P key </span>to start a new maze</span>
+                <span style="font-size:14px; display: none;" class="formfactor-non-desktop">Tap here to start a new maze</span>
             </div>
 
             <div id="blocker" class="center-menu">

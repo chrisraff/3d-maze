@@ -213,8 +213,8 @@ function init() {
         document.querySelectorAll('.formfactor-desktop').forEach((e => {
             e.style.display = 'none';
         }));
-        document.querySelectorAll('.formfactor-non-desktop').forEach((e => {
-            e.style.display = 'inherit';
+        document.querySelectorAll('.formfactor-non-desktop:not(.tutorial-element)').forEach((e => {
+            e.style.display = '';
         }));
     }
     controls = new FlyPointerLockControls(cameraNode, renderer.domElement);
@@ -236,7 +236,7 @@ function init() {
         vrManager.setUiInteraction(false);
     } );
     controls.addEventListener( 'unlock', function() {
-        document.querySelector('#blocker').style.display = 'inherit';
+        document.querySelector('#blocker').style.display = '';
 
         // determine if the pause menu should be shown
         if (!finishedMaze && focusedMenu.id != 'menu-daily-intro' && !inTutorial)
@@ -262,7 +262,7 @@ function init() {
             e.style.display = 'none';
         }));
         document.querySelectorAll('.os-mac').forEach((e => {
-            e.style.display = 'inherit';
+            e.style.display = '';
         }));
     }
 
@@ -617,13 +617,13 @@ function updateFocusedMenu(newFocusedMenuSelector = null)
     if (!document.querySelector('#menu-rotate-phone').style.display || document.querySelector('#menu-rotate-phone').style.display != 'none')
         return;
 
-    focusedMenu.style.display = 'inherit';
+    focusedMenu.style.display = '';
 }
 
 function onMazeCompletion()
 {
     finishedMaze = true;
-    document.querySelector('#completionMessage').style.display = 'inherit';
+    document.querySelector('#completionMessage').style.display = '';
 
     // switch menu screens
     updateFocusedMenu('#menu-new-maze');
@@ -714,7 +714,7 @@ function updateUIDeviceRotation()
         }
 
         focusedMenu.style.display = 'none';
-        document.querySelector('#menu-rotate-phone').style.display = 'inherit';
+        document.querySelector('#menu-rotate-phone').style.display = '';
     }
     // if the rotation hint is showing and the user has rotated, restore the menu
     else if (!document.querySelector('#menu-rotate-phone').style.display || document.querySelector('#menu-rotate-phone').style.display != 'none')
@@ -808,7 +808,7 @@ function verifyAndReportAbandonedMaze()
 function updateMenuCentering()
 {
     const menu_title = document.querySelector('#menu-title');
-    menu_title.style.display = 'inherit';
+    menu_title.style.display = '';
 
     let menu_height = document.querySelector('#menu-body').offsetHeight;
     const menu_space_to_fit = document.querySelector('#blocker').offsetHeight;
@@ -843,10 +843,10 @@ function menuLockControls()
 function initTutorial()
 {
     // show how to look
-    document.querySelector('#touch-tutorial-look').style.display = 'inherit';
+    document.querySelector('#touch-tutorial-look').style.display = '';
     document.querySelector('#touch-tutorial-look').style.animationName = 'touch-tutorial-animation-look';
 
-    document.querySelector('#computer-tutorial-look').style.display = 'inherit';
+    document.querySelector('#computer-tutorial-look').style.display = '';
     document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-in';
     document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
 
@@ -874,12 +874,12 @@ function handleTutorial()
 
                 document.querySelector('#touch-tutorial-look').style.display = 'none';
                 document.querySelector('#touch-tutorial-look').style.animationName = '';
-                document.querySelector('#touch-tutorial-move').style.display = 'inherit';
+                document.querySelector('#touch-tutorial-move').style.display = '';
                 document.querySelector('#touch-tutorial-move').style.animationName = 'touch-tutorial-animation-move';
 
                 document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-out';
                 document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
-                document.querySelector('#computer-tutorial-move').style.display = 'inherit';
+                document.querySelector('#computer-tutorial-move').style.display = '';
                 document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-in';
                 document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
 
@@ -900,7 +900,7 @@ function handleTutorial()
                 document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-out';
                 document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
 
-                document.querySelector('#computer-tutorial-compass').style.display = 'inherit';
+                document.querySelector('#computer-tutorial-compass').style.display = '';
                 document.querySelector('#computer-tutorial-compass').style.animationName = 'tutorial-text-fade-in';
                 document.querySelector('#computer-tutorial-compass').style.animationFillMode = 'forwards';
 
