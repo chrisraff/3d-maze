@@ -47,10 +47,18 @@ export default class VRManager {
         this.uiDom = document.querySelector('body');
         this.uiMesh = new HTMLMesh(this.uiDom);
         this.uiMesh.position.set(0, 0, -1.5);
+        // always draw the ui on top
+        this.uiMesh.material.depthTest = false;
+        this.uiMesh.renderOrder = 999;
         this.cameraCompensationNode.add(this.uiMesh);
 
         this.uiUv = new THREE.Vector2();
-        this.uiClickState = false;
+        this.uiInteractingElement = null;
+        this.uiInteractingDetails = {};
+
+        // Controller button state tracking
+        this.rightControllerButtonPressed = false;
+        this.leftControllerButtonPressed = false;
     }
 
     setupXREventListeners() {
@@ -165,9 +173,28 @@ export default class VRManager {
                 const elementAtLocation = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
 
                 (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
+
+                // if the element is a slider, track interaction with it
+                if (elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range') {
+                    this.uiInteractingElement = elementAtLocation;
+                    this.uiInteractingDetails = elementAtLocation.getBoundingClientRect();
+                    this.uiInteractingDetails.min = Number(this.uiInteractingElement.min);
+                    this.uiInteractingDetails.max = Number(this.uiInteractingElement.max);
+                }
+            }
+            if (this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState && this.uiInteractingElement) {
+                // compute slider value
+                let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
+                percent = Math.max(0, Math.min(1, percent));
+
+                this.uiInteractingElement.value = this.uiInteractingDetails.min + percent * (this.uiInteractingDetails.max - this.uiInteractingDetails.min);
+
+                const inputEvent = new Event('input', { bubbles: true });
+                this.uiInteractingElement.dispatchEvent(inputEvent);
             }
             else if (!this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState) {
                 this.uiClickState = false;
+                this.uiInteractingElement = null;
             }
         }
 
