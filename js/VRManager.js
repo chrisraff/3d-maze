@@ -191,7 +191,7 @@ export default class VRManager {
                 (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
 
                 // if the element is a slider, track interaction with it
-                if (elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range') {
+                if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range') {
                     this.uiInteractingElement = elementAtLocation;
                     this.uiInteractingDetails = elementAtLocation.getBoundingClientRect();
                     this.uiInteractingDetails.min = Number(this.uiInteractingElement.min);
@@ -203,10 +203,13 @@ export default class VRManager {
                 let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
                 percent = Math.max(0, Math.min(1, percent));
 
-                this.uiInteractingElement.value = this.uiInteractingDetails.min + percent * (this.uiInteractingDetails.max - this.uiInteractingDetails.min);
+                const value = this.uiInteractingDetails.min + percent * (this.uiInteractingDetails.max - this.uiInteractingDetails.min);
 
-                const inputEvent = new Event('input', { bubbles: true });
-                this.uiInteractingElement.dispatchEvent(inputEvent);
+                if (this.uiInteractingElement.value != Math.round(value)) {
+                    this.uiInteractingElement.value = Math.round(value);
+                    const inputEvent = new Event('input', { bubbles: true });
+                    this.uiInteractingElement.dispatchEvent(inputEvent);
+                }
             }
             else if (!this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState) {
                 this.uiClickState = false;
