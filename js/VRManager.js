@@ -45,6 +45,8 @@ export default class VRManager {
         // Create VR button
         this.vrButton = VRButton.createButton(this.renderer);
 
+        // UI state
+        this.uiInteractionEnabled = false;
         this.uiDom = document.querySelector('body');
 
         this.pointerObject = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
@@ -55,7 +57,7 @@ export default class VRManager {
             transparent: true,
             depthTest: false,
         }));
-        // draw the pointer even more on top
+        // draw the ui pointer on top of everything else
         this.pointerObject.renderOrder = 1000;
         this.pointerObject.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
         this.pointerObject.visible = false;
@@ -90,7 +92,7 @@ export default class VRManager {
 
         this.uiMesh = new HTMLMesh(this.uiDom);
         this.uiMesh.position.set(0, 0, -1.5);
-        // always draw the ui on top
+        // always draw the ui on top (but behind pointer)
         this.uiMesh.material.depthTest = false;
         this.uiMesh.renderOrder = 999;
         this.cameraCompensationNode.add(this.uiMesh);
@@ -165,61 +167,64 @@ export default class VRManager {
                 this.lastVrRotateTime = 0;
             }
 
-            this.rayCaster.setFromXRController(this.vrRightControllerObject);
+            if (this.uiInteractionEnabled) {
+                this.rayCaster.setFromXRController(this.vrRightControllerObject);
 
-            const int = this.rayCaster.intersectObjects([this.uiMesh], true)
-            if (int.length > 0) {
-                this.uiUv.copy(int[0].uv);
-                this.uiUv.x *= this.uiDom.clientWidth;
-                this.uiUv.y = 1 - this.uiUv.y;
-                this.uiUv.y *= this.uiDom.clientHeight;
+                const int = this.rayCaster.intersectObjects([this.uiMesh], true)
+                if (int.length > 0) {
+                    this.uiUv.copy(int[0].uv);
+                    this.uiUv.x *= this.uiDom.clientWidth;
+                    this.uiUv.y = 1 - this.uiUv.y;
+                    this.uiUv.y *= this.uiDom.clientHeight;
 
-                this.tmpVector.copy(int[0].face.normal).multiplyScalar(0.01);
-                this.pointerObject.position.copy(int[0].point).add(this.tmpVector);
-                this.pointerObject.visible = true;
-            }
-            else {
-                this.uiUv.set(-1, -1);
-                this.pointerObject.visible = false;
-            }
-
-            if (this.vrRightController.gamepad.buttons[0].pressed && !this.uiClickState) {
-                this.uiClickState = true;
-                const clickEvent = new MouseEvent('click', {
-                    clientX: this.uiUv.x,
-                    clientY: this.uiUv.y,
-                    view: window,
-                    bubbles: true,
-                    cancelable: true
-                });
-                const elementAtLocation = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
-
-                (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
-
-                // if the element is a slider, track interaction with it
-                if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range') {
-                    this.uiInteractingElement = elementAtLocation;
-                    this.uiInteractingDetails = elementAtLocation.getBoundingClientRect();
-                    this.uiInteractingDetails.min = Number(this.uiInteractingElement.min);
-                    this.uiInteractingDetails.max = Number(this.uiInteractingElement.max);
+                    this.tmpVector.copy(int[0].face.normal).multiplyScalar(0.01);
+                    this.pointerObject.position.copy(int[0].point).add(this.tmpVector);
+                    this.pointerObject.visible = true;
                 }
-            }
-            if (this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState && this.uiInteractingElement) {
-                // compute slider value
-                let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
-                percent = Math.max(0, Math.min(1, percent));
-
-                const value = this.uiInteractingDetails.min + percent * (this.uiInteractingDetails.max - this.uiInteractingDetails.min);
-
-                if (this.uiInteractingElement.value != Math.round(value)) {
-                    this.uiInteractingElement.value = Math.round(value);
-                    const inputEvent = new Event('input', { bubbles: true });
-                    this.uiInteractingElement.dispatchEvent(inputEvent);
+                else {
+                    this.uiUv.set(-1, -1);
+                    this.pointerObject.visible = false;
                 }
-            }
-            else if (!this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState) {
-                this.uiClickState = false;
-                this.uiInteractingElement = null;
+
+                if (this.vrRightController.gamepad.buttons[0].pressed && !this.uiClickState) {
+                    this.uiClickState = true;
+                    const clickEvent = new MouseEvent('click', {
+                        clientX: this.uiUv.x,
+                        clientY: this.uiUv.y,
+                        view: window,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    const elementAtLocation = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
+
+                    (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
+                    console.log(elementAtLocation);
+
+                    // if the element is a slider, track interaction with it
+                    if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range') {
+                        this.uiInteractingElement = elementAtLocation;
+                        this.uiInteractingDetails = elementAtLocation.getBoundingClientRect();
+                        this.uiInteractingDetails.min = Number(this.uiInteractingElement.min);
+                        this.uiInteractingDetails.max = Number(this.uiInteractingElement.max);
+                    }
+                }
+                if (this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState && this.uiInteractingElement) {
+                    // compute slider value
+                    let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
+                    percent = Math.max(0, Math.min(1, percent));
+
+                    const value = this.uiInteractingDetails.min + percent * (this.uiInteractingDetails.max - this.uiInteractingDetails.min);
+
+                    if (this.uiInteractingElement.value != Math.round(value)) {
+                        this.uiInteractingElement.value = Math.round(value);
+                        const inputEvent = new Event('input', { bubbles: true });
+                        this.uiInteractingElement.dispatchEvent(inputEvent);
+                    }
+                }
+                else if (!this.vrRightController.gamepad.buttons[0].pressed && this.uiClickState) {
+                    this.uiClickState = false;
+                    this.uiInteractingElement = null;
+                }
             }
         }
 
@@ -255,6 +260,14 @@ export default class VRManager {
      */
     isPresenting() {
         return this.renderer.xr.isPresenting;
+    }
+
+    setUiInteraction(enabled) {
+        if (!enabled) {
+            this.uiClickState = false;
+            this.pointerObject.visible = false;
+        }
+        this.uiInteractionEnabled = enabled;
     }
 
     /**

@@ -232,6 +232,8 @@ function init() {
             timerRunning = true;
             timerStartMillis = Date.now();
         }
+
+        vrManager.setUiInteraction(false);
     } );
     controls.addEventListener( 'unlock', function() {
         document.querySelector('#blocker').style.display = 'inherit';
@@ -243,6 +245,8 @@ function init() {
         }
 
         updateMenuCentering();
+
+        vrManager.setUiInteraction(true);
     } );
     // P key listener
     document.addEventListener('keydown', (event) => {
