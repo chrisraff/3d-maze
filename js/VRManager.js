@@ -65,10 +65,7 @@ export default class VRManager extends EventTarget {
         this.uiInteractingElement = null;
         this.uiInteractingDetails = {};
         this.uiCurrentController = null;
-
-        // Controller button state tracking
-        this.rightControllerButtonPressed = false;
-        this.leftControllerButtonPressed = false;
+        this.uiIsMouseControlled = false;
     }
 
     setupXREventListeners() {
@@ -81,11 +78,15 @@ export default class VRManager extends EventTarget {
         this.vrLeftController.addEventListener('buttondown', (event) => {
             if (event.detail.button === 3) {
                 this.dispatchEvent(new CustomEvent('pause'));
+
+                this.setUiInteractor(false, this.vrLeftController);
             }
         });
         this.vrRightController.addEventListener('buttondown', (event) => {
             if (event.detail.button === 3) {
                 this.dispatchEvent(new CustomEvent('pause'));
+
+                this.setUiInteractor(false, this.vrRightController);
             }
         });
     }
@@ -111,6 +112,8 @@ export default class VRManager extends EventTarget {
         this.uiMesh.renderOrder = 999;
         this.cameraCompensationNode.add(this.uiMesh);
         this.scene.add(this.pointerObject);
+
+        window.addEventListener('mousemove', this.mouseMoveListener.bind(this));
     }
 
     onXRSessionEnd() {
@@ -122,6 +125,8 @@ export default class VRManager extends EventTarget {
         this.cameraCompensationNode.remove(this.uiMesh);
         this.uiMesh = null;
         this.scene.remove(this.pointerObject);
+
+        window.removeEventListener('mousemove', this.mouseMoveListener.bind(this));
     }
 
     registerXRInputs(event) {
@@ -137,12 +142,24 @@ export default class VRManager extends EventTarget {
                 this.vrLeftController.gamepad = source.gamepad;
                 this.vrLeftController.object = this.renderer.xr.getController(i);
                 this.cameraCompensationNode.add(this.vrLeftController.object);
-                this.vrLeftController.object.add(this.debugCube);
             } else if (source.handedness == "right") {
                 this.vrRightController.gamepad = source.gamepad;
                 this.vrRightController.object = this.renderer.xr.getController(i);
                 this.cameraCompensationNode.add(this.vrRightController.object);
             }
+        }
+    }
+
+    mouseMoveListener(event) {
+        if (this.uiInteractionEnabled) {
+            this.setUiInteractor(true, null);
+
+            // compute world coordinates of mouse position on the ui plane
+            this.tmpVector.set((event.clientX / this.uiDom.clientWidth - 0.5) * this.uiMesh.geometry.parameters.width, (0.5 - event.clientY / this.uiDom.clientHeight) * this.uiMesh.geometry.parameters.height, 0);
+            this.uiMesh.localToWorld(this.tmpVector);
+            this.pointerObject.position.copy(this.tmpVector);
+
+            this.pointerObject.visible = true;
         }
     }
 
@@ -227,8 +244,7 @@ export default class VRManager extends EventTarget {
                     this.uiUv.y = 1 - this.uiUv.y;
                     this.uiUv.y *= this.uiDom.clientHeight;
 
-                    this.tmpVector.copy(int[0].face.normal).multiplyScalar(0.01);
-                    this.pointerObject.position.copy(int[0].point).add(this.tmpVector);
+                    this.pointerObject.position.copy(int[0].point);
                     this.pointerObject.visible = true;
                 }
                 else {
@@ -281,11 +297,11 @@ export default class VRManager extends EventTarget {
             // check if either controller is trying to interact with the ui
             if (!this.uiClickState) {
                 if (this.vrRightController.isValid() && this.vrRightController.gamepad.buttons[0].pressed) {
-                    this.uiCurrentController = this.vrRightController;
+                    this.setUiInteractor(false, this.vrRightController);
                     this.uiClickState = true;
                 }
                 else if (this.vrLeftController.isValid() && this.vrLeftController.gamepad.buttons[0].pressed) {
-                    this.uiCurrentController = this.vrLeftController;
+                    this.setUiInteractor(false, this.vrLeftController);
                     this.uiClickState = true;
                 }
             }
@@ -314,6 +330,16 @@ export default class VRManager extends EventTarget {
             this.pointerObject.visible = false;
         }
         this.uiInteractionEnabled = enabled;
+    }
+
+    setUiInteractor(isMouse, controller) {
+        if (isMouse) {
+            this.uiIsMouseControlled = true;
+            this.uiCurrentController = null;
+        } else {
+            this.uiIsMouseControlled = false;
+            this.uiCurrentController = controller;
+        }
     }
 
     /**
