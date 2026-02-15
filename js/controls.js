@@ -373,7 +373,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
             console.error(e);
         }
 
-        if (!this.isLocked && this.touchable) {
+        if (!this.isLocked && (this.touchable || this.isXRPresenting)) {
             scope.dispatchEvent( lockEvent );
 
             scope.isLocked = true;
