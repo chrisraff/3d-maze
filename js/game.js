@@ -332,6 +332,15 @@ function init() {
     vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite);
     document.querySelector('#menu-body').appendChild( vrManager.getButton() );
 
+    vrManager.addEventListener('pause', () => {
+        if (controls.isLocked) {
+            controls.disableLock(new Event(''));
+        }
+        else if (controls.isLocked === false) {
+            controls.lock(new Event(''));
+        }
+    });
+
     // Setup VR event listeners
     renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);

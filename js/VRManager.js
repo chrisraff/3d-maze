@@ -5,8 +5,10 @@ import * as THREE from 'three';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
 
-export default class VRManager {
+export default class VRManager extends EventTarget {
     constructor(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite) {
+        super();
+
         this.renderer = renderer;
         this.cameraNode = cameraNode;
         this.cameraCompensationNode = cameraCompensationNode;
@@ -16,8 +18,8 @@ export default class VRManager {
         this.lastVrCameraPosition = new THREE.Vector3();
         this.newVrCameraPosition = new THREE.Vector3();
         this.calibrated = false;
-        this.vrLeftController = null;
-        this.vrRightController = null;
+        this.vrLeftController = new Controller();
+        this.vrRightController = new Controller();
         this.lastVrRotateTime = 0;
         this.lastVrMoveTime = 0;
         this.moveVector = new THREE.Vector3();
@@ -37,6 +39,7 @@ export default class VRManager {
 
         // Setup event listeners
         this.setupXREventListeners();
+        this.setupGamepadListeners();
 
         // Create VR button
         this.vrButton = VRButton.createButton(this.renderer);
@@ -71,6 +74,20 @@ export default class VRManager {
     setupXREventListeners() {
         this.renderer.xr.addEventListener('sessionstart', () => this.onXRSessionStart());
         this.renderer.xr.addEventListener('sessionend', () => this.onXRSessionEnd());
+    }
+
+    setupGamepadListeners() {
+        // dispatch pause event when the thumbstick is pressed
+        this.vrLeftController.addEventListener('buttondown', (event) => {
+            if (event.detail.button === 3) {
+                this.dispatchEvent(new CustomEvent('pause'));
+            }
+        });
+        this.vrRightController.addEventListener('buttondown', (event) => {
+            if (event.detail.button === 3) {
+                this.dispatchEvent(new CustomEvent('pause'));
+            }
+        });
     }
 
     onXRSessionStart() {
@@ -108,20 +125,20 @@ export default class VRManager {
     }
 
     registerXRInputs(event) {
-        this.vrLeftController = null;
-        this.vrRightController = null;
+
+        this.vrLeftController.gamepad = null;
+        this.vrRightController.gamepad = null;
 
         const session = this.renderer.xr.getSession();
         for (let i = 0; i < session.inputSources.length; i++) {
             const source = session.inputSources[i];
             console.log(source);
             if (source.handedness == "left") {
-                this.vrLeftController = new controller();
                 this.vrLeftController.gamepad = source.gamepad;
                 this.vrLeftController.object = this.renderer.xr.getController(i);
                 this.cameraCompensationNode.add(this.vrLeftController.object);
+                this.vrLeftController.object.add(this.debugCube);
             } else if (source.handedness == "right") {
-                this.vrRightController = new controller();
                 this.vrRightController.gamepad = source.gamepad;
                 this.vrRightController.object = this.renderer.xr.getController(i);
                 this.cameraCompensationNode.add(this.vrRightController.object);
@@ -136,6 +153,9 @@ export default class VRManager {
         if (!this.renderer.xr.isPresenting || !this.calibrated) {
             return;
         }
+
+        this.vrLeftController.update();
+        this.vrRightController.update();
 
         // in vr, compensate for user movement by updating the compensation node to put the head at the camera node position
         this.lastVrCameraPosition.copy(this.newVrCameraPosition);
@@ -154,7 +174,7 @@ export default class VRManager {
         // if the ui is disabled, allow controls
         if (!this.uiInteractionEnabled) {
             // Handle right controller rotation
-            if (this.vrRightController != null) {
+            if (this.vrRightController.isValid()) {
                 if (Math.abs(this.vrRightController.gamepad.axes[2]) > 0.9 && Date.now() - this.lastVrRotateTime > 500) {
                     this.lastVrRotateTime = Date.now();
 
@@ -169,7 +189,7 @@ export default class VRManager {
             }
 
             // Handle left controller movement
-            if (this.vrLeftController != null) {
+            if (this.vrLeftController.isValid()) {
                 this.moveVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
 
                 const moveDist = 0.5;
@@ -187,8 +207,8 @@ export default class VRManager {
 
         // if the ui is enabled
         else {
-            // if a controller is interactin with the ui
-            if (this.uiCurrentController != null) {
+            // if a controller is interacting with the ui
+            if (this.uiCurrentController != null && this.uiCurrentController.isValid()) {
 
                 // cast a ray from the controller
                 this.rayCaster.setFromXRController(this.uiCurrentController.object);
@@ -253,17 +273,16 @@ export default class VRManager {
 
             // check if either controller is trying to interact with the ui
             if (!this.uiClickState) {
-                if (this.vrRightController != null && this.vrRightController.gamepad.buttons[0].pressed) {
+                if (this.vrRightController.isValid() && this.vrRightController.gamepad.buttons[0].pressed) {
                     this.uiCurrentController = this.vrRightController;
                     this.uiClickState = true;
                 }
-                else if (this.vrLeftController != null && this.vrLeftController.gamepad.buttons[0].pressed) {
+                else if (this.vrLeftController.isValid() && this.vrLeftController.gamepad.buttons[0].pressed) {
                     this.uiCurrentController = this.vrLeftController;
                     this.uiClickState = true;
                 }
             }
         }
-
     }
 
     /**
@@ -301,10 +320,37 @@ export default class VRManager {
     }
 }
 
-class controller {
+class Controller extends EventTarget {
     constructor() {
+        super();
+
         this.gamepad = null;
         this.object = null;
-        this.index = null;
+
+        this.buttonsPressed = {};
+    }
+
+    isValid() {
+        return this.gamepad != null && this.object != null;
+    }
+
+    update() {
+        if (!this.gamepad) {
+            return;
+        }
+
+        for (let i = 0; i < this.gamepad.buttons.length; i++) {
+            const button = this.gamepad.buttons[i];
+            if (button.pressed && !this.buttonsPressed[i]) {
+                this.buttonsPressed[i] = true;
+                this.dispatchEvent(new CustomEvent('buttondown', { detail: { button: i, gamepad: this.gamepad } }));
+            } else if (!button.pressed && this.buttonsPressed[i]) {
+                this.buttonsPressed[i] = false;
+                this.dispatchEvent(new CustomEvent('buttonup', { detail: { button: i, gamepad: this.gamepad } }));
+            }
+            else {
+                this.buttonsPressed[i] = button.pressed;
+            }
+        }
     }
 }
