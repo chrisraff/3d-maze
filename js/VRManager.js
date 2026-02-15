@@ -186,6 +186,13 @@ export default class VRManager extends EventTarget {
                 if (Math.abs(this.vrRightController.gamepad.axes[2]) < 0.2) {
                     this.lastVrRotateTime = 0;
                 }
+
+                // if the right stick went up or down, move up or down
+                if (Math.abs(this.vrRightController.gamepad.axes[3]) > 0.9 && Date.now() - this.lastVrMoveTime > 500) {
+                    this.lastVrMoveTime = Date.now();
+
+                    this.cameraNode.position.y -= Math.sign(this.vrRightController.gamepad.axes[3]) * 0.5;
+                }
             }
 
             // Handle left controller movement
