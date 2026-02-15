@@ -16,6 +16,8 @@ export default class TutorialManager {
         this.cameraNode = options.cameraNode;
         this.isMobile = options.isMobile;
 
+        this.useAnimations = true;
+
         this.tmpVector = new THREE.Vector3();
 
         this.tutorialCallbacks = {
@@ -66,18 +68,66 @@ export default class TutorialManager {
                 teardown: () => {
                     document.querySelector('#compass-container').style.animationName = '';
                 }
+            },
+            vr: {
+                conditions: {
+                    0: () => {
+                        return this.cameraNode && this.cameraNode.position.distanceToSquared(this.tutorialData.cameraPos) > 1;
+                    },
+                    1: () => {
+                        if (this.cameraNode && this.cameraNode.rotation.y != this.tutorialData.rotationStart)
+                            this.tutorialData.rotateCondition = true;
+
+                        return (this.tutorialData.rotateCondition && Date.now() - this.tutorialData.lastLoggedTime > 4000);
+                    },
+                    2: () => {
+                        return Date.now() - this.tutorialData.lastLoggedTime > 6000;
+                    }
+                },
+                setup: {
+                    0: () => {
+                        this.tutorialData.cameraPos = this.cameraNode.position.clone();
+                    },
+                    1: () => {
+                        this.tutorialData.lastLoggedTime = Date.now();
+                        this.tutorialData.rotationStart = this.cameraNode.rotation.y;
+                        this.tutorialData.rotateCondition = false;
+                    },
+                    2: () => {
+                        this.tutorialData.lastLoggedTime = Date.now();
+                    }
+                }
             }
         };
     }
 
-    startTutorial(type = 'intro') {
+    setTutorialType(type) {
+        if (this.tutorialType == type)
+            return;
+
+        const wasInTutorial = this.inTutorial;
+
+        this.resetTutorial();
         this.tutorialType = type;
+
+        if (wasInTutorial) {
+            this.startTutorial();
+        }
+    }
+
+    startTutorial() {
+        if (this.inTutorial) {
+            this.resetTutorial();
+        }
+
         this.inTutorial = true;
 
         this.displayTutorialStep(0);
     }
 
     displayTutorialStep(step) {
+
+        this.tutorialData.step = step;
 
         const setup = this.tutorialCallbacks[this.tutorialType].setup[step];
         if (setup) setup();
@@ -87,8 +137,10 @@ export default class TutorialManager {
         if (this.tutorialData.currentElement == null) return false;
 
         this.tutorialData.currentElement.style.display = '';
-        this.tutorialData.currentElement.style.animationName = 'tutorial-text-fade-in';
-        this.tutorialData.currentElement.style.animationFillMode = 'forwards';
+        if (this.useAnimations) {
+            this.tutorialData.currentElement.style.animationName = 'tutorial-text-fade-in';
+            this.tutorialData.currentElement.style.animationFillMode = 'forwards';
+        }
 
         return true;
     }
@@ -96,8 +148,12 @@ export default class TutorialManager {
     cleanupTutorialStep(step) {
         const element = document.querySelector('[tutorial-type="' + this.tutorialType + '"][tutorial-step="' + step + '"]');
         if (element) {
-            element.style.animationName = 'tutorial-text-fade-out';
-            element.style.animationFillMode = 'forwards';
+            if (this.useAnimations) {
+                element.style.animationName = 'tutorial-text-fade-out';
+                element.style.animationFillMode = 'forwards';
+            } else {
+                element.style.display = 'none';
+            }
         }
     }
 
@@ -109,7 +165,6 @@ export default class TutorialManager {
 
         const condition = callbacks.conditions[this.tutorialData.step];
         if (condition && condition()) {
-            console.log('Tutorial step ' + this.tutorialData.step + ' complete');
             this.cleanupTutorialStep(this.tutorialData.step);
 
             this.tutorialData.step++;

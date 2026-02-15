@@ -352,6 +352,9 @@ function init() {
         dust._material.size = dustSizeVR;
         dotMaterials[0].size = dotSizesVR[0];
         dotMaterials[1].size = dotSizesVR[1];
+
+        tutorialManager.useAnimations = false;
+        tutorialManager.setTutorialType('vr');
     });
 
     renderer.xr.addEventListener('sessionend', (event) => {
@@ -359,6 +362,8 @@ function init() {
         dust._material.size = dustSize;
         dotMaterials[0].size = dotSizes[0];
         dotMaterials[1].size = dotSizes[1];
+        tutorialManager.useAnimations = true;
+        tutorialManager.resetTutorial();
         onWindowResize();
     });
 
