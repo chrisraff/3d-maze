@@ -355,6 +355,9 @@ function init() {
 
         tutorialManager.useAnimations = false;
         tutorialManager.setTutorialType('vr');
+        if (controls.isLocked) {
+            tutorialManager.startTutorial();
+        }
     });
 
     renderer.xr.addEventListener('sessionend', (event) => {

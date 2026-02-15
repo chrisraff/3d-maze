@@ -109,6 +109,7 @@ export default class TutorialManager {
 
         this.resetTutorial();
         this.tutorialType = type;
+        this.showTutorial = true;
 
         if (wasInTutorial) {
             this.startTutorial();
