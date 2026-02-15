@@ -12,6 +12,7 @@ import TrailEffect from './trail.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
 import CompassManager from './compassManagager.js';
 import VRManager from './VRManager.js';
+import TutorialManager from './TutorialManager.js';
 
 // webpage objects
 
@@ -21,10 +22,6 @@ var renderer;
 // var compassScene;
 // var compassCamera;
 var compassManager;
-
-// tutorial variables
-var showTutorial = true;
-var inTutorial = false;
 
 // ui variables
 var focusedMenu = null;
@@ -105,6 +102,8 @@ var trail;
 var dustSize   = 0.025;
 var dustSizeVR = 0.0075;
 
+var tutorialManager;
+
 function dotGroupRandomize() {
 
     dotRotationAnim = 0;
@@ -139,7 +138,13 @@ function loadSavedVariables()
 {
     const lastMazeCompletionDate = Number(storageGetItem('lastMazeCompletionDate', '0'));
     // show tutorial if more than 30 days have passed since the last maze completion
-    showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
+    const showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
+    // Initialize TutorialManager with state
+    tutorialManager = new TutorialManager({
+        showTutorial,
+        cameraNode,
+        isMobile
+    });
 }
 
 function init() {
@@ -239,7 +244,7 @@ function init() {
         document.querySelector('#blocker').style.display = '';
 
         // determine if the pause menu should be shown
-        if (!finishedMaze && focusedMenu.id != 'menu-daily-intro' && !inTutorial)
+        if (!finishedMaze && focusedMenu.id != 'menu-daily-intro' && !tutorialManager.inTutorial)
         {
             updateFocusedMenu('#menu-pause')
         }
@@ -397,6 +402,8 @@ function init() {
     updateUIDeviceRotation();
 
     updateMenuCentering();
+
+    tutorialManager.cameraNode = cameraNode;
 }
 
 function buildMaze(size=mazeSize) {
@@ -681,8 +688,10 @@ function onMazeCompletion()
     historyMesh.visible = true;
 
     // complete tutorial
-    resetTutorial(true);
-    storageSetItem('lastMazeCompletionDate', Date.now());
+    if (tutorialManager) {
+        tutorialManager.resetTutorial(true);
+        storageSetItem('lastMazeCompletionDate', Date.now());
+    }
 
     gtag('event', 'maze_completed', {
             'event_category': '3d-maze',
@@ -740,6 +749,7 @@ var animate = function () {
     dust.update(delta);
     trail.update(delta);
     compassManager.update();
+    tutorialManager.update();
     vrManager.update();
 
     if (mazeData == null)
@@ -765,11 +775,6 @@ var animate = function () {
         mesh.applyQuaternion( dotTmpQuaternion );
     }
 
-    if (inTutorial)
-    {
-        handleTutorial();
-    }
-
     renderer.render( scene, camera );
     compassManager.render();
 };
@@ -785,14 +790,14 @@ function buildMazeAndUpdateUI(size)
     document.querySelector('#completionMessage').style.display = 'none';
     document.querySelector('#menu-new-maze').style.display = 'none';
     // show the pause text if the intro has been cleared
-    if (!showTutorial)
+    if (tutorialManager && !tutorialManager.showTutorial)
         updateFocusedMenu('#menu-intro');
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
     updateMenuCentering();
 
-    resetTutorial();
+    if (tutorialManager) tutorialManager.resetTutorial();
 
     gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
 }
@@ -843,118 +848,9 @@ function menuLockControls()
     if (!isMobile || isValidMobileAspectRatio())
         controls.lock();
 
-    if (showTutorial && !inTutorial)
-    {
-        initTutorial();
+    if (tutorialManager && tutorialManager.showTutorial && !tutorialManager.inTutorial) {
+        tutorialManager.startTutorial();
     }
-}
-
-function initTutorial()
-{
-    // show how to look
-    document.querySelector('#touch-tutorial-look').style.display = '';
-    document.querySelector('#touch-tutorial-look').style.animationName = 'touch-tutorial-animation-look';
-
-    document.querySelector('#computer-tutorial-look').style.display = '';
-    document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-in';
-    document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
-
-    inTutorial = true;
-    tutorialData.state = 'look';
-}
-
-var tutorialData =
-{
-    state: 'look', // look, move, finalFadeout
-    cameraPos: new THREE.Vector3(),
-    lastLoggedTime: 0
-}
-function handleTutorial()
-{
-    switch (tutorialData.state)
-    {
-        case 'look':
-        {
-            // check if the user has moved the camera
-            if (camera.getWorldDirection(tmpVector).z < 0.975)
-            {
-                tutorialData.state = 'move';
-                tutorialData.cameraPos.copy(cameraNode.position);
-
-                document.querySelector('#touch-tutorial-look').style.display = 'none';
-                document.querySelector('#touch-tutorial-look').style.animationName = '';
-                document.querySelector('#touch-tutorial-move').style.display = '';
-                document.querySelector('#touch-tutorial-move').style.animationName = 'touch-tutorial-animation-move';
-
-                document.querySelector('#computer-tutorial-look').style.animationName = 'tutorial-text-fade-out';
-                document.querySelector('#computer-tutorial-look').style.animationFillMode = 'forwards';
-                document.querySelector('#computer-tutorial-move').style.display = '';
-                document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-in';
-                document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
-
-            }
-        }
-        break;
-        case 'move':
-        {
-            // check if the user has moved enough
-            if (cameraNode.position.distanceToSquared(tutorialData.cameraPos) > 4)
-            {
-                tutorialData.state = 'compass';
-                tutorialData.lastLoggedTime = Date.now();
-
-                document.querySelector('#touch-tutorial-move').style.display = 'none';
-                document.querySelector('#touch-tutorial-move').style.animationName = '';
-
-                document.querySelector('#computer-tutorial-move').style.animationName = 'tutorial-text-fade-out';
-                document.querySelector('#computer-tutorial-move').style.animationFillMode = 'forwards';
-
-                document.querySelector('#computer-tutorial-compass').style.display = '';
-                document.querySelector('#computer-tutorial-compass').style.animationName = 'tutorial-text-fade-in';
-                document.querySelector('#computer-tutorial-compass').style.animationFillMode = 'forwards';
-
-                document.querySelector('#compass-container').style.animationName = 'compass-tutorial-highlight';
-            }
-        }
-        break;
-        case 'compass':
-        {
-            // check if 6 seconds have passed
-            if (Date.now() - tutorialData.lastLoggedTime > 6000)
-            {
-                tutorialData.state = 'finalFadeout';
-                tutorialData.lastLoggedTime = Date.now();
-
-                document.querySelector('#computer-tutorial-compass').style.animationName = 'tutorial-text-fade-out';
-                document.querySelector('#computer-tutorial-compass').style.animationFillMode = 'forwards';
-            }
-        }
-        break;
-        case 'finalFadeout':
-        {
-            // check if 0.5 seconds have passed
-            if (Date.now() - tutorialData.lastLoggedTime > 500)
-            {
-                // complete the tutorial
-                resetTutorial(true);
-            }
-        }
-        break;
-    }
-}
-function resetTutorial(complete = false)
-{
-    if (complete)
-    {
-        showTutorial = false;
-    }
-
-    inTutorial = false;
-    document.querySelectorAll('.tutorial-element').forEach(element => {
-        element.style.display = 'none';
-        element.style.animationName = '';
-    });
-    document.querySelector('#compass-container').style.animationName = '';
 }
 
 document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
