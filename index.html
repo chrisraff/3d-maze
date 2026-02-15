@@ -197,6 +197,7 @@
                 text-align: center;
                 width: 100%;
                 pointer-events: none;
+                color: white;
 
                 font-family: Arial;
                 font-size: 25pt;
@@ -373,19 +374,19 @@
         <div id="touch-tutorial-look" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>
 
-        <div id="computer-tutorial-move" style="display: none;" class="tutorial-text tutorial-element">
-            <span class='formfactor-desktop'>Use the WASD keys to move</span>
-            <span style="display: none;" class='formfactor-non-desktop'>Move</span>
-            <br style="display: none;" class='formfactor-non-desktop' />
-            <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Drag on the left side of the screen</span>
-        </div>
-        <div id="computer-tutorial-look" style="display: none;" class="tutorial-text tutorial-element">
+        <div id="computer-tutorial-look" tutorial-step="0" tutorial-type="intro" style="display: none;" class="tutorial-text tutorial-element">
             <span class='formfactor-desktop'>Move the mouse to look</span>
             <span style="display: none;" class='formfactor-non-desktop'>Look</span>
             <br style="display: none;" class='formfactor-non-desktop' />
             <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Drag on the right side of the screen</span>
         </div>
-        <div id="computer-tutorial-compass" style="display: none;" class="tutorial-text tutorial-element">
+        <div id="computer-tutorial-move" tutorial-step="1" tutorial-type="intro" style="display: none;" class="tutorial-text tutorial-element">
+            <span class='formfactor-desktop'>Use the WASD keys to move</span>
+            <span style="display: none;" class='formfactor-non-desktop'>Move</span>
+            <br style="display: none;" class='formfactor-non-desktop' />
+            <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Drag on the left side of the screen</span>
+        </div>
+        <div id="computer-tutorial-compass" tutorial-step="2" tutorial-type="intro" style="display: none;" class="tutorial-text tutorial-element">
             <span>The compass points towards the exit</span>
             <br style="display: none;" class='formfactor-non-desktop' />
             <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Tap the compass to pause</span>
