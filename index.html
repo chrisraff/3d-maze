@@ -367,7 +367,7 @@
             }
         </script>
 
-        <div id="compass-container"></div>
+        <div id="compass-container" class="xr-non-vr"></div>
 
         <div id="touch-tutorial-move" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>
@@ -411,8 +411,9 @@
             <div id="completionMessage" style="display: none;" class="frosted">
                 Maze Completed!<br/>
                 <span>Time: <span id="mazeTimeSpan"></span>, Size: <span id="mazeCompSizeSpan"></span></span><br/>
-                <span style="font-size:14px" class="formfactor-desktop">Press <span class="os-not-mac">escape </span><span style="display: none;" class="os-mac">the P key </span>to start a new maze</span>
-                <span style="font-size:14px; display: none;" class="formfactor-non-desktop">Tap here to start a new maze</span>
+                <span style="font-size:14px" class="formfactor-desktop xr-non-vr">Press <span class="os-not-mac">escape </span><span style="display: none;" class="os-mac">the P key </span>to start a new maze</span>
+                <span style="font-size:14px; display: none;" class="formfactor-non-desktop xr-non-vr">Tap here to start a new maze</span>
+                <span style="font-size:14px; display: none;" class="xr-vr">Press either thumbstick to start a new maze</span>
             </div>
 
             <div id="blocker" class="center-menu">
@@ -425,13 +426,14 @@
 
                     <div id="menu-intro" class="focusable-menu">
                         <br/><br /><br class="formfactor-desktop"/>
-                        <span style="font-size:36px" class="formfactor-desktop">Click to play</span>
-                        <span style="font-size:36px; display: none;" class="formfactor-non-desktop">Tap to play</span>
+                        <span style="font-size:36px" class="formfactor-desktop xr-non-vr">Click to play</span>
+                        <span style="font-size:36px; display: none;" class="formfactor-non-desktop xr-non-vr">Tap to play</span>
+                        <span style="font-size:36px; display: none;" class="xr-vr">Select here to play</span>
                         <br /><br />
                         <span class="formfactor-desktop">
                             Explore the maze and find the exit!<br/>
                             <br/>
-                            Try adding this game to your phone's home screen.
+                            <span class="xr-non-vr">Try adding this game to your phone's home screen.</span>
                         </span>
                         <span style="display: none;" class="formfactor-non-desktop">
                             Explore the maze and find the exit!<br/>
@@ -452,8 +454,9 @@
 
                     <div id="menu-pause" style="display: none;" class="focusable-menu">
                         <br/>
-                        <span class="formfactor-desktop">Click anywhere to continue</span>
-                        <span style="display: none;" class="formfactor-non-desktop">Tap anywhere to continue</span>
+                        <span class="formfactor-desktop xr-non-vr">Click anywhere to continue</span>
+                        <span style="display: none;" class="formfactor-non-desktop xr-non-vr">Tap anywhere to continue</span>
+                        <span style="display: none;" class="xr-vr">Select here or press either thumbstick to continue</span>
                         <br/>
                         <span class="transparent-text-50" style="font-size: 75%;">Use "Options" to start a new maze</span>
                     </div>

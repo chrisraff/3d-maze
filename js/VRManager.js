@@ -66,6 +66,9 @@ export default class VRManager extends EventTarget {
         this.uiInteractingDetails = {};
         this.uiCurrentController = null;
         this.uiIsMouseControlled = false;
+
+        // store original display of elements that should be hidden in vr so that we can restore them when exiting vr
+        this.hiddenDomElemnts = [];
     }
 
     setupXREventListeners() {
@@ -113,6 +116,12 @@ export default class VRManager extends EventTarget {
         this.cameraCompensationNode.add(this.uiMesh);
         this.scene.add(this.pointerObject);
 
+        document.querySelectorAll('.xr-non-vr').forEach((element) => {
+            this.hiddenDomElemnts.push({ element, display: element.style.display });
+            element.style.display = 'none';
+        });
+        document.querySelectorAll('.xr-vr').forEach(element => element.style.display = '');
+
         window.addEventListener('mousemove', this.mouseMoveListener.bind(this));
     }
 
@@ -125,6 +134,11 @@ export default class VRManager extends EventTarget {
         this.cameraCompensationNode.remove(this.uiMesh);
         this.uiMesh = null;
         this.scene.remove(this.pointerObject);
+
+        document.querySelectorAll('.xr-vr').forEach(element => element.style.display = 'none');
+
+        this.hiddenDomElemnts.forEach(({ element, display }) => element.style.display = display);
+        this.hiddenDomElemnts = [];
 
         window.removeEventListener('mousemove', this.mouseMoveListener.bind(this));
     }
