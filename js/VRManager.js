@@ -32,6 +32,7 @@ export default class VRManager extends EventTarget {
 
         // Temporary vector for calculations
         this.tmpVector = new THREE.Vector3();
+        this.tmpVector2 = new THREE.Vector3();
 
         // Setup XR
         this.renderer.xr.enabled = true;
@@ -151,7 +152,6 @@ export default class VRManager extends EventTarget {
         const session = this.renderer.xr.getSession();
         for (let i = 0; i < session.inputSources.length; i++) {
             const source = session.inputSources[i];
-            console.log(source);
             if (source.handedness == "left") {
                 this.vrLeftController.gamepad = source.gamepad;
                 this.vrLeftController.object = this.renderer.xr.getController(i);
@@ -279,7 +279,6 @@ export default class VRManager extends EventTarget {
                     const elementAtLocation = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
 
                     (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
-                    console.log(elementAtLocation);
 
                     // if the element is a slider, track interaction with it
                     if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range') {
@@ -319,6 +318,30 @@ export default class VRManager extends EventTarget {
                     this.uiClickState = true;
                 }
             }
+        }
+
+        // make sure the ui is always in front of the player
+        const cameraToUi = this.tmpVector.copy(this.uiMesh.position);
+        cameraToUi.sub(this.camera.position);
+        const distanceToUi2 = cameraToUi.lengthSq();
+
+        // if looking away, reposition the ui to be in front of the user
+        const cameraXZLook = this.tmpVector2.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+        cameraXZLook.projectOnPlane(new THREE.Vector3(0, 1, 0));
+        cameraXZLook.normalize();
+        cameraToUi.normalize();
+        if (cameraXZLook.dot(cameraToUi) < 0.5 || distanceToUi2 > 9) {
+            // set the ui position to be in front of the camera
+            this.uiMesh.position.copy(cameraXZLook);
+            this.uiMesh.position.multiplyScalar(1.5);
+            this.uiMesh.position.add(this.camera.position);
+
+            // make the ui face the camera
+            cameraToUi.copy(this.uiMesh.position);
+            cameraToUi.sub(cameraXZLook);
+            cameraToUi.applyQuaternion(this.cameraCompensationNode.quaternion).add(this.cameraCompensationNode.position);
+            cameraToUi.applyQuaternion(this.cameraNode.quaternion).add(this.cameraNode.position);
+            this.uiMesh.lookAt(cameraToUi);
         }
     }
 
