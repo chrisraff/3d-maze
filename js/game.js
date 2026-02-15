@@ -359,6 +359,7 @@ function init() {
 
     renderer.xr.addEventListener('sessionend', (event) => {
         controls.setXRPresenting(false);
+        controls.disableLock(new Event(''));
         dust._material.size = dustSize;
         dotMaterials[0].size = dotSizes[0];
         dotMaterials[1].size = dotSizes[1];

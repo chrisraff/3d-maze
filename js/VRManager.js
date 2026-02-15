@@ -151,7 +151,7 @@ export default class VRManager extends EventTarget {
     }
 
     mouseMoveListener(event) {
-        if (this.uiInteractionEnabled) {
+        if (this.uiInteractionEnabled && this.renderer.xr.isPresenting) {
             this.setUiInteractor(true, null);
 
             // compute world coordinates of mouse position on the ui plane
