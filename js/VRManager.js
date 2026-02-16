@@ -22,7 +22,7 @@ export default class VRManager extends EventTarget {
         this.vrRightController = new Controller();
         this.lastVrRotateTime = 0;
         this.moveVector = new THREE.Vector3();
-        this.wasVrControllingMovement = false;
+        this.isVrControllingMovement = false;
         this.controllers = [];
         this.dotSprite = dotSprite;
         this.controls = controls;
@@ -221,35 +221,28 @@ export default class VRManager extends EventTarget {
                     this.lastVrRotateTime = 0;
                 }
 
-                // if the right stick went up or down, move up or down
-                if (Math.abs(this.vrRightController.gamepad.axes[3]) > 0.9) {
-                    this.moveVector.y = -Math.sign(this.vrRightController.gamepad.axes[3]);
-                    this.wasVrControllingMovement = true;
-                }
+                // use the right stick for up / down movement
+                this.moveVector.y -= this.vrRightController.gamepad.axes[3];
             }
 
             // Handle left controller movement
             if (this.vrLeftController.isValid()) {
                 this.tmpVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
 
-                if (this.tmpVector.lengthSq() > 0.7) {
-                    this.tmpVector.normalize();
-                    this.tmpVector.applyQuaternion(this.camera.quaternion);
-                    this.tmpVector.applyQuaternion(this.cameraCompensationNode.quaternion);
+                this.tmpVector.applyQuaternion(this.camera.quaternion);
+                this.tmpVector.applyQuaternion(this.cameraCompensationNode.quaternion);
 
-                    this.moveVector.add(this.tmpVector);
-                    this.wasVrControllingMovement = true;
-                }
+                this.moveVector.add(this.tmpVector);
             }
 
             // send movement to controls
-            if (this.wasVrControllingMovement) {
+            if (this.moveVector.lengthSq() > 0.01) {
                 this.controls.moveVector.copy(this.moveVector);
-
+                this.isVrControllingMovement = true;
+            } else if (this.isVrControllingMovement) {
                 // don't override other controls
-                if (this.moveVector.lengthSq() === 0) {
-                    this.wasVrControllingMovement = false;
-                }
+                this.controls.moveVector.set(0, 0, 0);
+                this.isVrControllingMovement = false;
             }
         }
 

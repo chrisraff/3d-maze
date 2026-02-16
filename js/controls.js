@@ -277,7 +277,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
         } else {
             // teleportation logic
             const currentTime = new Date().getTime();
-            if (this.tmpVector.length() > 0 && (currentTime - this.vrLastTeleportTime) > this.vrTeleportTimeout) {
+            if (this.tmpVector.lengthSq() > 0.7 && (currentTime - this.vrLastTeleportTime) > this.vrTeleportTimeout) {
+                // normalize again - always teleport as far as possible
+                this.tmpVector.normalize();
+
                 console.log('teleporting', this.tmpVector);
 
                 this.tmpVector.multiplyScalar(this.movementSpeed * this.vrTeleportTimeout / 1000);
