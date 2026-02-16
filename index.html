@@ -78,23 +78,60 @@
                 cursor: pointer;
             }
 
-            #menu-new-maze {
-                font-size: 150%;
+            .focusable-menu {
                 width: fit-content;
                 margin: auto;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+
+            .focusable-menu > * {
+                margin: 10px;
+            }
+
+            button {
+                color: #ffffff;
+                background-color: rgba(50, 50, 50, 0.8);
+                border: solid 1px rgba(170, 170, 170, 0.8);
+                border-radius: 5px;
+            }
+            button:hover {
+                background-color: rgba(80, 80, 80, 0.8);
+            }
+
+            .button-zone {
+                display: flex;
+                margin: auto;
+                flex-direction: column;
+                justify-content: center;
+            }
+
+            .button-zone button {
+                font-size: 18pt;
+            }
+            body.is-formfactor-non-desktop .button-zone button:not(.button-main) {
+                font-size: 14pt;
+            }
+
+            .button-zone > * {
+                margin: 10px;
+            }
+
+            body.is-formfactor-non-desktop .button-zone > * {
+                margin: 5px;
+            }
+
+            #menu-new-maze {
+                font-size: 150%;
                 padding: 1em;
             }
-            body.formfactor-non-desktop #menu-new-maze {
-                font-size: 110%;
+            body:not(.is-formfactor-non-desktop) .button-main {
+                font-size: 24pt;
+                padding: 0.15em;
             }
-            #menu-new-maze button {
-                padding: 0.5em;
-            }
-            body:not(.formfactor-non-desktop) #menu-new-maze button {
-                font-size: 150%;
-            }
-            body.formfactor-non-desktop #menu-new-maze button {
-                font-size: 120%;
+            body.is-formfactor-non-desktop .button-main {
+                font-size: 20pt;
             }
             #menu-new-maze input[type='range'] {
                 width: 80%;
@@ -113,6 +150,10 @@
                 border-bottom: 1px solid #3336;
 
                 background-color: rgba(0,0,0,0.25);
+            }
+            body.is-formfactor-non-desktop #completionMessage {
+                font-size: 32px;
+                padding: 5px;
             }
 
             #compass-container {
@@ -410,7 +451,8 @@
         <div id="overlay">
             <div id="completionMessage" style="display: none;" class="frosted">
                 Maze Completed!<br/>
-                <span>Time: <span id="mazeTimeSpan"></span>, Size: <span id="mazeCompSizeSpan"></span></span><br/>
+                <span>Time: <span id="mazeTimeSpan"></span>, Size: <span id="mazeCompSizeSpan"></span></span>
+                <br/>
                 <span style="font-size:14px" class="formfactor-desktop xr-non-vr">Press <span class="os-not-mac">escape </span><span style="display: none;" class="os-mac">the P key </span>to start a new maze</span>
                 <span style="font-size:14px; display: none;" class="formfactor-non-desktop xr-non-vr">Tap here to start a new maze</span>
                 <span style="font-size:14px; display: none;" class="xr-vr">Press either thumbstick to start a new maze</span>
@@ -421,15 +463,12 @@
                     <br/>
                     <div id="menu-title">
                         <span style="font-size:56px">3D Maze</span> <br/>
-                        <a href="https://www.chrisraff.com" class="transparent-text-50">ChrisRaff.com</a>
+                        <a href="https://www.chrisraff.com" class="transparent-text-50 xr-non-vr">ChrisRaff.com</a>
+                        <span class="transparent-text-50 xr-vr" style="display: none;">ChrisRaff.com</span>
                     </div>
 
-                    <div id="menu-intro" class="focusable-menu">
-                        <br/><br /><br class="formfactor-desktop"/>
-                        <span style="font-size:36px" class="formfactor-desktop xr-non-vr">Click to play</span>
-                        <span style="font-size:36px; display: none;" class="formfactor-non-desktop xr-non-vr">Tap to play</span>
-                        <span style="font-size:36px; display: none;" class="xr-vr">Select here to play</span>
-                        <br /><br />
+                    <div id="menu-intro" class="focusable-menu menu-active">
+                        <br/><br class="formfactor-desktop"/>
                         <span class="formfactor-desktop">
                             Explore the maze and find the exit!<br/>
                             <br/>
@@ -438,30 +477,40 @@
                         <span style="display: none;" class="formfactor-non-desktop">
                             Explore the maze and find the exit!<br/>
                         </span>
+
+                        <div class="button-zone">
+                            <button class="button-main button-play">Play</button>
+                            <button target-menu="menu-new-maze" class="menu-experienced">Choose Maze Size</button>
+                            <button target-menu="menu-options">Options</button>
+                        </div>
                     </div>
 
-                    <div id="menu-new-maze" style="display: none;" class="focusable-menu" onclick="event.stopPropagation();">
+                    <div id="menu-new-maze" style="display: none;" class="focusable-menu">
                         <br class="formfactor-desktop"/>
-                        <button id='menu-new-maze-button'>Start New Maze</button>
+                        <button id='menu-new-maze-button' class="button-main">Start New Maze</button>
                         <br class="formfactor-desktop"/>
-                        <br/>
                         <input type="range" min="2" max="12" value="3" class="slider" id="menu-new-maze-size-slider" oninput="document.querySelector('#menu-new-maze-size-span').innerHTML = this.value">
-                        <br class="formfactor-desktop"/>
-                        <br/>
                         <span style="font-size: 150%">Size: <span id="menu-new-maze-size-span">3</span></span>
-                        <br style="display: none;" class="formfactor-non-desktop"/>
+                        <br/>
+
+                        <div class="button-zone">
+                            <button target-menu="menu-options" class="menu-button-root-only">Options</button>
+                            <button class="menu-back-button">Back</button>
+                            <button class="menu-button-root-only button-play" style="display: none;">Back</button>
+                        </div>
                     </div>
 
                     <div id="menu-pause" style="display: none;" class="focusable-menu">
                         <br/>
-                        <span class="formfactor-desktop xr-non-vr">Click anywhere to continue</span>
-                        <span style="display: none;" class="formfactor-non-desktop xr-non-vr">Tap anywhere to continue</span>
-                        <span style="display: none;" class="xr-vr">Select here or press either thumbstick to continue</span>
-                        <br/>
-                        <span class="transparent-text-50" style="font-size: 75%;">Use "Options" to start a new maze</span>
+                        <span style="font-size: 150%">Maze Size: <span id="mazeSizeSpan">3</span></span> <br/>
+                        <div class="button-zone">
+                            <button class="button-play button-main">Continue</button>
+                            <button target-menu="menu-options">Options</button>
+                            <button target-menu="menu-new-maze">Start New Maze</button>
+                        </div>
                     </div>
 
-                    <div id="menu-rotate-phone" style="font-size: 30px; line-height: 34px; display: none;">
+                    <div id="menu-rotate-phone" style="font-size: 30px; line-height: 34px; display: none;" class="focusable-menu">
                         <br/>
                         Rotate your device to play
                         <br/>
@@ -472,27 +521,19 @@
                         </div>
                     </div>
 
+                    <div id="menu-options" style="display: none;" class="focusable-menu">
+                        <br/>
+                        <div>
+                            <input type="checkbox" id="setting-fixed-camera" name="setting-fixed-camera" checked />
+                            <label for="setting-fixed-camera">Fixed Camera</label>
+                        </div>
+
+                        <div class="button-zone">
+                            <button class="menu-back-button">Back</button>
+                        </div>
+                    </div>
 
                     <br style="display: none;" class="formfactor-non-desktop"/>
-                </div>
-
-                <div id="options-corner" onclick="event.stopPropagation();">
-                    <div >
-                        <button style="width: 100%" onclick="document.querySelector('#options-body').style.display = document.querySelector('#options-body').style.display == 'none' ? 'inherit' : 'none'">Options</button>
-                    </div>
-
-                    <div id="options-body" style="display: none;">
-                        New Size: <span id="newMazeSizeSpan">3</span> <br/>
-                        <input type="range" min="2" max="12" value="3" class="slider" id="newMazeSizeSlider" oninput="document.querySelector('#newMazeSizeSpan').innerHTML = this.value">
-                        <br/>
-                        <span style="font-size: 150%">Size: <span id="mazeSizeSpan">3</span></span> <br/>
-                        <button id='mazeBuildButton'>Build New Maze</button>
-
-                        <br/>
-
-                        <input type="checkbox" id="setting-fixed-camera" name="setting-fixed-camera" checked />
-                        <label for="setting-fixed-camera">Fixed Camera</label>
-                    </div>
                 </div>
 
                 <div id="copyright">

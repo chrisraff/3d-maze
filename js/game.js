@@ -13,6 +13,7 @@ import sampleUniformSphere from './sampleUniformSphere.js';
 import CompassManager from './compassManagager.js';
 import VRManager from './VRManager.js';
 import TutorialManager from './TutorialManager.js';
+import MenuManager from './MenuManager.js';
 
 // webpage objects
 
@@ -24,7 +25,7 @@ var renderer;
 var compassManager;
 
 // ui variables
-var focusedMenu = null;
+var menuManager = null;
 
 // basic objects
 var fpsClock;
@@ -145,6 +146,10 @@ function loadSavedVariables()
         cameraNode,
         isMobile
     });
+
+    document.querySelectorAll('.menu-experienced').forEach((el) => {
+        el.style.display = showTutorial ? 'none' : '';
+    });
 }
 
 function init() {
@@ -215,6 +220,7 @@ function init() {
 
     // init controls
     if (isMobile) {
+        document.body.classList.add('is-formfactor-non-desktop');
         document.querySelectorAll('.formfactor-desktop').forEach((e => {
             e.style.display = 'none';
         }));
@@ -225,12 +231,6 @@ function init() {
     controls = new FlyPointerLockControls(cameraNode, renderer.domElement);
     controls.movementSpeed = maze.majorWidth;
     controls.rollSpeed = 1;
-    document.querySelector('#blocker').addEventListener('click', (event) => {
-        menuLockControls();
-    });
-    document.querySelector('#blocker').addEventListener('onTouch', (event) => {
-        menuLockControls();
-    });
     controls.addEventListener( 'lock', function() {
         document.querySelector('#blocker').style.display = 'none';
         if (!timerRunning) {
@@ -244,9 +244,9 @@ function init() {
         document.querySelector('#blocker').style.display = '';
 
         // determine if the pause menu should be shown
-        if (!finishedMaze && focusedMenu.id != 'menu-daily-intro' && !tutorialManager.inTutorial)
+        if (!finishedMaze && !tutorialManager.inTutorial && menuManager.focusedMenu !== 'menu-rotate-phone')
         {
-            updateFocusedMenu('#menu-pause')
+            menuManager.focusRootMenu('menu-pause');
         }
 
         updateMenuCentering();
@@ -256,6 +256,10 @@ function init() {
     // P key listener
     document.addEventListener('keydown', (event) => {
         if (event.code == 'KeyP' && controls.isLocked)
+        {
+            controls.disableLock(new Event(''));
+        }
+        if (event.code == 'escape' && controls.isLocked)
         {
             controls.disableLock(new Event(''));
         }
@@ -407,8 +411,22 @@ function init() {
     window.addEventListener( 'orientationchange', onWindowResize, false );
 
     // init UI
-    focusedMenu = document.querySelector('#menu-intro');
+    menuManager = new MenuManager();
+    menuManager.addEventListener('menuChanged', (evt) => {
+        updateMenuCentering();
+    });
+    document.querySelectorAll('.button-play').forEach((button) => {
+        button.addEventListener('click', () => {
+            menuLockControls();
+        });
+    });
+
     updateUIDeviceRotation();
+    document.querySelectorAll('.focusable-menu').forEach((el) => {
+        el.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+        });
+    });
 
     updateMenuCentering();
 
@@ -630,29 +648,13 @@ function collisionUpdate() {
     }
 };
 
-function updateFocusedMenu(newFocusedMenuSelector = null)
-{
-    if (newFocusedMenuSelector != null)
-        focusedMenu = document.querySelector(newFocusedMenuSelector);
-
-    document.querySelectorAll('.focusable-menu').forEach((e => {
-        e.style.display = 'none';
-    }));
-
-    if (!document.querySelector('#menu-rotate-phone').style.display || document.querySelector('#menu-rotate-phone').style.display != 'none')
-        return;
-
-    focusedMenu.style.display = '';
-}
-
 function onMazeCompletion()
 {
     finishedMaze = true;
     document.querySelector('#completionMessage').style.display = '';
 
     // switch menu screens
-    updateFocusedMenu('#menu-new-maze');
-    document.querySelector('#options-body').style.display = 'none';
+    menuManager.focusRootMenu('menu-new-maze');
 
     let seconds = ( (Date.now() - timerStartMillis) / 1000).toFixed(2);
     let timeString = seconds;
@@ -740,14 +742,13 @@ function updateUIDeviceRotation()
             controls.disableLock(new Event(''));
         }
 
-        focusedMenu.style.display = 'none';
-        document.querySelector('#menu-rotate-phone').style.display = '';
+        menuManager.focusMenu('menu-rotate-phone');
     }
     // if the rotation hint is showing and the user has rotated, restore the menu
     else if (!document.querySelector('#menu-rotate-phone').style.display || document.querySelector('#menu-rotate-phone').style.display != 'none')
     {
         document.querySelector('#menu-rotate-phone').style.display = 'none';
-        updateFocusedMenu();
+        menuManager.focusPreviousMenu();
     }
 }
 
@@ -797,10 +798,10 @@ function buildMazeAndUpdateUI(size)
     buildMaze(size);
 
     document.querySelector('#completionMessage').style.display = 'none';
-    document.querySelector('#menu-new-maze').style.display = 'none';
     // show the pause text if the intro has been cleared
-    if (tutorialManager && !tutorialManager.showTutorial)
-        updateFocusedMenu('#menu-intro');
+    if (tutorialManager && !tutorialManager.showTutorial) {
+        menuManager.focusRootMenu('menu-intro');
+    }
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
@@ -839,6 +840,12 @@ function updateMenuCentering()
     // if there is not enough room, hide the title
     if (menu_space_to_fit < menu_height)
     {
+        // check if completion menu is showing
+        const completionMessage = document.querySelector('#completionMessage');
+        if (!completionMessage.style.display || completionMessage.style.display == 'none') {
+            completionMessage.style.display = 'none';
+        }
+
         menu_title.style.display = 'none';
     }
 
@@ -860,11 +867,11 @@ function menuLockControls()
     if (tutorialManager && tutorialManager.showTutorial && !tutorialManager.inTutorial) {
         tutorialManager.startTutorial();
     }
-}
 
-document.querySelector('#mazeBuildButton').addEventListener('click', (event) => {
-    buildMazeAndUpdateUI( document.querySelector('#newMazeSizeSlider').value );
-});
+    if (finishedMaze) {
+        document.querySelector('#completionMessage').style.display = '';
+    }
+}
 
 document.querySelector('#menu-new-maze-button').addEventListener('click', (event) =>
 {
@@ -875,6 +882,9 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
     controls.setGimbalLocked( event.target.checked );
+    if (vrManager.uiMesh) {
+        vrManager.uiMesh.material.map.update();
+    }
 });
 
 window.addEventListener('beforeunload', verifyAndReportAbandonedMaze);
