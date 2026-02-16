@@ -6,7 +6,7 @@ import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
 
 export default class VRManager extends EventTarget {
-    constructor(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite) {
+    constructor(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls) {
         super();
 
         this.renderer = renderer;
@@ -21,10 +21,11 @@ export default class VRManager extends EventTarget {
         this.vrLeftController = new Controller();
         this.vrRightController = new Controller();
         this.lastVrRotateTime = 0;
-        this.lastVrMoveTime = 0;
         this.moveVector = new THREE.Vector3();
+        this.wasVrControllingMovement = false;
         this.controllers = [];
         this.dotSprite = dotSprite;
+        this.controls = controls;
 
         this.rayCaster = new THREE.Raycaster();
         this.rayPosition = new THREE.Vector3();
@@ -46,7 +47,7 @@ export default class VRManager extends EventTarget {
         this.vrButton = VRButton.createButton(this.renderer);
 
         // UI state
-        this.uiInteractionEnabled = false;
+        this.uiInteractionEnabled = true;
         this.uiDom = document.querySelector('body');
 
         this.pointerObject = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
@@ -204,6 +205,8 @@ export default class VRManager extends EventTarget {
 
         // if the ui is disabled, allow controls
         if (!this.uiInteractionEnabled) {
+            this.moveVector.set(0, 0, 0);
+
             // Handle right controller rotation
             if (this.vrRightController.isValid()) {
                 if (Math.abs(this.vrRightController.gamepad.axes[2]) > 0.9 && Date.now() - this.lastVrRotateTime > 500) {
@@ -219,26 +222,33 @@ export default class VRManager extends EventTarget {
                 }
 
                 // if the right stick went up or down, move up or down
-                if (Math.abs(this.vrRightController.gamepad.axes[3]) > 0.9 && Date.now() - this.lastVrMoveTime > 500) {
-                    this.lastVrMoveTime = Date.now();
-
-                    this.cameraNode.position.y -= Math.sign(this.vrRightController.gamepad.axes[3]) * 0.5;
+                if (Math.abs(this.vrRightController.gamepad.axes[3]) > 0.9) {
+                    this.moveVector.y = -Math.sign(this.vrRightController.gamepad.axes[3]);
+                    this.wasVrControllingMovement = true;
                 }
             }
 
             // Handle left controller movement
             if (this.vrLeftController.isValid()) {
-                this.moveVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
+                this.tmpVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
 
-                const moveDist = 0.5;
+                if (this.tmpVector.lengthSq() > 0.7) {
+                    this.tmpVector.normalize();
+                    this.tmpVector.applyQuaternion(this.camera.quaternion);
+                    this.tmpVector.applyQuaternion(this.cameraCompensationNode.quaternion);
 
-                if (this.moveVector.lengthSq() > 0.5 && Date.now() - this.lastVrMoveTime > 500) {
-                    this.lastVrMoveTime = Date.now();
-                    this.moveVector.normalize().multiplyScalar(moveDist);
-                    this.moveVector.applyQuaternion(this.camera.quaternion);
-                    this.moveVector.applyQuaternion(this.cameraNode.quaternion);
-                    this.moveVector.multiplyVectors(this.moveVector, this.cameraNode.scale);
-                    this.cameraNode.position.add(this.moveVector);
+                    this.moveVector.add(this.tmpVector);
+                    this.wasVrControllingMovement = true;
+                }
+            }
+
+            // send movement to controls
+            if (this.wasVrControllingMovement) {
+                this.controls.moveVector.copy(this.moveVector);
+
+                // don't override other controls
+                if (this.moveVector.lengthSq() === 0) {
+                    this.wasVrControllingMovement = false;
                 }
             }
         }

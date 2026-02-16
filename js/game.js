@@ -338,7 +338,7 @@ function init() {
     compassManager.followObject(cameraNode);
 
     // init VR manager
-    vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite);
+    vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls);
     document.querySelector('#menu-body').appendChild( vrManager.getButton() );
 
     vrManager.addEventListener('pause', () => {
@@ -359,9 +359,6 @@ function init() {
 
         tutorialManager.useAnimations = false;
         tutorialManager.setTutorialType('vr');
-        if (controls.isLocked) {
-            tutorialManager.startTutorial();
-        }
     });
 
     renderer.xr.addEventListener('sessionend', (event) => {
@@ -882,9 +879,14 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
     controls.setGimbalLocked( event.target.checked );
-    if (vrManager.uiMesh) {
-        vrManager.uiMesh.material.map.update();
-    }
+});
+
+document.querySelectorAll('.xr-force-redraw').forEach((el) => {
+    el.addEventListener('change', (event) => {
+        if (renderer.xr.isPresenting) {
+            vrManager.uiMesh.material.map.update();
+        }
+    });
 });
 
 window.addEventListener('beforeunload', verifyAndReportAbandonedMaze);

@@ -38,6 +38,12 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.isLocked = false;
 
+    this.vrControlOptions = {
+        teleportationEnabled: true
+    }
+    this.vrTeleportTimeout = 500;
+    this.vrLastTeleportTime = 0;
+
     // on first page load, android lets the pointer lock work
     // this causes the game to be unstartable
     this.lastLockDate = undefined;
@@ -247,9 +253,6 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.update = function ( delta ) {
 
-        let moveMult = delta * this.movementSpeed;
-        let rotMult = delta * this.rollSpeed;
-
         this.tmpVector.copy(this.moveVector);
 
         if (moveTouchDragging) {
@@ -262,10 +265,30 @@ var FlyPointerLockControls = function ( object, domElement ) {
         if (this.tmpVector.length() > 1)
             this.tmpVector.normalize();
 
-        this.object.translateX( this.tmpVector.x * moveMult );
-        this.object.translateY( this.tmpVector.y * moveMult );
-        this.object.translateZ( this.tmpVector.z * moveMult );
+        const shouldTeleport = this.vrControlOptions.teleportationEnabled && this.isXRPresenting;
+        // const shouldTeleport = true;
+        if (!shouldTeleport) {
+            let moveMult = delta * this.movementSpeed;
 
+            // move normally
+            this.object.translateX( this.tmpVector.x * moveMult );
+            this.object.translateY( this.tmpVector.y * moveMult );
+            this.object.translateZ( this.tmpVector.z * moveMult );
+        } else {
+            // teleportation logic
+            const currentTime = new Date().getTime();
+            if (this.tmpVector.length() > 0 && (currentTime - this.vrLastTeleportTime) > this.vrTeleportTimeout) {
+                console.log('teleporting', this.tmpVector);
+
+                this.tmpVector.multiplyScalar(this.movementSpeed * this.vrTeleportTimeout / 1000);
+                this.object.translateX( this.tmpVector.x );
+                this.object.translateY( this.tmpVector.y );
+                this.object.translateZ( this.tmpVector.z );
+                this.vrLastTeleportTime = currentTime;
+            }
+        }
+
+        let rotMult = delta * this.rollSpeed;
         this.applyRotation( this.rotationVector, rotMult );
     };
 

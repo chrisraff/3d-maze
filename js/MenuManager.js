@@ -21,7 +21,6 @@ export default class MenuManager extends EventTarget {
     setUpTargetMenuCallbacks() {
         document.querySelectorAll('[target-menu]').forEach((el) => {
             el.addEventListener('click', (evt) => {
-                evt.stopPropagation();
                 const targetMenu = el.getAttribute('target-menu');
                 if (targetMenu) {
                     this.focusMenu(targetMenu);
@@ -37,7 +36,6 @@ export default class MenuManager extends EventTarget {
     }
 
     focusPreviousMenu(event) {
-        event?.stopPropagation();
         if (this.menuStack.length > 0) {
             const previousMenu = this.menuStack.pop();
             this.focusMenu(previousMenu, false);
