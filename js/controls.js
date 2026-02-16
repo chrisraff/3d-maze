@@ -43,6 +43,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
     }
     this.vrTeleportTimeout = 500;
     this.vrLastTeleportTime = 0;
+    this.vrTeleportRecentered = false;
 
     // on first page load, android lets the pointer lock work
     // this causes the game to be unstartable
@@ -277,17 +278,23 @@ var FlyPointerLockControls = function ( object, domElement ) {
         } else {
             // teleportation logic
             const currentTime = new Date().getTime();
-            if (this.tmpVector.lengthSq() > 0.7 && (currentTime - this.vrLastTeleportTime) > this.vrTeleportTimeout) {
+            const canTelport = this.vrTeleportRecentered || ((currentTime - this.vrLastTeleportTime) > this.vrTeleportTimeout);
+            if (this.tmpVector.lengthSq() > 0.7 && canTelport) {
                 // normalize again - always teleport as far as possible
                 this.tmpVector.normalize();
 
-                console.log('teleporting', this.tmpVector);
+                const teleportTime = Math.min(this.vrTeleportTimeout, Date.now() - this.vrLastTeleportTime) / 1000;
+                const teleportDistance = this.movementSpeed * teleportTime;
+                this.tmpVector.multiplyScalar(teleportDistance);
 
-                this.tmpVector.multiplyScalar(this.movementSpeed * this.vrTeleportTimeout / 1000);
                 this.object.translateX( this.tmpVector.x );
                 this.object.translateY( this.tmpVector.y );
                 this.object.translateZ( this.tmpVector.z );
+
                 this.vrLastTeleportTime = currentTime;
+                this.vrTeleportRecentered = false;
+            } else if (this.moveVector.lengthSq() < 0.1) {
+                this.vrTeleportRecentered = true;
             }
         }
 
