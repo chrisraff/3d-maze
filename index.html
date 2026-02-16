@@ -445,6 +445,9 @@
             <span style="font-size: 75%">You can also move up and down</span>
         </div>
         <div tutorial-type="vr" tutorial-step="2" style="display: none;" class="tutorial-text tutorial-element">
+            <span>You can adjust movement settings in the "Options" menu</span>
+        </div>
+        <div tutorial-type="vr" tutorial-step="3" style="display: none;" class="tutorial-text tutorial-element">
             <span>Press either thumbstick to pause</span>
         </div>
 
@@ -455,7 +458,7 @@
                 <br/>
                 <span style="font-size:14px" class="formfactor-desktop xr-non-vr">Press <span class="os-not-mac">escape </span><span style="display: none;" class="os-mac">the P key </span>to start a new maze</span>
                 <span style="font-size:14px; display: none;" class="formfactor-non-desktop xr-non-vr">Tap here to start a new maze</span>
-                <span style="font-size:14px; display: none;" class="xr-vr">Press either thumbstick to start a new maze</span>
+                <span style="font-size:20px; display: none;" class="xr-vr">Press either thumbstick to start a new maze</span>
             </div>
 
             <div id="blocker" class="center-menu">
@@ -523,9 +526,21 @@
 
                     <div id="menu-options" style="display: none;" class="focusable-menu">
                         <br/>
-                        <div>
+                        <div class="xr-non-vr">
                             <input type="checkbox" id="setting-fixed-camera" name="setting-fixed-camera" checked />
                             <label for="setting-fixed-camera">Fixed Camera</label>
+                        </div>
+
+                        <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-movement">
+                            <label>VR Movement:</label>
+                            <div>
+                                <input type="radio" id="vr-setting-movement-teleport" name="vr-setting-movement" value="teleport" checked>
+                                <label for="vr-setting-movement-teleport">Teleport</label>
+                            </div>
+                            <div>
+                                <input type="radio" id="vr-setting-movement-smooth" name="vr-setting-movement" value="smooth">
+                                <label for="vr-setting-movement-smooth">Smooth</label>
+                            </div>
                         </div>
 
                         <div class="button-zone">

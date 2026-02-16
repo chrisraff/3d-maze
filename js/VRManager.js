@@ -222,7 +222,10 @@ export default class VRManager extends EventTarget {
                 }
 
                 // use the right stick for up / down movement
-                this.moveVector.y -= this.vrRightController.gamepad.axes[3];
+                // (threshold requirement to prevent drift if smooth motion is enabled)
+                if (Math.abs(this.vrRightController.gamepad.axes[3]) > Math.abs(this.vrRightController.gamepad.axes[2] * 0.75)) {
+                    this.moveVector.y -= this.vrRightController.gamepad.axes[3];
+                }
             }
 
             // Handle left controller movement

@@ -82,6 +82,9 @@ export default class TutorialManager {
                     },
                     2: () => {
                         return Date.now() - this.tutorialData.lastLoggedTime > 6000;
+                    },
+                    3: () => {
+                        return Date.now() - this.tutorialData.lastLoggedTime > 6000;
                     }
                 },
                 setup: {
@@ -94,6 +97,9 @@ export default class TutorialManager {
                         this.tutorialData.rotateCondition = false;
                     },
                     2: () => {
+                        this.tutorialData.lastLoggedTime = Date.now();
+                    },
+                    3: () => {
                         this.tutorialData.lastLoggedTime = Date.now();
                     }
                 }

@@ -881,6 +881,12 @@ document.querySelector('#setting-fixed-camera').addEventListener('change', (even
     controls.setGimbalLocked( event.target.checked );
 });
 
+document.querySelector('.menu-radio-button').addEventListener('change', (event) => {
+    if (event.target.name == 'vr-setting-movement') {
+        controls.vrControlOptions.teleportationEnabled = event.target.value == 'teleport';
+    }
+});
+
 document.querySelectorAll('.xr-force-redraw').forEach((el) => {
     el.addEventListener('change', (event) => {
         if (renderer.xr.isPresenting) {
