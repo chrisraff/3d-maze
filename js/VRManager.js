@@ -129,6 +129,7 @@ export default class VRManager extends EventTarget {
         this.uiMesh.renderOrder = 999;
         this.cameraCompensationNode.add(this.uiMesh);
         this.scene.add(this.pointerObject);
+        this.uiClickState = false;
 
         document.querySelectorAll('.xr-non-vr').forEach((element) => {
             this.hiddenDomElemnts.push({ element, display: element.style.display });
@@ -179,8 +180,12 @@ export default class VRManager extends EventTarget {
     }
 
     mouseMoveListener(event) {
+
         if (this.uiInteractionEnabled && this.renderer.xr.isPresenting) {
-            this.setUiInteractor(true, null);
+            // check if the mouse moved a significant amount
+            if (event.movementX + event.movementY < 2) {
+                this.setUiInteractor(true, null);
+            }
 
             // compute world coordinates of mouse position on the ui plane
             this.tmpVector.set((event.clientX / this.uiDom.clientWidth - 0.5) * this.uiMesh.geometry.parameters.width, (0.5 - event.clientY / this.uiDom.clientHeight) * this.uiMesh.geometry.parameters.height, 0);
@@ -397,9 +402,9 @@ export default class VRManager extends EventTarget {
 
     setUiInteraction(enabled) {
         if (!enabled) {
-            this.uiClickState = false;
             this.pointerObject.visible = false;
         }
+        this.uiClickState = false;
         this.uiInteractionEnabled = enabled;
     }
 

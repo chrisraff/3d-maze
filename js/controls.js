@@ -255,6 +255,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.update = function ( delta ) {
 
+        if ( scope.isLocked === false ) return;
+
         this.tmpVector.copy(this.moveVector);
 
         if (moveTouchDragging) {
