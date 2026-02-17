@@ -69,7 +69,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     var changeEvent = { type: 'change' };
     var lockEvent = { type: 'lock' };
-    var unlockEvent = { type: 'unlock' };
+    var unlockEvent = { type: 'unlock' }
+    var teleportEvent = { type: 'teleport' };
 
     function is_touch_device() {
         try {
@@ -293,6 +294,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
                 this.vrLastTeleportTime = currentTime;
                 this.vrTeleportRecentered = false;
+
+                this.dispatchEvent( teleportEvent );
             } else if (this.moveVector.lengthSq() < 0.1) {
                 this.vrTeleportRecentered = true;
             }

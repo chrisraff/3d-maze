@@ -35,6 +35,18 @@ export default class VRManager extends EventTarget {
         this.tmpVector = new THREE.Vector3();
         this.tmpVector2 = new THREE.Vector3();
 
+        // blackout variables
+        this.blackoutPlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ color: 'black', transparent: true, opacity: 0 }));
+        this.blackoutPlane.visible = false;
+        this.blackoutPlane.material.depthTest = false;
+        this.blackoutPlane.renderOrder = 10000;
+        this.camera.add(this.blackoutPlane);
+        this.blackoutPlane.position.set(0, 0, -0.5);
+        // listen for teleports
+        controls.addEventListener('teleport', () => {
+            this.doTeleportEffect();
+        });
+
         // Setup XR
         this.renderer.xr.enabled = true;
         this.renderer.xr.setReferenceSpaceType('local');
@@ -136,6 +148,7 @@ export default class VRManager extends EventTarget {
         this.cameraCompensationNode.remove(this.uiMesh);
         this.uiMesh = null;
         this.scene.remove(this.pointerObject);
+        this.blackoutPlane.visible = false;
 
         document.querySelectorAll('.xr-vr').forEach(element => element.style.display = 'none');
 
@@ -181,7 +194,7 @@ export default class VRManager extends EventTarget {
     /**
      * Update VR state during animation loop
      */
-    update() {
+    update(delta) {
         if (!this.renderer.xr.isPresenting || !this.calibrated) {
             return;
         }
@@ -214,6 +227,7 @@ export default class VRManager extends EventTarget {
 
                     // rotate the camera node in the direction of the stick
                     this.cameraNode.rotation.y -= Math.sign(this.vrRightController.gamepad.axes[2]) * Math.PI / 4;
+                    this.doTeleportEffect();
                 }
 
                 // if the right stick returns to center, reset the last rotate time so that the user can immediately rotate again when they push the stick
@@ -349,6 +363,20 @@ export default class VRManager extends EventTarget {
             cameraToUi.applyQuaternion(this.cameraNode.quaternion).add(this.cameraNode.position);
             this.uiMesh.lookAt(cameraToUi);
         }
+
+        // teleport effect
+        if (this.blackoutPlane.visible) {
+            this.blackoutPlane.material.opacity -= delta * 4;
+            if (this.blackoutPlane.material.opacity <= 0) {
+                this.blackoutPlane.visible = false;
+                this.blackoutPlane.material.opacity = 0;
+            }
+        }
+    }
+
+    doTeleportEffect() {
+        this.blackoutPlane.visible = true;
+        this.blackoutPlane.material.opacity = 0.75;
     }
 
     /**
