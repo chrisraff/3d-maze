@@ -138,6 +138,7 @@ function dotGroupRandomize() {
 function loadSavedVariables()
 {
     const lastMazeCompletionDate = Number(storageGetItem('lastMazeCompletionDate', '0'));
+
     // show tutorial if more than 30 days have passed since the last maze completion
     const showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
     // Initialize TutorialManager with state
@@ -150,11 +151,15 @@ function loadSavedVariables()
     document.querySelectorAll('.menu-experienced').forEach((el) => {
         el.style.display = showTutorial ? 'none' : '';
     });
+
+    const vrTeleport = storageGetItem('vr-setting-movement', 'teleport');
+    controls.vrControlOptions.teleportationEnabled = vrTeleport == 'teleport';
+    document.querySelectorAll('[name="vr-setting-movement"]').forEach((el) => {
+        el.checked = el.value == vrTeleport;
+    });
 }
 
 function init() {
-
-    loadSavedVariables();
 
     renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
     renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
@@ -426,6 +431,8 @@ function init() {
     });
 
     updateMenuCentering();
+
+    loadSavedVariables();
 
     tutorialManager.cameraNode = cameraNode;
 }
@@ -765,9 +772,9 @@ var animate = function () {
     controls.update(delta);
     dust.update(delta);
     trail.update(delta);
+    vrManager.update(delta);
     compassManager.update();
     tutorialManager.update();
-    vrManager.update();
 
     if (mazeData == null)
         return;
@@ -805,10 +812,8 @@ function buildMazeAndUpdateUI(size)
     buildMaze(size);
 
     document.querySelector('#completionMessage').style.display = 'none';
-    // show the pause text if the intro has been cleared
-    if (tutorialManager && !tutorialManager.showTutorial) {
-        menuManager.focusRootMenu('menu-intro');
-    }
+
+    menuManager.focusRootMenu('menu-pause');
 
     document.querySelector('#mazeSizeSpan').innerHTML = mazeSize;
 
@@ -894,6 +899,7 @@ document.querySelector('#setting-fixed-camera').addEventListener('change', (even
 document.querySelector('.menu-radio-button').addEventListener('change', (event) => {
     if (event.target.name == 'vr-setting-movement') {
         controls.vrControlOptions.teleportationEnabled = event.target.value == 'teleport';
+        storageSetItem('vr-setting-movement', event.target.value);
     }
 });
 
