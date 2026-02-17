@@ -446,9 +446,19 @@ function buildMaze(size=mazeSize) {
     dotGroup.position.copy( endPos );
     dotGroupRandomize();
 
+    // set the camera in front of the maze, looking in
     cameraNode.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
     cameraNode.lookAt(maze.getOffset(1), maze.getOffset(1), maze.getOffset(-3));
-    camera.rotation.set(0,0,0);
+    if (!renderer.xr.isPresenting) {
+        camera.rotation.set(0,0,0);
+
+    } else {
+        // get the camera's forward vector
+        const forward = tmpVector.set(0, 0, 1).applyQuaternion(camera.quaternion);
+        const targetRotation = Math.atan2(forward.x, forward.z);
+        // adjust cameraNode's rotation
+        cameraNode.rotation.y -= targetRotation;
+    }
 
     historyPositions = [];
     historyLine.geometry.dispose();
