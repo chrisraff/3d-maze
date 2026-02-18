@@ -157,6 +157,18 @@ function loadSavedVariables()
     document.querySelectorAll('[name="vr-setting-movement"]').forEach((el) => {
         el.checked = el.value == vrTeleport;
     });
+
+    const vrRotation = storageGetItem('vr-setting-rotation', 'instant');
+    controls.vrControlOptions.rotationSmoothing = vrRotation == 'smooth';
+    document.querySelectorAll('[name="vr-setting-rotation"]').forEach((el) => {
+        el.checked = el.value == vrRotation;
+    });
+
+    updateVrRotateSpeedSettingEnabled();
+
+    const vrRotationSpeed = Number(storageGetItem('vr-setting-rotation-speed', '0'));
+    vrManager.rotationSpeed = Math.pow(3, vrRotationSpeed);
+    document.querySelector('#vr-setting-rotation-speed').value = vrRotationSpeed;
 }
 
 function init() {
@@ -896,11 +908,35 @@ document.querySelector('#setting-fixed-camera').addEventListener('change', (even
     controls.setGimbalLocked( event.target.checked );
 });
 
-document.querySelector('.menu-radio-button').addEventListener('change', (event) => {
-    if (event.target.name == 'vr-setting-movement') {
-        controls.vrControlOptions.teleportationEnabled = event.target.value == 'teleport';
-        storageSetItem('vr-setting-movement', event.target.value);
-    }
+document.querySelectorAll('.menu-radio-button').forEach((el) => {
+    el.addEventListener('change', (event) => {
+        if (event.target.name == 'vr-setting-movement') {
+            controls.vrControlOptions.teleportationEnabled = event.target.value == 'teleport';
+            storageSetItem('vr-setting-movement', event.target.value);
+        }
+        if (event.target.name == 'vr-setting-rotation') {
+            controls.vrControlOptions.rotationSmoothing = event.target.value == 'smooth';
+            updateVrRotateSpeedSettingEnabled();
+            storageSetItem('vr-setting-rotation', event.target.value);
+        }
+    });
+});
+
+function updateVrRotateSpeedSettingEnabled() {
+    const vrRotationSpeedSetting = document.querySelector('#vr-setting-rotation-speed');
+    vrRotationSpeedSetting.disabled = !controls.vrControlOptions.rotationSmoothing;
+}
+
+document.querySelectorAll('.menu-slider').forEach((el) => {
+    el.addEventListener('input', (event) => {
+        const value = event.target.value;
+        if (event.target.id == 'vr-setting-rotation-speed') {
+            const expValue = Math.pow(3, value);
+            vrManager.rotationSpeed = expValue;
+            storageSetItem('vr-setting-rotation-speed', value);
+        }
+        vrManager.uiMesh.material.map.update();
+    });
 });
 
 document.querySelectorAll('.xr-force-redraw').forEach((el) => {

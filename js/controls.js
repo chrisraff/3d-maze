@@ -39,11 +39,16 @@ var FlyPointerLockControls = function ( object, domElement ) {
     this.isLocked = false;
 
     this.vrControlOptions = {
-        teleportationEnabled: true
+        teleportationEnabled: true,
+        rotationSmoothing: false
     }
     this.vrTeleportTimeout = 500;
     this.vrLastTeleportTime = 0;
     this.vrTeleportRecentered = false;
+
+    // VR rotation state
+    this.vrRotationSmoothSpeed = 6.0; // radians per second
+    this.vrLastRotateTime = 0;
 
     // on first page load, android lets the pointer lock work
     // this causes the game to be unstartable
@@ -97,18 +102,51 @@ var FlyPointerLockControls = function ( object, domElement ) {
     var moveLastY = 0;
     var moveTouchIdentifier = 0;
 
+    var mouseSensitivity = 0.002;
+
+    var accumulatedMouseRotationY = 0;
+    var lastMouseMoveTime = 0;
+    // allow the first snap to be easy (0.1), and subsequent snaps intentional (0.5)
+    // these thresholds are unitless
+    const mouseInstantRotateThreshold = (b) => b ? 0.5 : 0.1;
+    var firstRotationApplied = false;
+
     function onMouseMove( event ) {
         if ( scope.isLocked === false ) return;
 
-        let movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
-        let movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+        const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+        const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
-        scope.tmpVector.set( - movementY * (scope.isXRPresenting ? 0 : 1), - movementX, 0 );
+        const shouldInstantRotate = scope.isXRPresenting && !scope.vrControlOptions.rotationSmoothing;
+        // const shouldInstantRotate = true;
+        if (!shouldInstantRotate) {
 
-        scope.applyRotation( scope.tmpVector, 0.002 );
+            scope.tmpVector.set( - movementY * (scope.isXRPresenting ? 0 : 1), - movementX, 0 );
 
-        scope.dispatchEvent( changeEvent );
-    };
+            scope.applyRotation( scope.tmpVector, mouseSensitivity );
+
+            scope.dispatchEvent( changeEvent );
+        } else {
+            if (Date.now() - lastMouseMoveTime > 500) {
+                accumulatedMouseRotationY = 0;
+                firstRotationApplied = false;
+            };
+
+            lastMouseMoveTime = Date.now();
+
+            // for mouse, accumulate rotation and apply snap
+            accumulatedMouseRotationY -= movementX * mouseSensitivity;
+            if (Math.abs(accumulatedMouseRotationY) > mouseInstantRotateThreshold(firstRotationApplied)) {
+                const rotationAmount = Math.sign(accumulatedMouseRotationY) * Math.PI / 4;
+                scope.doInstantRotate(rotationAmount);
+                if (firstRotationApplied) {
+                    accumulatedMouseRotationY -= 1.5 * mouseInstantRotateThreshold(true) * Math.sign(accumulatedMouseRotationY);
+                } else {
+                    firstRotationApplied = true;
+                }
+            }
+        }
+    }
 
     function onTouchStart( event ) {
         if ( scope.isLocked === false ) return;
@@ -307,18 +345,45 @@ var FlyPointerLockControls = function ( object, domElement ) {
         this.applyRotation( this.rotationVector, rotMult );
     };
 
+    this.handleVRRotation = function ( stickInput, delta ) {
+        // Handle VR controller rotation input
+        if (Math.abs(stickInput) < 0.1) {
+            stickInput = 0;
+        }
+
+        if (this.vrControlOptions.rotationSmoothing) {
+            // Smooth rotation mode: continuous rotation based on stick position
+            if (Math.abs(stickInput) > 0.1) {
+                const rotationAmount = stickInput * this.vrRotationSmoothSpeed * delta;
+                this.object.rotateOnWorldAxis(new Vector3(0, 1, 0), -rotationAmount);
+            }
+        } else {
+        }
+    };
+
     this.applyRotation = function ( rotationVector_, scaleFactor = 1 ) {
 
         if (scope.gimbalLocked)
         {
-            scope.tmpEulerAngle.setFromQuaternion(scope.object.quaternion, 'YXZ');
+            const shouldInstantRotate = this.isXRPresenting && !this.vrControlOptions.rotationSmoothing;
+            if (!shouldInstantRotate) {
+                scope.object.rotateOnWorldAxis(new Vector3(0, 1, 0), rotationVector_.y * scaleFactor);
+                scope.object.rotateX(rotationVector_.x * scaleFactor);
+            } else {
+                // Instant rotation mode: snap rotation with cooldown
+                const elapsedTime = Date.now() - this.vrLastRotateTime;
+                const threshold = 0.7;
+                if (Math.abs(this.rotationVector.y) > threshold && elapsedTime > 500) {
+                    this.vrLastRotateTime = Date.now();
 
-            scope.tmpEulerAngle.y += rotationVector_.y * scaleFactor;
-            scope.tmpEulerAngle.x += rotationVector_.x * scaleFactor;
+                    const rotationAmount = Math.sign(this.rotationVector.y) * Math.PI / 4;
 
-            scope.tmpEulerAngle.x = clamp(scope.tmpEulerAngle.x, -Math.PI * 0.49, Math.PI * 0.49);
-
-            scope.object.quaternion.setFromEuler( scope.tmpEulerAngle );
+                    this.doInstantRotate(rotationAmount);
+                } else if (Math.abs(this.rotationVector.y) < 0.2) {
+                    // Reset the rotate time if stick returns to center
+                    this.vrLastRotateTime = 0;
+                }
+            }
         }
         else
         {
@@ -328,6 +393,11 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         // expose the rotation vector for convenience
         scope.object.rotation.setFromQuaternion( scope.object.quaternion, scope.object.rotation.order );
+    }
+
+    this.doInstantRotate = function(rotationAmount) {
+        scope.object.rotateOnWorldAxis(new Vector3(0, 1, 0), rotationAmount);
+        scope.dispatchEvent( teleportEvent );
     }
 
     this.setGimbalLocked = function(setting)

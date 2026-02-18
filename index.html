@@ -532,7 +532,7 @@
                         </div>
 
                         <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-movement">
-                            <label>VR Movement:</label>
+                            <div>VR Movement:</div>
                             <div>
                                 <input type="radio" id="vr-setting-movement-teleport" name="vr-setting-movement" value="teleport" checked>
                                 <label for="vr-setting-movement-teleport">Teleport</label>
@@ -541,6 +541,23 @@
                                 <input type="radio" id="vr-setting-movement-smooth" name="vr-setting-movement" value="smooth">
                                 <label for="vr-setting-movement-smooth">Smooth</label>
                             </div>
+                        </div>
+
+                        <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-rotation">
+                            <div>VR Rotation:</div>
+                            <div>
+                                <input type="radio" id="vr-setting-rotation-instant" name="vr-setting-rotation" value="instant" checked>
+                                <label for="vr-setting-rotation-instant">Instant</label>
+                            </div>
+                            <div>
+                                <input type="radio" id="vr-setting-rotation-smooth" name="vr-setting-rotation" value="smooth">
+                                <label for="vr-setting-rotation-smooth">Smooth</label>
+                            </div>
+                        </div>
+
+                        <div id="vr-rotation-speed" class="xr-vr" style="display: none;">
+                            <div>VR Rotation Speed:</div>
+                            <input type="range" id="vr-setting-rotation-speed" class="menu-slider xr-force-redraw" min="-1" max="1" step="0.1" value="0">
                         </div>
 
                         <div class="button-zone">

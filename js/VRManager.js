@@ -23,9 +23,11 @@ export default class VRManager extends EventTarget {
         this.lastVrRotateTime = 0;
         this.moveVector = new THREE.Vector3();
         this.isVrControllingMovement = false;
+        this.isVrControllingRotation = false;
         this.controllers = [];
         this.dotSprite = dotSprite;
         this.controls = controls;
+        this.rotationSpeed = 1.0;
 
         this.rayCaster = new THREE.Raycaster();
         this.rayPosition = new THREE.Vector3();
@@ -225,19 +227,14 @@ export default class VRManager extends EventTarget {
         if (!this.uiInteractionEnabled) {
             this.moveVector.set(0, 0, 0);
 
-            // Handle right controller rotation
+            // Handle right controller rotation via controls
             if (this.vrRightController.isValid()) {
-                if (Math.abs(this.vrRightController.gamepad.axes[2]) > 0.9 && Date.now() - this.lastVrRotateTime > 500) {
-                    this.lastVrRotateTime = Date.now();
-
-                    // rotate the camera node in the direction of the stick
-                    this.cameraNode.rotation.y -= Math.sign(this.vrRightController.gamepad.axes[2]) * Math.PI / 4;
-                    this.doTeleportEffect();
-                }
-
-                // if the right stick returns to center, reset the last rotate time so that the user can immediately rotate again when they push the stick
-                if (Math.abs(this.vrRightController.gamepad.axes[2]) < 0.2) {
-                    this.lastVrRotateTime = 0;
+                if (Math.abs(this.vrRightController.gamepad.axes[2]) > 0.01) {
+                    this.isVrControllingRotation = true;
+                    this.controls.rotationVector.set(0, -this.vrRightController.gamepad.axes[2] * this.rotationSpeed, 0);
+                } else if (this.isVrControllingRotation) {
+                    this.controls.rotationVector.set(0, 0, 0);
+                    this.isVrControllingRotation = false;
                 }
 
                 // use the right stick for up / down movement
@@ -306,11 +303,12 @@ export default class VRManager extends EventTarget {
                     (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
 
                     // if the element is a slider, track interaction with it
-                    if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range') {
+                    if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range' && !elementAtLocation.disabled) {
                         this.uiInteractingElement = elementAtLocation;
                         this.uiInteractingDetails = elementAtLocation.getBoundingClientRect();
                         this.uiInteractingDetails.min = Number(this.uiInteractingElement.min);
                         this.uiInteractingDetails.max = Number(this.uiInteractingElement.max);
+                        this.uiInteractingDetails.step = Number(this.uiInteractingElement.step) || 1;
                     }
                 }
                 if (this.uiCurrentController.gamepad.buttons[0].pressed && this.uiClickState && this.uiInteractingElement) {
@@ -318,10 +316,10 @@ export default class VRManager extends EventTarget {
                     let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
                     percent = Math.max(0, Math.min(1, percent));
 
-                    const value = this.uiInteractingDetails.min + percent * (this.uiInteractingDetails.max - this.uiInteractingDetails.min);
+                    const value = Math.round((percent * (this.uiInteractingDetails.max - this.uiInteractingDetails.min) + this.uiInteractingDetails.min) / this.uiInteractingDetails.step) * this.uiInteractingDetails.step;
 
-                    if (this.uiInteractingElement.value != Math.round(value)) {
-                        this.uiInteractingElement.value = Math.round(value);
+                    if (this.uiInteractingElement.value != value) {
+                        this.uiInteractingElement.value = value;
                         const inputEvent = new Event('input', { bubbles: true });
                         this.uiInteractingElement.dispatchEvent(inputEvent);
                     }
@@ -380,6 +378,10 @@ export default class VRManager extends EventTarget {
     }
 
     doTeleportEffect() {
+        if (!this.renderer.xr.isPresenting) {
+            return;
+        }
+
         this.blackoutPlane.visible = true;
         this.blackoutPlane.material.opacity = 0.75;
     }
