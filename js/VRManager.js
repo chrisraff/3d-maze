@@ -18,13 +18,15 @@ export default class VRManager extends EventTarget {
         this.lastVrCameraPosition = new THREE.Vector3();
         this.newVrCameraPosition = new THREE.Vector3();
         this.calibrated = false;
+        this.controllers;
         this.vrLeftController = new Controller();
         this.vrRightController = new Controller();
+        this.vrGazeController = new Controller();
+        this.controllers = [this.vrLeftController, this.vrRightController, this.vrGazeController];
         this.lastVrRotateTime = 0;
         this.moveVector = new THREE.Vector3();
         this.isVrControllingMovement = false;
         this.isVrControllingRotation = false;
-        this.controllers = [];
         this.dotSprite = dotSprite;
         this.controls = controls;
         this.rotationSpeed = 1.0;
@@ -110,6 +112,56 @@ export default class VRManager extends EventTarget {
         });
     }
 
+    setupSelectListeners(session) {
+        session.addEventListener('selectstart', (event) => {
+            if (this.uiInteractionEnabled) {
+                // check if this event is from the current ui controller
+                if (event.inputSource.gamepad !== this.uiCurrentController?.gamepad && !this.uiClickState) {
+                    // set the current ui controller
+                    const controller = this.controllers.find((c) => c.gamepad === event.inputSource.gamepad);
+                    this.setUiInteractor(false, controller);
+                    this.uiClickState = false;
+                    return;
+                }
+
+                if (event.inputSource.gamepad === this.uiCurrentController?.gamepad && !this.uiClickState) {
+                    // if the event is from the current controller, but the click state is not active, activate it and pass a click to the dom
+                    this.uiClickState = true;
+
+                    const clickEvent = new MouseEvent('click', {
+                        clientX: this.uiUv.x,
+                        clientY: this.uiUv.y,
+                        view: window,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    const elementAtLocation = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
+
+                    (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
+
+                    // if the element is a slider, track interaction with it
+                    if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range' && !elementAtLocation.disabled) {
+                        this.uiInteractingElement = elementAtLocation;
+                        this.uiInteractingDetails = elementAtLocation.getBoundingClientRect();
+                        this.uiInteractingDetails.min = Number(this.uiInteractingElement.min);
+                        this.uiInteractingDetails.max = Number(this.uiInteractingElement.max);
+                        this.uiInteractingDetails.step = Number(this.uiInteractingElement.step) || 1;
+                    }
+                }
+            }
+        });
+
+        session.addEventListener('selectend', (event) => {
+            if (this.uiInteractionEnabled) {
+                // if the event is from the current controller, reset click state and stop interacting with any element
+                if (event.inputSource.gamepad === this.uiCurrentController?.gamepad) {
+                    this.uiClickState = false;
+                    this.uiInteractingElement = null;
+                }
+            }
+        });
+    }
+
     onXRSessionStart() {
         const session = this.renderer.xr.getSession();
         session.addEventListener('inputsourceschange', (event) => this.registerXRInputs(event));
@@ -139,6 +191,7 @@ export default class VRManager extends EventTarget {
         });
         document.querySelectorAll('.xr-vr').forEach(element => element.style.display = '');
 
+        this.setupSelectListeners(session);
         window.addEventListener('mousemove', this.mouseMoveListener.bind(this));
     }
 
@@ -165,6 +218,7 @@ export default class VRManager extends EventTarget {
 
         this.vrLeftController.gamepad = null;
         this.vrRightController.gamepad = null;
+        this.vrGazeController.gamepad = null;
 
         const session = this.renderer.xr.getSession();
         for (let i = 0; i < session.inputSources.length; i++) {
@@ -177,6 +231,10 @@ export default class VRManager extends EventTarget {
                 this.vrRightController.gamepad = source.gamepad;
                 this.vrRightController.object = this.renderer.xr.getController(i);
                 this.cameraCompensationNode.add(this.vrRightController.object);
+            } else if (source.targetRayMode == "gaze") {
+                this.vrGazeController.gamepad = source.gamepad;
+                this.vrGazeController.object = this.renderer.xr.getController(i);
+                this.cameraCompensationNode.add(this.vrGazeController.object);
             }
         }
     }
@@ -288,30 +346,7 @@ export default class VRManager extends EventTarget {
                     this.pointerObject.visible = false;
                 }
 
-                // if the trigger button is pressed, pass a click to dom
-                if (this.uiCurrentController.gamepad.buttons[0].pressed && !this.uiClickState) {
-                    this.uiClickState = true;
-                    const clickEvent = new MouseEvent('click', {
-                        clientX: this.uiUv.x,
-                        clientY: this.uiUv.y,
-                        view: window,
-                        bubbles: true,
-                        cancelable: true
-                    });
-                    const elementAtLocation = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
-
-                    (elementAtLocation || this.uiDom).dispatchEvent(clickEvent);
-
-                    // if the element is a slider, track interaction with it
-                    if (elementAtLocation && elementAtLocation.tagName == 'INPUT' && elementAtLocation.type == 'range' && !elementAtLocation.disabled) {
-                        this.uiInteractingElement = elementAtLocation;
-                        this.uiInteractingDetails = elementAtLocation.getBoundingClientRect();
-                        this.uiInteractingDetails.min = Number(this.uiInteractingElement.min);
-                        this.uiInteractingDetails.max = Number(this.uiInteractingElement.max);
-                        this.uiInteractingDetails.step = Number(this.uiInteractingElement.step) || 1;
-                    }
-                }
-                if (this.uiCurrentController.gamepad.buttons[0].pressed && this.uiClickState && this.uiInteractingElement) {
+                if (this.uiClickState && this.uiInteractingElement) {
                     // compute slider value
                     let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
                     percent = Math.max(0, Math.min(1, percent));
@@ -323,10 +358,6 @@ export default class VRManager extends EventTarget {
                         const inputEvent = new Event('input', { bubbles: true });
                         this.uiInteractingElement.dispatchEvent(inputEvent);
                     }
-                }
-                else if (!this.uiCurrentController.gamepad.buttons[0].pressed && this.uiClickState) {
-                    this.uiClickState = false;
-                    this.uiInteractingElement = null;
                 }
             }
 
@@ -405,6 +436,7 @@ export default class VRManager extends EventTarget {
     setUiInteraction(enabled) {
         if (!enabled) {
             this.pointerObject.visible = false;
+            this.uiInteractingElement = null;
         }
         this.uiClickState = false;
         this.uiInteractionEnabled = enabled;
