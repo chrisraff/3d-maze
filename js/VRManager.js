@@ -23,13 +23,15 @@ export default class VRManager extends EventTarget {
         this.vrRightController = new Controller();
         this.vrGazeController = new Controller();
         this.controllers = [this.vrLeftController, this.vrRightController, this.vrGazeController];
-        this.lastVrRotateTime = 0;
         this.moveVector = new THREE.Vector3();
         this.isVrControllingMovement = false;
         this.isVrControllingRotation = false;
         this.dotSprite = dotSprite;
         this.controls = controls;
         this.rotationSpeed = 1.0;
+
+        this.lastGazeSelectTime = 0;
+        this.isGazeSelectingFromGame = false;
 
         this.rayCaster = new THREE.Raycaster();
         this.rayPosition = new THREE.Vector3();
@@ -116,15 +118,15 @@ export default class VRManager extends EventTarget {
         session.addEventListener('selectstart', (event) => {
             if (this.uiInteractionEnabled) {
                 // check if this event is from the current ui controller
-                if (event.inputSource.gamepad !== this.uiCurrentController?.gamepad && !this.uiClickState) {
+                if (event.inputSource !== this.uiCurrentController?.inputSource && !this.uiClickState) {
                     // set the current ui controller
-                    const controller = this.controllers.find((c) => c.gamepad === event.inputSource.gamepad);
+                    const controller = this.controllers.find((c) => c.inputSource === event.inputSource);
                     this.setUiInteractor(false, controller);
                     this.uiClickState = false;
                     return;
                 }
 
-                if (event.inputSource.gamepad === this.uiCurrentController?.gamepad && !this.uiClickState) {
+                if (event.inputSource === this.uiCurrentController?.inputSource && !this.uiClickState) {
                     // if the event is from the current controller, but the click state is not active, activate it and pass a click to the dom
                     this.uiClickState = true;
 
@@ -148,15 +150,42 @@ export default class VRManager extends EventTarget {
                         this.uiInteractingDetails.step = Number(this.uiInteractingElement.step) || 1;
                     }
                 }
+
+            // handle gaze input in game mode
+            } else if (event.inputSource.targetRayMode === 'gaze') {
+                this.lastGazeSelectTime = Date.now();
+                this.isGazeSelectingFromGame = true;
             }
         });
 
         session.addEventListener('selectend', (event) => {
             if (this.uiInteractionEnabled) {
                 // if the event is from the current controller, reset click state and stop interacting with any element
-                if (event.inputSource.gamepad === this.uiCurrentController?.gamepad) {
+                if (event.inputSource === this.uiCurrentController?.inputSource) {
                     this.uiClickState = false;
                     this.uiInteractingElement = null;
+                }
+
+            // handle gaze input in game mode
+            } else if (event.inputSource.targetRayMode === 'gaze') {
+                if (!this.isGazeSelectingFromGame)
+                    return;
+
+                this.isGazeSelectingFromGame = false;
+
+                if (Date.now() - this.lastGazeSelectTime > 500) {
+                    this.dispatchEvent(new CustomEvent('pause'));
+                } else {
+                    // use short selections as forward motion
+                    this.moveVector.set(0, 0, -1);
+                    this.moveVector.applyQuaternion(this.camera.quaternion);
+                    this.moveVector.applyQuaternion(this.cameraCompensationNode.quaternion);
+
+                    setTimeout(() => {
+                        console.log(this)
+                        // stop movement after a short time
+                        this.moveVector.set(0, 0, 0);
+                    }, 50);
                 }
             }
         });
@@ -216,25 +245,30 @@ export default class VRManager extends EventTarget {
 
     registerXRInputs(event) {
 
-        this.vrLeftController.gamepad = null;
-        this.vrRightController.gamepad = null;
-        this.vrGazeController.gamepad = null;
+        this.vrLeftController.reset();
+        this.vrRightController.reset();
+        this.vrGazeController.reset();
 
         const session = this.renderer.xr.getSession();
         for (let i = 0; i < session.inputSources.length; i++) {
             const source = session.inputSources[i];
+            console.log('Input source detected: ', source);
             if (source.handedness == "left") {
                 this.vrLeftController.gamepad = source.gamepad;
                 this.vrLeftController.object = this.renderer.xr.getController(i);
+                this.vrLeftController.inputSource = source;
                 this.cameraCompensationNode.add(this.vrLeftController.object);
             } else if (source.handedness == "right") {
                 this.vrRightController.gamepad = source.gamepad;
                 this.vrRightController.object = this.renderer.xr.getController(i);
+                this.vrRightController.inputSource = source;
                 this.cameraCompensationNode.add(this.vrRightController.object);
             } else if (source.targetRayMode == "gaze") {
                 this.vrGazeController.gamepad = source.gamepad;
                 this.vrGazeController.object = this.renderer.xr.getController(i);
-                this.cameraCompensationNode.add(this.vrGazeController.object);
+                this.vrGazeController.inputSource = source;
+                this.camera.add(this.vrGazeController.object);
+                this.setUiInteractor(false, this.vrGazeController);
             }
         }
     }
@@ -283,7 +317,10 @@ export default class VRManager extends EventTarget {
 
         // if the ui is disabled, allow controls
         if (!this.uiInteractionEnabled) {
-            this.moveVector.set(0, 0, 0);
+            // if either controller is present, use them for movement and rotation controls
+            if (this.vrLeftController.isValid() || this.vrRightController.isValid()) {
+                this.moveVector.set(0, 0, 0);
+            }
 
             // Handle right controller rotation via controls
             if (this.vrRightController.isValid()) {
@@ -467,14 +504,11 @@ class Controller extends EventTarget {
     constructor() {
         super();
 
-        this.gamepad = null;
-        this.object = null;
-
-        this.buttonsPressed = {};
+        this.reset();
     }
 
     isValid() {
-        return this.gamepad != null && this.object != null;
+        return this.object != null && this.inputSource != null;
     }
 
     update() {
@@ -496,4 +530,16 @@ class Controller extends EventTarget {
             }
         }
     }
+
+    reset() {
+        if (this.object) {
+            this.object.parent?.remove(this.object);
+        }
+
+        this.gamepad = null;
+        this.object = null;
+        this.inputSource = null;
+
+        this.buttonsPressed = {};
+    };
 }
