@@ -268,8 +268,13 @@ export default class VRManager extends EventTarget {
                 this.vrGazeController.object = this.renderer.xr.getController(i);
                 this.vrGazeController.inputSource = source;
                 this.camera.add(this.vrGazeController.object);
-                this.setUiInteractor(false, this.vrGazeController);
             }
+        }
+
+        if (this.vrRightController.isValid() || this.vrLeftController.isValid()) {
+            this.setUiInteractor(false, this.vrRightController.isValid() ? this.vrRightController : this.vrLeftController);
+        } else if (this.vrGazeController.isValid()) {
+            this.setUiInteractor(false, this.vrGazeController);
         }
     }
 
