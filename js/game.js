@@ -796,9 +796,19 @@ var animate = function () {
     if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( cameraNode.position ) > (0.1 * collisionDistance)**2 )
     {
         // add to history
-        let newHistoryPosition = new THREE.Vector3();
-        newHistoryPosition.copy(cameraNode.position);
-        historyPositions.push( newHistoryPosition );
+        const newHistoryPosition = tmpVector.copy(cameraNode.position);
+
+        let lastPos = historyPositions.length > 0 ? historyPositions[historyPositions.length - 1] : cameraNode.position;
+        let distance = lastPos.distanceTo(newHistoryPosition);
+        let numPoints = Math.max(1, Math.ceil(distance / collisionDistance));
+
+        // in case of long distances (e.g. teleportation), interpolate points so the line doesn't look broken
+        for (let i = 0; i < numPoints; i++) {
+            let t = numPoints > 1 ? i / (numPoints - 1) : 1;
+            let interpolatedPos = new THREE.Vector3();
+            interpolatedPos.lerpVectors(lastPos, newHistoryPosition, t);
+            historyPositions.push(interpolatedPos);
+        }
     }
 
     // make the goal dots spin

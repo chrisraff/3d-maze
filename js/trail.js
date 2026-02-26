@@ -35,6 +35,7 @@ export default class TrailEffect {
         this.lastTrailCameraPosition = new THREE.Vector3();
 
         this._nextSpawnIndex = 0;
+        this._didReset = false;
 
         this._geometry = new THREE.BufferGeometry();
 
@@ -106,6 +107,9 @@ export default class TrailEffect {
             this._shader = shader;
         }
 
+        this.tmpVector  = new THREE.Vector3();
+        this.tmpVector2 = new THREE.Vector3();
+
         this.object = new THREE.Points(this._geometry, this._material);
         // Particles are always "at 0,0,0" since they are an effect,
         // so disable frustum culling
@@ -129,42 +133,72 @@ export default class TrailEffect {
         if (!this._shader) return;
         this._shader.uniforms.u_time.value += dt;
 
+        if (this._didReset) {
+            this.lastTrailCameraPosition.copy( this.followed.position );
+            this._didReset = false;
+            return;
+        }
+
         // spawn new
         if ( this.lastTrailCameraPosition.distanceToSquared( this.followed.position ) > this.collisionDistance**2 ) {
-            this.lastTrailCameraPosition.copy( this.followed.position );
+            // in case of long distances (e.g. teleportation), interpolate points so the trail isn't too sparse
+            const distance = this.lastTrailCameraPosition.distanceTo(this.followed.position);
+            const steps = Math.max(1, Math.ceil(0.9 *distance / this.collisionDistance));
 
-            const tmpVector = new THREE.Vector3( Math.random() * this.collisionDistance * 2 - this.collisionDistance, Math.random() * this.collisionDistance * 2 - this.collisionDistance, -maze.minorWidth );
-            tmpVector.applyMatrix4( this.followed.matrix );
+            for (let i = 0; i < steps; i++) {
+                const t = (i + 1) / steps;
+                const lerpPos = this.tmpVector.lerpVectors(
+                    this.lastTrailCameraPosition,
+                    this.followed.position,
+                    t
+                );
 
-            this._positions[this._nextSpawnIndex*3+0] = tmpVector.x;
-            this._positions[this._nextSpawnIndex*3+1] = tmpVector.y;
-            this._positions[this._nextSpawnIndex*3+2] = tmpVector.z;
+                const particlePosition = this.tmpVector2.set(
+                    Math.random() * this.collisionDistance * 2 - this.collisionDistance,
+                    Math.random() * this.collisionDistance * 2 - this.collisionDistance,
+                    -maze.minorWidth
+                );
+                particlePosition.applyQuaternion(this.followed.quaternion);
+                particlePosition.add(lerpPos);
 
-            this._spawnTime[this._nextSpawnIndex] = this._shader.uniforms.u_time.value;
-    
-            const motion = sampleUniformSphere();
-            this._direction[this._nextSpawnIndex*3+0] = motion[0] * 0.02;
-            this._direction[this._nextSpawnIndex*3+1] = motion[1] * 0.02;
-            this._direction[this._nextSpawnIndex*3+2] = motion[2] * 0.02;
+                this.spawnNewParticle(particlePosition);
+            }
 
-            const tmpColor = new THREE.Color( `hsl(${Math.random() * 360}, 100%, 50%)` );
-            this._colors[this._nextSpawnIndex*3+0] = tmpColor.r;
-            this._colors[this._nextSpawnIndex*3+1] = tmpColor.g;
-            this._colors[this._nextSpawnIndex*3+2] = tmpColor.b;
-    
-            this._nextSpawnIndex = ( this._nextSpawnIndex + 1 ) % this.count;
-            this._geometry.attributes.position.needsUpdate = true;
-            this._geometry.attributes.spawnTime.needsUpdate = true;
-            this._geometry.attributes.direction.needsUpdate = true;
-            this._geometry.attributes.color.needsUpdate = true;
+            this.lastTrailCameraPosition.copy(this.followed.position);
         }
+    }
+
+    spawnNewParticle(position) {
+        this._positions[this._nextSpawnIndex*3+0] = position.x;
+        this._positions[this._nextSpawnIndex*3+1] = position.y;
+        this._positions[this._nextSpawnIndex*3+2] = position.z;
+
+        this._spawnTime[this._nextSpawnIndex] = this._shader.uniforms.u_time.value;
+
+        const motion = sampleUniformSphere();
+        this._direction[this._nextSpawnIndex*3+0] = motion[0] * 0.02;
+        this._direction[this._nextSpawnIndex*3+1] = motion[1] * 0.02;
+        this._direction[this._nextSpawnIndex*3+2] = motion[2] * 0.02;
+
+        const tmpColor = new THREE.Color( `hsl(${Math.random() * 360}, 100%, 50%)` );
+        this._colors[this._nextSpawnIndex*3+0] = tmpColor.r;
+        this._colors[this._nextSpawnIndex*3+1] = tmpColor.g;
+        this._colors[this._nextSpawnIndex*3+2] = tmpColor.b;
+
+        this._nextSpawnIndex = ( this._nextSpawnIndex + 1 ) % this.count;
+        this._geometry.attributes.position.needsUpdate = true;
+        this._geometry.attributes.spawnTime.needsUpdate = true;
+        this._geometry.attributes.direction.needsUpdate = true;
+        this._geometry.attributes.color.needsUpdate = true;
     }
 
     reset() {
         this._nextSpawnIndex = 0;
+        this._didReset = true;
         for (let i = 0; i < this.count; i++) {
             this._spawnTime[i] = -10.0;
         }
+        this._geometry.attributes.spawnTime.needsUpdate = true;
     }
 
     // Dispose geometry, textures, material

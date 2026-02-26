@@ -308,7 +308,6 @@ var FlyPointerLockControls = function ( object, domElement ) {
             this.tmpVector.normalize();
 
         const shouldTeleport = this.vrControlOptions.teleportationEnabled && this.isXRPresenting;
-        // const shouldTeleport = true;
         if (!shouldTeleport) {
             let moveMult = delta * this.movementSpeed;
 
