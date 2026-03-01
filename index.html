@@ -114,11 +114,11 @@
                 font-size: 14pt;
             }
 
-            .button-zone > * {
+            .button-zone button {
                 margin: 10px;
             }
 
-            body.is-formfactor-non-desktop .button-zone > * {
+            body.is-formfactor-non-desktop .button-zone button {
                 margin: 5px;
             }
 
@@ -485,6 +485,7 @@
                             <button class="button-main button-play">Play</button>
                             <button target-menu="menu-new-maze" class="menu-experienced">Choose Maze Size</button>
                             <button target-menu="menu-options">Options</button>
+                            <button class="button-vr" style="display: none;">Enter VR</button>
                         </div>
                     </div>
 
@@ -498,6 +499,9 @@
 
                         <div class="button-zone">
                             <button target-menu="menu-options" class="menu-button-root-only">Options</button>
+                            <div class="menu-button-root-only">
+                                <button class="button-vr" style="display: none;">Enter VR</button>
+                            </div>
                             <button class="menu-back-button">Back</button>
                             <button class="menu-button-root-only button-play" style="display: none;">Back</button>
                         </div>
@@ -510,6 +514,7 @@
                             <button class="button-play button-main">Continue</button>
                             <button target-menu="menu-options">Options</button>
                             <button target-menu="menu-new-maze">Start New Maze</button>
+                            <button class="button-vr" style="display: none;">Enter VR</button>
                         </div>
                     </div>
 

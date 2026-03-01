@@ -356,7 +356,6 @@ function init() {
 
     // init VR manager
     vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls);
-    document.querySelector('#menu-body').appendChild( vrManager.getButton() );
 
     vrManager.addEventListener('pause', () => {
         if (controls.isLocked) {

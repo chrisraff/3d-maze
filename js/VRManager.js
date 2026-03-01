@@ -2,8 +2,8 @@
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
 import * as THREE from 'three';
-import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
+import VRButtonManager from './VRButtonManager.js';
 
 export default class VRManager extends EventTarget {
     constructor(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls) {
@@ -62,7 +62,7 @@ export default class VRManager extends EventTarget {
         this.setupGamepadListeners();
 
         // Create VR button
-        this.vrButton = VRButton.createButton(this.renderer);
+        new VRButtonManager(this.renderer);
 
         // UI state
         this.uiInteractionEnabled = true;
@@ -86,6 +86,7 @@ export default class VRManager extends EventTarget {
         this.uiInteractingDetails = {};
         this.uiCurrentController = null;
         this.uiIsMouseControlled = false;
+        this.mouseMoveListenerHandle = this.mouseMoveListener.bind(this);
 
         // store original display of elements that should be hidden in vr so that we can restore them when exiting vr
         this.hiddenDomElemnts = [];
@@ -221,7 +222,7 @@ export default class VRManager extends EventTarget {
         document.querySelectorAll('.xr-vr').forEach(element => element.style.display = '');
 
         this.setupSelectListeners(session);
-        window.addEventListener('mousemove', this.mouseMoveListener.bind(this));
+        window.addEventListener('mousemove', this.mouseMoveListenerHandle);
     }
 
     onXRSessionEnd() {
@@ -240,7 +241,7 @@ export default class VRManager extends EventTarget {
         this.hiddenDomElemnts.forEach(({ element, display }) => element.style.display = display);
         this.hiddenDomElemnts = [];
 
-        window.removeEventListener('mousemove', this.mouseMoveListener.bind(this));
+        window.removeEventListener('mousemove', this.mouseMoveListenerHandle);
     }
 
     registerXRInputs(event) {
