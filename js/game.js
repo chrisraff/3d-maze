@@ -141,11 +141,95 @@ function loadSavedVariables()
 
     // show tutorial if more than 30 days have passed since the last maze completion
     const showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
-    // Initialize TutorialManager with state
+
+    const tutorialCallbacks = {
+        intro: {
+            conditions: {
+                0: (tutorialData) => {
+                    return cameraNode && cameraNode.getWorldDirection(tmpVector).z > -0.975;
+                },
+                1: (tutorialData) => {
+                    return cameraNode && cameraNode.position.distanceToSquared(tutorialData.cameraPos) > 4;
+                },
+                2: (tutorialData) => {
+                    return Date.now() - tutorialData.lastLoggedTime > 6000;
+                }
+            },
+            setup: {
+                0: (tutorialData) => {
+                    if (isMobile) {
+                        const el = document.querySelector('#touch-tutorial-look');
+                        el.style.display = '';
+                        el.style.animationName = 'touch-tutorial-animation-look';
+                    }
+                },
+                1: (tutorialData) => {
+                    tutorialData.cameraPos = cameraNode.position.clone();
+
+                    if (isMobile) {
+                        const el = document.querySelector('#touch-tutorial-look');
+                        el.style.display = 'none';
+                        el.style.animationName = '';
+                        const moveEl = document.querySelector('#touch-tutorial-move');
+                        moveEl.style.display = '';
+                        moveEl.style.animationName = 'touch-tutorial-animation-move';
+                    }
+                },
+                2: (tutorialData) => {
+                    tutorialData.lastLoggedTime = Date.now();
+
+                    if (isMobile) {
+                        document.querySelector('#touch-tutorial-move').style.display = 'none';
+                        document.querySelector('#touch-tutorial-move').style.animationName = '';
+                    }
+
+                    document.querySelector('#computer-tutorial-compass').style.animationFillMode = 'forwards';
+                    document.querySelector('#compass-container').style.animationName = 'compass-tutorial-highlight';
+                }
+            },
+            teardown: (tutorialData) => {
+                document.querySelector('#compass-container').style.animationName = '';
+            }
+        },
+        vr: {
+            conditions: {
+                0: (tutorialData) => {
+                    return cameraNode && cameraNode.position.distanceToSquared(tutorialData.cameraPos) > 1;
+                },
+                1: (tutorialData) => {
+                    if (cameraNode && cameraNode.rotation.y != tutorialData.rotationStart)
+                        tutorialData.rotateCondition = true;
+                    return (tutorialData.rotateCondition && Date.now() - tutorialData.lastLoggedTime > 4000);
+                },
+                2: (tutorialData) => {
+                    return Date.now() - tutorialData.lastLoggedTime > 6000;
+                },
+                3: (tutorialData) => {
+                    return Date.now() - tutorialData.lastLoggedTime > 6000;
+                }
+            },
+            setup: {
+                0: (tutorialData) => {
+                    tutorialData.cameraPos = cameraNode.position.clone();
+                },
+                1: (tutorialData) => {
+                    tutorialData.lastLoggedTime = Date.now();
+                    tutorialData.rotationStart = cameraNode.rotation.y;
+                    tutorialData.rotateCondition = false;
+                },
+                2: (tutorialData) => {
+                    tutorialData.lastLoggedTime = Date.now();
+                },
+                3: (tutorialData) => {
+                    tutorialData.lastLoggedTime = Date.now();
+                }
+            }
+        }
+    };
+
     tutorialManager = new TutorialManager({
         showTutorial,
-        cameraNode,
-        isMobile
+        callbacks: tutorialCallbacks
     });
 
     document.querySelectorAll('.menu-experienced').forEach((el) => {
