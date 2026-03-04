@@ -388,6 +388,17 @@ function init() {
         onWindowResize();
     });
 
+    // setup vr ui elements
+    const vrType = getVrDeviceType();
+    for (const type of ['vr-device-first', 'vr-device-enabled', 'vr-device-last']) {
+        document.querySelectorAll(`.${type}`).forEach((el) => {
+            el.style.display = 'none';
+        });
+    }
+    document.querySelectorAll(`.${vrType}`).forEach((el) => {
+        el.style.display = '';
+    });
+
     // maze variables
     mazeSize = 3;
     mazeData = null;
@@ -934,6 +945,16 @@ document.querySelectorAll('.menu-radio-button').forEach((el) => {
 function updateVrRotateSpeedSettingEnabled() {
     const vrRotationSpeedSetting = document.querySelector('#vr-setting-rotation-speed');
     vrRotationSpeedSetting.disabled = !controls.vrControlOptions.rotationSmoothing;
+}
+
+function getVrDeviceType() {
+    if (navigator.userAgent.indexOf('OculusBrowser') !== -1) {
+        return 'vr-device-first';
+    }
+    if (isMobile) {
+        return 'vr-device-last';
+    }
+    return 'vr-device-enabled';
 }
 
 document.querySelectorAll('.menu-slider').forEach((el) => {
