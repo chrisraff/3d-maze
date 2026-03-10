@@ -319,8 +319,8 @@ export default class BreadcrumbManager {
 
         this.scene.add(breadcrumb);
 
-        // set the breadcrumb to point away from the camera
-        breadcrumb.lookAt(camera.position);
+        // set the breadcrumb to face the same way as the camera
+        breadcrumb.quaternion.copy(camera.quaternion);
         breadcrumb.rotateY(Math.PI);
 
         this.breadcrumbs.push(breadcrumb);
