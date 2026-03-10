@@ -48,11 +48,6 @@ export default class BreadcrumbManager {
                     touchStartY: touch.clientY
                 };
             }
-
-            this.mouseVector.set(
-                (touch.clientX / window.innerWidth) * 2 - 1,
-                -(touch.clientY / window.innerHeight) * 2 + 1
-            );
         });
 
         element.addEventListener('touchend', (event) =>
@@ -207,6 +202,11 @@ export default class BreadcrumbManager {
     {
         const breadcrumb = this.raycastSearchForBreadcrumb(camera);
 
+        if (breadcrumb === this.hoveredBreadcrumb) {
+            // already hovered, do nothing
+            return;
+        }
+
         // Unhighlight the previously hovered breadcrumb
         if (this.hoveredBreadcrumb !== null) {
             this.hoveredBreadcrumb.userData.mesh.material = this.hoveredBreadcrumb.userData.originalMaterial;
@@ -254,6 +254,10 @@ export default class BreadcrumbManager {
         if (idx > -1) {
             this.breadcrumbs.splice(idx, 1);
         }
+        // if necessary, unhighlight the breadcrumb
+        if (this.hoveredBreadcrumb === breadcrumb) {
+            this.hoveredBreadcrumb.userData.mesh.material = this.hoveredBreadcrumb.userData.originalMaterial;
+        };
         this.hoveredBreadcrumb = null;
 
         this.breadcrumbStack.push(breadcrumb);
