@@ -8,7 +8,7 @@ import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 
 const breadcrumbGeometry = new THREE.BoxGeometry(1, 1, 1);
 const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
-const hitBoxMaterial = new THREE.MeshBasicMaterial();
+const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 
 export default class BreadcrumbManager {
     constructor() {
