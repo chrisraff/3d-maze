@@ -6,7 +6,6 @@ import checkCollisionOnAxis from './checkCollisionOnAxis.js';
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
 
-const breadcrumbGeometry = new THREE.BoxGeometry(1, 1, 1);
 const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
 const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 
@@ -19,6 +18,7 @@ export default class BreadcrumbManager {
         this.mouseVector = new THREE.Vector2();
         this.hoveredBreadcrumb = null;
         this.highlightMaterial = new THREE.MeshLambertMaterial({color: 0xffff00, emissive: 0xffffff});
+        this.breadcrumbGeometry = null;
 
         this.breadcrumbStack = [];
 
@@ -35,13 +35,19 @@ export default class BreadcrumbManager {
         // track touches - a quick single tap adds or removes a breadcrumb
         element.addEventListener('touchstart', (event) =>
         {
-            // get the latest touch only
-            let touch = event.touches[event.touches.length - 1];
-            this.touchData[touch.identifier] = {
-                touchStartTime: Date.now(),
-                touchStartX: touch.clientX,
-                touchStartY: touch.clientY
-            };
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                // get the latest touch only
+                if (event.changedTouches[i].identifier in this.touchData) {
+                    continue;
+                }
+
+                let touch = event.changedTouches[i];
+                this.touchData[touch.identifier] = {
+                    touchStartTime: Date.now(),
+                    touchStartX: touch.clientX,
+                    touchStartY: touch.clientY
+                };
+            }
 
             this.mouseVector.set(
                 (touch.clientX / window.innerWidth) * 2 - 1,
@@ -51,30 +57,31 @@ export default class BreadcrumbManager {
 
         element.addEventListener('touchend', (event) =>
         {
-            // check if the touch was a quick tap (no movement)
             if (event.changedTouches.length == 0)
                 return;
 
-            let touch = event.changedTouches[0];
-            if (!(touch.identifier in this.touchData))
-                return;
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                let touch = event.changedTouches[i];
+                if (!(touch.identifier in this.touchData))
+                    continue;
 
-            // check if the touch was a quick tap (no movement)
-            const touchData = this.touchData[touch.identifier];
-            const timeDiff = Date.now() - touchData.touchStartTime;
-            const distance = Math.sqrt(
-                Math.pow(touch.clientX - touchData.touchStartX, 2) +
-                Math.pow(touch.clientY - touchData.touchStartY, 2)
-            );
-            if (timeDiff > 500 || distance > 10) {
-                // not a quick tap
+                // check if the touch was a quick tap (no movement)
+                const touchData = this.touchData[touch.identifier];
+                const timeDiff = Date.now() - touchData.touchStartTime;
+                const distance = Math.sqrt(
+                    Math.pow(touch.clientX - touchData.touchStartX, 2) +
+                    Math.pow(touch.clientY - touchData.touchStartY, 2)
+                );
+                if (timeDiff > 500 || distance > 10) {
+                    // not a quick tap
+                    delete this.touchData[touch.identifier];
+                    continue;
+                }
+
                 delete this.touchData[touch.identifier];
-                return;
+
+                this.handleBreadcrumbTap(camera, this.mazedata, 2 * touch.clientX / window.innerWidth - 1, 1 - 2 * touch.clientY / window.innerHeight);
             }
-
-            delete this.touchData[touch.identifier];
-
-            this.handleBreadcrumbTap(camera, this.mazedata, 2 * touch.clientX / window.innerWidth - 1, 1 - 2 * touch.clientY / window.innerHeight);
         });
 
         element.addEventListener('mousedown', (event) =>
@@ -86,6 +93,27 @@ export default class BreadcrumbManager {
         });
     }
 
+    setPointerGeometry(geometry) {
+        this.breadcrumbGeometry = geometry;
+
+        for (let i = 0; i < this.breadcrumbs.length; i++) {
+            this.breadcrumbs[i].remove(this.breadcrumbs[i].userData.mesh);
+            this.updateBreadcrumbMesh(this.breadcrumbs[i]);
+        }
+    }
+
+    updateBreadcrumbMesh(breadcrumb) {
+        let mesh;
+        if (this.breadcrumbGeometry === null)
+            mesh = new THREE.Object3D();
+        else
+            mesh = new THREE.Mesh(this.breadcrumbGeometry, breadcrumb.userData.originalMaterial);
+
+        breadcrumb.userData.mesh = mesh;
+
+        breadcrumb.add(mesh);
+    }
+
     initializeMaze(mazedata) {
         this.mazedata = mazedata;
 
@@ -93,6 +121,7 @@ export default class BreadcrumbManager {
         for (let i = 0; i < this.breadcrumbs.length; i++) {
             this.scene.remove(this.breadcrumbs[i]);
         }
+        this.highlightedBreadcrumb = null;
         this.breadcrumbs = [];
         this.breadcrumbStack = [];
         this.hoveredBreadcrumb = null;
@@ -111,18 +140,28 @@ export default class BreadcrumbManager {
         }
 
         // add breadcrumbs
+        const directionVector = new THREE.Vector3();
         for (let i = 0; i < mazedata.analytics.dead_ends_data.length; i++) {
             if (deadEndSelection[i]) {
                 const deadEnd = mazedata.analytics.dead_ends_data[i];
+                directionVector.set(...deadEnd.direction);
+
+                const breadcrumb = new THREE.Object3D();
+
                 const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
-                const breadcrumb = new THREE.Mesh(breadcrumbGeometry, newMaterial);
+                breadcrumb.userData.originalMaterial = newMaterial; // Store the original material for unhighlight
+
+                this.updateBreadcrumbMesh(breadcrumb);
 
                 const hitBox = new THREE.Mesh(hitBoxGeometry, hitBoxMaterial);
-                hitBox.scale.multiplyScalar(2);
+                hitBox.scale.multiplyScalar(1.2);
                 hitBox.userData.isBreadCrumbHitBox = true;
                 hitBox.userData.parentBreadcrumb = breadcrumb;
                 hitBox.layers.set(1);
                 breadcrumb.add(hitBox);
+
+                breadcrumb.lookAt(directionVector);
+                breadcrumb.rotateY(Math.PI);
 
                 breadcrumb.position.set(
                     deadEnd.position[0] * (maze.minorWidth + maze.majorWidth) / 2,
@@ -130,10 +169,9 @@ export default class BreadcrumbManager {
                     deadEnd.position[2] * (maze.minorWidth + maze.majorWidth) / 2
                 );
 
-                breadcrumb.scale.multiplyScalar(maze.minorWidth * 2);
+                breadcrumb.position.addScaledVector(directionVector, maze.majorWidth * 0.2);
 
-                // Store the original material for unhighlight
-                breadcrumb.userData.originalMaterial = newMaterial;
+                breadcrumb.scale.multiplyScalar(maze.minorWidth * 4);
 
                 this.scene.add(breadcrumb);
                 this.breadcrumbs.push(breadcrumb);
@@ -171,13 +209,13 @@ export default class BreadcrumbManager {
 
         // Unhighlight the previously hovered breadcrumb
         if (this.hoveredBreadcrumb !== null) {
-            this.hoveredBreadcrumb.material = this.hoveredBreadcrumb.userData.originalMaterial;
+            this.hoveredBreadcrumb.userData.mesh.material = this.hoveredBreadcrumb.userData.originalMaterial;
         }
 
         // Highlight the newly hovered breadcrumb
         if (breadcrumb !== null) {
             this.hoveredBreadcrumb = breadcrumb;
-            this.hoveredBreadcrumb.material = this.highlightMaterial;
+            this.hoveredBreadcrumb.userData.mesh.material = this.highlightMaterial;
         } else {
             this.hoveredBreadcrumb = null;
         }
@@ -224,6 +262,7 @@ export default class BreadcrumbManager {
     }
 
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
+        const breadcrumbCollisionDistance = maze.minorWidth * 2;
         if (this.breadcrumbStack.length === 0)
             return;
 
@@ -255,26 +294,30 @@ export default class BreadcrumbManager {
         const cameraMazePos = maze.getMazePos(camera.position);
 
         if (breadcrumbMazePosNear.x - cameraMazePos.x < 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosNear.y - cameraMazePos.y < 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosNear.z - cameraMazePos.z < 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
         }
 
         if (breadcrumbMazePosFar.x - cameraMazePos.x > 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosFar.y - cameraMazePos.y > 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosFar.z - cameraMazePos.z > 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, maze.minorWidth);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
         }
 
         this.scene.add(breadcrumb);
+
+        // set the breadcrumb to point away from the camera
+        breadcrumb.lookAt(camera.position);
+        breadcrumb.rotateY(Math.PI);
 
         this.breadcrumbs.push(breadcrumb);
 
