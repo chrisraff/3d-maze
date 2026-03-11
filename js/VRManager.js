@@ -30,6 +30,7 @@ export default class VRManager extends EventTarget {
         this.controls = controls;
         this.rotationSpeed = 1.0;
 
+        this.isUsingGazeControls = false;
         this.lastGazeSelectTime = 0;
         this.isGazeSelectingFromGame = false;
 
@@ -274,8 +275,18 @@ export default class VRManager extends EventTarget {
 
         if (this.vrRightController.isValid() || this.vrLeftController.isValid()) {
             this.setUiInteractor(false, this.vrRightController.isValid() ? this.vrRightController : this.vrLeftController);
+
+            this.isUsingGazeControls = false;
+
+            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = '');
+            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = 'none');
         } else if (this.vrGazeController.isValid()) {
             this.setUiInteractor(false, this.vrGazeController);
+
+            this.isUsingGazeControls = true;
+
+            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = 'none');
+            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = '');
         }
     }
 

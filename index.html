@@ -222,8 +222,7 @@
             #copyright {
                 position: absolute;
                 bottom: env(safe-area-inset-bottom);
-                left: 0;
-                right: 0;
+                left: env(safe-area-inset-left);
                 margin-left: auto;
                 margin-right: auto;
 
@@ -436,21 +435,24 @@
         </div>
 
         <div tutorial-type="vr" tutorial-step="0" style="display: none;" class="tutorial-text tutorial-element">
-            <span>Use the left thumbstick to move</span>
+            <span class="vr-controls-controllers">Use the left thumbstick to move</span>
+            <span class="vr-controls-gaze">To move forward, quickly press "select".</span>
 
             <br/>
             <span style="font-size: 75%;" class="formfactor-desktop">Keyboard + Mouse controls are also available</span>
         </div>
         <div tutorial-type="vr" tutorial-step="1" style="display: none;" class="tutorial-text tutorial-element">
-            <span>Use the right thumbstick to rotate left and right</span>
+            <span class="vr-controls-controllers">Use the right thumbstick to rotate left and right</span>
+            <span class="vr-controls-gaze">Point your head where you want to go</span>
             <br/>
             <span style="font-size: 75%">You can also move up and down</span>
         </div>
         <div tutorial-type="vr" tutorial-step="2" style="display: none;" class="tutorial-text tutorial-element">
-            <span>You can adjust movement settings in the "Options" menu</span>
+            <span class="vr-controls-controllers">You can adjust movement settings in the "Options" menu</span>
+            <span class="vr-controls-gaze">Press and hold to pause</span>
         </div>
         <div tutorial-type="vr" tutorial-step="3" style="display: none;" class="tutorial-text tutorial-element">
-            <span>Press either thumbstick to pause</span>
+            <span class="vr-controls-controllers">Press either thumbstick to pause</span>
         </div>
 
         <div id="overlay">
@@ -460,7 +462,10 @@
                 <br/>
                 <span style="font-size:14px" class="formfactor-desktop xr-non-vr">Press <span class="os-not-mac">escape </span><span style="display: none;" class="os-mac">the P key </span>to start a new maze</span>
                 <span style="font-size:14px; display: none;" class="formfactor-non-desktop xr-non-vr">Tap here to start a new maze</span>
-                <span style="font-size:20px; display: none;" class="xr-vr">Press either thumbstick to start a new maze</span>
+                <div style="font-size:20px; display: none;" class="xr-vr">
+                    <span class="vr-controls-controllers">Press either thumbstick to start a new maze</span>
+                    <span class="vr-controls-gaze">Press and hold to start a new maze</span>
+                </div>
             </div>
 
             <div id="blocker" class="center-menu">
@@ -544,33 +549,39 @@
                             <label for="setting-fixed-camera">Fixed Camera</label>
                         </div>
 
-                        <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-movement">
-                            <div>VR Movement:</div>
-                            <div>
-                                <input type="radio" id="vr-setting-movement-teleport" name="vr-setting-movement" value="teleport" checked>
-                                <label for="vr-setting-movement-teleport">Teleport</label>
+                        <div class="vr-controls-controllers">
+                            <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-movement">
+                                <div>VR Movement:</div>
+                                <div>
+                                    <input type="radio" id="vr-setting-movement-teleport" name="vr-setting-movement" value="teleport" checked>
+                                    <label for="vr-setting-movement-teleport">Teleport</label>
+                                </div>
+                                <div>
+                                    <input type="radio" id="vr-setting-movement-smooth" name="vr-setting-movement" value="smooth">
+                                    <label for="vr-setting-movement-smooth">Smooth</label>
+                                </div>
                             </div>
-                            <div>
-                                <input type="radio" id="vr-setting-movement-smooth" name="vr-setting-movement" value="smooth">
-                                <label for="vr-setting-movement-smooth">Smooth</label>
+
+                            <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-rotation">
+                                <div>VR Rotation:</div>
+                                <div>
+                                    <input type="radio" id="vr-setting-rotation-instant" name="vr-setting-rotation" value="instant" checked>
+                                    <label for="vr-setting-rotation-instant">Instant</label>
+                                </div>
+                                <div>
+                                    <input type="radio" id="vr-setting-rotation-smooth" name="vr-setting-rotation" value="smooth">
+                                    <label for="vr-setting-rotation-smooth">Smooth</label>
+                                </div>
+                            </div>
+
+                            <div id="vr-rotation-speed" class="xr-vr" style="display: none;">
+                                <div>VR Rotation Speed:</div>
+                                <input type="range" id="vr-setting-rotation-speed" class="menu-slider xr-force-redraw" min="-1" max="1" step="0.1" value="0">
                             </div>
                         </div>
 
-                        <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-rotation">
-                            <div>VR Rotation:</div>
-                            <div>
-                                <input type="radio" id="vr-setting-rotation-instant" name="vr-setting-rotation" value="instant" checked>
-                                <label for="vr-setting-rotation-instant">Instant</label>
-                            </div>
-                            <div>
-                                <input type="radio" id="vr-setting-rotation-smooth" name="vr-setting-rotation" value="smooth">
-                                <label for="vr-setting-rotation-smooth">Smooth</label>
-                            </div>
-                        </div>
-
-                        <div id="vr-rotation-speed" class="xr-vr" style="display: none;">
-                            <div>VR Rotation Speed:</div>
-                            <input type="range" id="vr-setting-rotation-speed" class="menu-slider xr-force-redraw" min="-1" max="1" step="0.1" value="0">
+                        <div class="vr-controls-gaze">
+                            There are no options for this control scheme.
                         </div>
 
                         <div class="button-zone">

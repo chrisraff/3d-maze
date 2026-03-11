@@ -197,6 +197,11 @@ function loadSavedVariables()
                     return cameraNode && cameraNode.position.distanceToSquared(tutorialData.cameraPos) > 1;
                 },
                 1: (tutorialData) => {
+                    if (vrManager.isUsingGazeControls) {
+                        // For gaze controls, they can't rotate so just wait 6 seconds
+                        return Date.now() - tutorialData.lastLoggedTime > 6000;
+                    }
+
                     if (cameraNode && cameraNode.rotation.y != tutorialData.rotationStart)
                         tutorialData.rotateCondition = true;
                     return (tutorialData.rotateCondition && Date.now() - tutorialData.lastLoggedTime > 4000);
