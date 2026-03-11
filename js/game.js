@@ -13,6 +13,7 @@ import sampleUniformSphere from './sampleUniformSphere.js';
 import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import CompassManager from './compassManagager.js';
 import BreadcrumbManager from './BreadcrumbManager.js';
+import TouchArbiter from './TouchArbiter.js';
 
 // webpage objects
 
@@ -87,6 +88,7 @@ var historyLine;
 var historyMesh;
 // breadcrumbs
 var breadcrumbs;
+var touchArbiter;
 
 var dust;
 var trail;
@@ -126,6 +128,68 @@ function loadSavedVariables()
     const lastMazeCompletionDate = Number(storageGetItem('lastMazeCompletionDate', '0'));
     // show tutorial if more than 30 days have passed since the last maze completion
     showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
+}
+
+function setupTouchArbiter()
+{
+    const canvas = renderer.domElement;
+
+    const breadcrumbTouchHandler = {
+        onTouchStart: (session, touch, event) => {
+            breadcrumbs.beginTouchCandidate(touch.identifier, touch.clientX, touch.clientY, session.startTime);
+            if (event.touches.length > 1)
+                return 'controls';
+
+            return null;
+        },
+        onTouchMove: (session, touch, event) => {
+            if (breadcrumbs.shouldYieldTouchCandidate(touch.identifier, touch.clientX, touch.clientY, event.touches.length))
+                return 'controls';
+
+            return null;
+        },
+        onTouchEnd: (session, touch) => {
+            breadcrumbs.finalizeTouchCandidate(touch.identifier, touch.clientX, touch.clientY, camera, mazeData);
+        },
+        onTouchCancel: (session, touch) => {
+            breadcrumbs.cancelTouchCandidate(touch.identifier);
+        },
+        onTouchYield: (session, touch) => {
+            breadcrumbs.cancelTouchCandidate(touch.identifier);
+        }
+    };
+
+    const controlsTouchHandler = {
+        onTouchStart: (session, touch) => {
+            const usePan = session.startX >= canvas.clientWidth / 2;
+            if (usePan)
+                controls.beginPanTouch(touch.identifier, session.startX, session.startY);
+            else
+                controls.beginMoveTouch(touch.identifier, session.startX, session.startY);
+
+            controls.updateTouch(touch.identifier, touch.clientX, touch.clientY);
+        },
+        onTouchAdopt: (session, touch) => {
+            controlsTouchHandler.onTouchStart(session, touch);
+        },
+        onTouchMove: (session, touch) => {
+            controls.updateTouch(touch.identifier, touch.clientX, touch.clientY);
+        },
+        onTouchEnd: (session, touch) => {
+            controls.endTouch(touch.identifier);
+        },
+        onTouchCancel: (session, touch) => {
+            controls.endTouch(touch.identifier);
+        }
+    };
+
+    touchArbiter = new TouchArbiter(canvas, {
+        isEnabled: () => controls.isLocked
+    });
+    touchArbiter.registerHandler('breadcrumb', breadcrumbTouchHandler);
+    touchArbiter.registerHandler('controls', controlsTouchHandler);
+    touchArbiter.setDefaultHandler('breadcrumb');
+    touchArbiter.connect();
 }
 
 function init() {
@@ -222,6 +286,7 @@ function init() {
     } );
     controls.addEventListener( 'unlock', function() {
         document.querySelector('#blocker').classList.remove('hide');
+        touchArbiter?.clear();
 
         // determine if the pause menu should be shown
         if (!finishedMaze && focusedMenu.id != 'menu-daily-intro' && !inTutorial)
@@ -292,7 +357,8 @@ function init() {
     // breadcrumbs
     breadcrumbs = new BreadcrumbManager();
     breadcrumbs.addTo(scene);
-    breadcrumbs.addEventListeners(renderer.domElement, camera);
+    breadcrumbs.addEventListeners(renderer.domElement, camera, { enableTouch: false });
+    setupTouchArbiter();
 
     // dust effect
     dust = new DustEffect({

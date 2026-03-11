@@ -23,6 +23,8 @@ export default class BreadcrumbManager {
         this.breadcrumbStack = [];
 
         this.touchData = {} // map of touch identifier to touch data
+        this.touchTapMaxDurationMs = 350;
+        this.touchTapMaxMovePx = 10;
 
         this.raycaster.layers.set(1);
     }
@@ -32,53 +34,6 @@ export default class BreadcrumbManager {
     };
 
     addEventListeners(element, camera) {
-        // track touches - a quick single tap adds or removes a breadcrumb
-        element.addEventListener('touchstart', (event) =>
-        {
-            for (let i = 0; i < event.changedTouches.length; i++) {
-                // get the latest touch only
-                if (event.changedTouches[i].identifier in this.touchData) {
-                    continue;
-                }
-
-                let touch = event.changedTouches[i];
-                this.touchData[touch.identifier] = {
-                    touchStartTime: Date.now(),
-                    touchStartX: touch.clientX,
-                    touchStartY: touch.clientY
-                };
-            }
-        });
-
-        element.addEventListener('touchend', (event) =>
-        {
-            if (event.changedTouches.length == 0)
-                return;
-
-            for (let i = 0; i < event.changedTouches.length; i++) {
-                let touch = event.changedTouches[i];
-                if (!(touch.identifier in this.touchData))
-                    continue;
-
-                // check if the touch was a quick tap (no movement)
-                const touchData = this.touchData[touch.identifier];
-                const timeDiff = Date.now() - touchData.touchStartTime;
-                const distance = Math.sqrt(
-                    Math.pow(touch.clientX - touchData.touchStartX, 2) +
-                    Math.pow(touch.clientY - touchData.touchStartY, 2)
-                );
-                if (timeDiff > 500 || distance > 10) {
-                    // not a quick tap
-                    delete this.touchData[touch.identifier];
-                    continue;
-                }
-
-                delete this.touchData[touch.identifier];
-
-                this.handleBreadcrumbTap(camera, this.mazedata, 2 * touch.clientX / window.innerWidth - 1, 1 - 2 * touch.clientY / window.innerHeight);
-            }
-        });
-
         element.addEventListener('mousedown', (event) =>
         {
             if (event.button !== 0)
@@ -86,6 +41,65 @@ export default class BreadcrumbManager {
 
             this.handleBreadcrumbClick(camera, this.mazedata);
         });
+    }
+
+    beginTouchCandidate(identifier, clientX, clientY, startTime = Date.now()) {
+        this.touchData[identifier] = {
+            touchStartTime: startTime,
+            touchStartX: clientX,
+            touchStartY: clientY
+        };
+    }
+
+    cancelTouchCandidate(identifier) {
+        delete this.touchData[identifier];
+    }
+
+    getTouchCandidateDistance2(identifier, clientX, clientY) {
+        const touchData = this.touchData[identifier];
+        if (touchData == null)
+            return 0;
+
+        return Math.pow(clientX - touchData.touchStartX, 2) + Math.pow(clientY - touchData.touchStartY, 2)
+    }
+
+    shouldYieldTouchCandidate(identifier, clientX, clientY, activeTouchCount = 1, now = Date.now()) {
+        const touchData = this.touchData[identifier];
+        if (touchData == null)
+            return false;
+
+        if (activeTouchCount > 1)
+            return true;
+
+        const timeDiff = now - touchData.touchStartTime;
+        const distance = this.getTouchCandidateDistance2(identifier, clientX, clientY);
+        return timeDiff > this.touchTapMaxDurationMs || distance > this.touchTapMaxMovePx;
+    }
+
+    screenToScene(clientX, clientY) {
+        return {
+            sceneX: 2 * clientX / window.innerWidth - 1,
+            sceneY: 1 - 2 * clientY / window.innerHeight
+        };
+    }
+
+    finalizeTouchCandidate(identifier, clientX, clientY, camera, mazeData, now = Date.now()) {
+        const touchData = this.touchData[identifier];
+        if (touchData == null)
+            return false;
+
+        const timeDiff = now - touchData.touchStartTime;
+        const distance = this.getTouchCandidateDistance2(identifier, clientX, clientY);
+        const isTap = timeDiff <= this.touchTapMaxDurationMs && distance <= this.touchTapMaxMovePx;
+
+        delete this.touchData[identifier];
+
+        if (!isTap)
+            return false;
+
+        const scenePos = this.screenToScene(clientX, clientY);
+        this.handleBreadcrumbTap(camera, mazeData, scenePos.sceneX, scenePos.sceneY);
+        return true;
     }
 
     setPointerGeometry(geometry) {
