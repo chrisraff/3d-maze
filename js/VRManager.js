@@ -42,6 +42,25 @@ export default class VRManager extends EventTarget {
         this.tmpVector = new THREE.Vector3();
         this.tmpVector2 = new THREE.Vector3();
 
+        // Controller setup
+        this.controller1 = this.renderer.xr.getController(0);
+        this.controller2 = this.renderer.xr.getController(1);
+        this.cameraCompensationNode.add(this.controller1);
+        this.cameraCompensationNode.add(this.controller2);
+
+        this.controller1.addEventListener('connected', (event) => {
+            this.setupController(event, this.controller1);
+        });
+        this.controller1.addEventListener('disconnected', (event) => {
+            this.onControllerDisconnected(event, this.controller1);
+        });
+        this.controller2.addEventListener('connected', (event) => {
+            this.setupController(event, this.controller2);
+        });
+        this.controller2.addEventListener('disconnected', (event) => {
+            this.onControllerDisconnected(event, this.controller2);
+        });
+
         // blackout variables
         this.blackoutPlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ color: 'black', transparent: true, opacity: 0 }));
         this.blackoutPlane.visible = false;
@@ -95,6 +114,53 @@ export default class VRManager extends EventTarget {
 
         // store original display of elements that should be hidden in vr so that we can restore them when exiting vr
         this.hiddenDomElemnts = [];
+    }
+
+    setupController(event, controller) {
+        let controllerSuper = null;
+        if (event.data.targetRayMode === 'gaze') {
+            controllerSuper = this.vrGazeController;
+        } else if (event.data.handedness === 'left') {
+            controllerSuper = this.vrLeftController;
+            controller.add(this.vrLeftControllerLine);
+        } else if (event.data.handedness === 'right') {
+            controllerSuper = this.vrRightController;
+            controller.add(this.vrRightControllerLine);
+        }
+
+        if (!controllerSuper) return;
+
+        controllerSuper.object = controller;
+        controllerSuper.inputSource = event.data;
+
+        if (this.vrRightController.isValid() || this.vrLeftController.isValid()) {
+            this.setUiInteractor(false, this.vrRightController.isValid() ? this.vrRightController : this.vrLeftController);
+            this.isUsingGazeControls = false;
+            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = '');
+            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = 'none');
+        } else if (this.vrGazeController.isValid()) {
+            this.setUiInteractor(false, this.vrGazeController);
+
+            this.isUsingGazeControls = true;
+
+            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = 'none');
+            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = '');
+        }
+    }
+
+    onControllerDisconnected(event, controller) {
+        // find the object associated
+        let controllerSuper = null;
+        if (this.vrLeftController.object === controller) {
+            controllerSuper = this.vrLeftController;
+            this.vrLeftControllerLine.removeFromParent();
+        } else if (this.vrRightController.object === controller) {
+            controllerSuper = this.vrRightController;
+            this.vrRightControllerLine.removeFromParent();
+        }
+        if (controllerSuper) {
+            controllerSuper.reset();
+        }
     }
 
     setupXREventListeners() {
@@ -199,7 +265,6 @@ export default class VRManager extends EventTarget {
 
     onXRSessionStart() {
         const session = this.renderer.xr.getSession();
-        session.addEventListener('inputsourceschange', (event) => this.registerXRInputs(event));
 
         // let the session start and the camera update to the initial position before doing the compensation, or else the compensation will be wrong
         setTimeout(() => {
@@ -247,53 +312,6 @@ export default class VRManager extends EventTarget {
         this.hiddenDomElemnts = [];
 
         window.removeEventListener('mousemove', this.mouseMoveListenerHandle);
-    }
-
-    registerXRInputs(event) {
-
-        this.vrLeftController.reset();
-        this.vrRightController.reset();
-        this.vrGazeController.reset();
-
-        const session = this.renderer.xr.getSession();
-        for (let i = 0; i < session.inputSources.length; i++) {
-            const source = session.inputSources[i];
-            console.log('Input source detected: ', source);
-            if (source.handedness == "left") {
-                this.vrLeftController.gamepad = source.gamepad;
-                this.vrLeftController.object = this.renderer.xr.getController(i);
-                this.vrLeftController.inputSource = source;
-                this.vrLeftController.object.add(this.vrLeftControllerLine);
-                this.cameraCompensationNode.add(this.vrLeftController.object);
-            } else if (source.handedness == "right") {
-                this.vrRightController.gamepad = source.gamepad;
-                this.vrRightController.object = this.renderer.xr.getController(i);
-                this.vrRightController.inputSource = source;
-                this.vrRightController.object.add(this.vrRightControllerLine);
-                this.cameraCompensationNode.add(this.vrRightController.object);
-            } else if (source.targetRayMode == "gaze") {
-                this.vrGazeController.gamepad = source.gamepad;
-                this.vrGazeController.object = this.renderer.xr.getController(i);
-                this.vrGazeController.inputSource = source;
-                this.camera.add(this.vrGazeController.object);
-            }
-        }
-
-        if (this.vrRightController.isValid() || this.vrLeftController.isValid()) {
-            this.setUiInteractor(false, this.vrRightController.isValid() ? this.vrRightController : this.vrLeftController);
-
-            this.isUsingGazeControls = false;
-
-            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = '');
-            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = 'none');
-        } else if (this.vrGazeController.isValid()) {
-            this.setUiInteractor(false, this.vrGazeController);
-
-            this.isUsingGazeControls = true;
-
-            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = 'none');
-            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = '');
-        }
     }
 
     mouseMoveListener(event) {
@@ -401,7 +419,7 @@ export default class VRManager extends EventTarget {
             // Handle right controller rotation via controls
             if (this.vrRightController.isValid()) {
                 // take max of stick and touchpad to support both input types
-                const rightAxes = this.vrRightController.gamepad.axes;
+                const rightAxes = this.vrRightController.inputSource.gamepad.axes;
                 const rightX = Math.abs(rightAxes[2]) >= Math.abs(rightAxes[0]) ? rightAxes[2] : rightAxes[0];
                 const rightY = Math.abs(rightAxes[3]) >= Math.abs(rightAxes[1]) ? rightAxes[3] : rightAxes[1];
 
@@ -424,7 +442,7 @@ export default class VRManager extends EventTarget {
             // Handle left controller movement
             if (this.vrLeftController.isValid()) {
                 // take max of stick and touchpad to support both input types
-                const leftAxes = this.vrLeftController.gamepad.axes;
+                const leftAxes = this.vrLeftController.inputSource.gamepad.axes;
                 const leftX = Math.abs(leftAxes[2]) >= Math.abs(leftAxes[0]) ? leftAxes[2] : leftAxes[0];
                 const leftY = Math.abs(leftAxes[3]) >= Math.abs(leftAxes[1]) ? leftAxes[3] : leftAxes[1];
                 this.tmpVector.set(leftX, 0, leftY);
@@ -486,11 +504,11 @@ export default class VRManager extends EventTarget {
 
             // check if either controller is trying to interact with the ui
             if (!this.uiClickState) {
-                if (this.vrRightController.isValid() && this.vrRightController.gamepad.buttons[0].pressed) {
+                if (this.vrRightController.isValid() && this.vrRightController.inputSource.gamepad.buttons[0].pressed) {
                     this.setUiInteractor(false, this.vrRightController);
                     this.uiClickState = true;
                 }
-                else if (this.vrLeftController.isValid() && this.vrLeftController.gamepad.buttons[0].pressed) {
+                else if (this.vrLeftController.isValid() && this.vrLeftController.inputSource.gamepad.buttons[0].pressed) {
                     this.setUiInteractor(false, this.vrLeftController);
                     this.uiClickState = true;
                 }
@@ -598,18 +616,18 @@ class Controller extends EventTarget {
     }
 
     update() {
-        if (!this.gamepad) {
+        if (!this.inputSource?.gamepad) {
             return;
         }
 
-        for (let i = 0; i < this.gamepad.buttons.length; i++) {
-            const button = this.gamepad.buttons[i];
+        for (let i = 0; i < this.inputSource.gamepad.buttons.length; i++) {
+            const button = this.inputSource.gamepad.buttons[i];
             if (button.pressed && !this.buttonsPressed[i]) {
                 this.buttonsPressed[i] = true;
-                this.dispatchEvent(new CustomEvent('buttondown', { detail: { button: i, gamepad: this.gamepad } }));
+                this.dispatchEvent(new CustomEvent('buttondown', { detail: { button: i, gamepad: this.inputSource.gamepad } }));
             } else if (!button.pressed && this.buttonsPressed[i]) {
                 this.buttonsPressed[i] = false;
-                this.dispatchEvent(new CustomEvent('buttonup', { detail: { button: i, gamepad: this.gamepad } }));
+                this.dispatchEvent(new CustomEvent('buttonup', { detail: { button: i, gamepad: this.inputSource.gamepad } }));
             }
             else {
                 this.buttonsPressed[i] = button.pressed;
@@ -618,11 +636,6 @@ class Controller extends EventTarget {
     }
 
     reset() {
-        if (this.object) {
-            this.object.parent?.remove(this.object);
-        }
-
-        this.gamepad = null;
         this.object = null;
         this.inputSource = null;
 
