@@ -341,9 +341,15 @@ export default class VRManager extends EventTarget {
 
             // Handle right controller rotation via controls
             if (this.vrRightController.isValid()) {
-                if (Math.abs(this.vrRightController.gamepad.axes[2]) > 0.01) {
+                // take max of stick and touchpad to support both input types
+                const rightAxes = this.vrRightController.gamepad.axes;
+                const rightX = Math.abs(rightAxes[2]) >= Math.abs(rightAxes[0]) ? rightAxes[2] : rightAxes[0];
+                const rightY = Math.abs(rightAxes[3]) >= Math.abs(rightAxes[1]) ? rightAxes[3] : rightAxes[1];
+
+                // x axes is for left / right rotation
+                if (Math.abs(rightX) > 0.01) {
                     this.isVrControllingRotation = true;
-                    this.controls.rotationVector.set(0, -this.vrRightController.gamepad.axes[2] * this.rotationSpeed, 0);
+                    this.controls.rotationVector.set(0, -rightX * this.rotationSpeed, 0);
                 } else if (this.isVrControllingRotation) {
                     this.controls.rotationVector.set(0, 0, 0);
                     this.isVrControllingRotation = false;
@@ -351,14 +357,18 @@ export default class VRManager extends EventTarget {
 
                 // use the right stick for up / down movement
                 // (threshold requirement to prevent drift if smooth motion is enabled)
-                if (Math.abs(this.vrRightController.gamepad.axes[3]) > Math.abs(this.vrRightController.gamepad.axes[2] * 0.75)) {
-                    this.moveVector.y -= this.vrRightController.gamepad.axes[3];
+                if (Math.abs(rightY) > Math.abs(rightX * 0.75)) {
+                    this.moveVector.y -= rightY;
                 }
             }
 
             // Handle left controller movement
             if (this.vrLeftController.isValid()) {
-                this.tmpVector.set(this.vrLeftController.gamepad.axes[2], 0, this.vrLeftController.gamepad.axes[3]);
+                // take max of stick and touchpad to support both input types
+                const leftAxes = this.vrLeftController.gamepad.axes;
+                const leftX = Math.abs(leftAxes[2]) >= Math.abs(leftAxes[0]) ? leftAxes[2] : leftAxes[0];
+                const leftY = Math.abs(leftAxes[3]) >= Math.abs(leftAxes[1]) ? leftAxes[3] : leftAxes[1];
+                this.tmpVector.set(leftX, 0, leftY);
 
                 this.tmpVector.applyQuaternion(this.camera.quaternion);
                 this.tmpVector.applyQuaternion(this.cameraCompensationNode.quaternion);
