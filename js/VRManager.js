@@ -89,6 +89,10 @@ export default class VRManager extends EventTarget {
         this.uiIsMouseControlled = false;
         this.mouseMoveListenerHandle = this.mouseMoveListener.bind(this);
 
+        // controller pointer lines (shown in menu mode)
+        this.vrLeftControllerLine = this._createControllerPointerLine();
+        this.vrRightControllerLine = this._createControllerPointerLine();
+
         // store original display of elements that should be hidden in vr so that we can restore them when exiting vr
         this.hiddenDomElemnts = [];
     }
@@ -259,11 +263,13 @@ export default class VRManager extends EventTarget {
                 this.vrLeftController.gamepad = source.gamepad;
                 this.vrLeftController.object = this.renderer.xr.getController(i);
                 this.vrLeftController.inputSource = source;
+                this.vrLeftController.object.add(this.vrLeftControllerLine);
                 this.cameraCompensationNode.add(this.vrLeftController.object);
             } else if (source.handedness == "right") {
                 this.vrRightController.gamepad = source.gamepad;
                 this.vrRightController.object = this.renderer.xr.getController(i);
                 this.vrRightController.inputSource = source;
+                this.vrRightController.object.add(this.vrRightControllerLine);
                 this.cameraCompensationNode.add(this.vrRightController.object);
             } else if (source.targetRayMode == "gaze") {
                 this.vrGazeController.gamepad = source.gamepad;
@@ -307,6 +313,58 @@ export default class VRManager extends EventTarget {
         }
     }
 
+    _createControllerPointerLine() {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, -1], 3));
+        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+            color: 0x4499d0,
+            opacity: 0.75,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+        }));
+        line.renderOrder = 1000;
+        line.visible = false;
+        return line;
+    }
+
+    _updateControllerLines() {
+        const pairs = [
+            { controller: this.vrLeftController, line: this.vrLeftControllerLine },
+            { controller: this.vrRightController, line: this.vrRightControllerLine },
+        ];
+
+        for (const { controller, line } of pairs) {
+            if (!this.uiInteractionEnabled || !controller.isValid()) {
+                line.visible = false;
+                continue;
+            }
+
+            line.visible = true;
+
+            const isFocused = controller === this.uiCurrentController;
+            let length;
+            if (isFocused && this.uiMesh) {
+                this.rayCaster.setFromXRController(controller.object);
+                const hits = this.rayCaster.intersectObjects([this.uiMesh], true);
+                if (hits.length > 0) {
+                    // Convert world-space hit point to controller local space to account
+                    // for any scale applied to parent nodes (e.g. cameraNode scale 1.5x).
+                    this.tmpVector.copy(hits[0].point);
+                    controller.object.worldToLocal(this.tmpVector);
+                    length = -this.tmpVector.z;
+                } else {
+                    length = 3;
+                }
+            } else {
+                length = 0.15;
+            }
+
+            line.geometry.attributes.position.setZ(1, -length);
+            line.geometry.attributes.position.needsUpdate = true;
+        }
+    }
+
     /**
      * Update VR state during animation loop
      */
@@ -317,6 +375,7 @@ export default class VRManager extends EventTarget {
 
         this.vrLeftController.update();
         this.vrRightController.update();
+        this._updateControllerLines();
 
         // in vr, compensate for user movement by updating the compensation node to put the head at the camera node position
         this.lastVrCameraPosition.copy(this.newVrCameraPosition);
