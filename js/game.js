@@ -130,66 +130,27 @@ function loadSavedVariables()
     showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
 }
 
-function setupTouchArbiter()
-{
+function setupInputBindings() {
     const canvas = renderer.domElement;
-
-    const breadcrumbTouchHandler = {
-        onTouchStart: (session, touch, event) => {
-            breadcrumbs.beginTouchCandidate(touch.identifier, touch.clientX, touch.clientY, session.startTime);
-            if (event.touches.length > 1)
-                return 'controls';
-
-            return null;
-        },
-        onTouchMove: (session, touch, event) => {
-            if (breadcrumbs.shouldYieldTouchCandidate(touch.identifier, touch.clientX, touch.clientY, event.touches.length))
-                return 'controls';
-
-            return null;
-        },
-        onTouchEnd: (session, touch) => {
-            breadcrumbs.finalizeTouchCandidate(touch.identifier, touch.clientX, touch.clientY, camera, mazeData);
-        },
-        onTouchCancel: (session, touch) => {
-            breadcrumbs.cancelTouchCandidate(touch.identifier);
-        },
-        onTouchYield: (session, touch) => {
-            breadcrumbs.cancelTouchCandidate(touch.identifier);
-        }
-    };
-
-    const controlsTouchHandler = {
-        onTouchStart: (session, touch) => {
-            const usePan = session.startX >= canvas.clientWidth / 2;
-            if (usePan)
-                controls.beginPanTouch(touch.identifier, session.startX, session.startY);
-            else
-                controls.beginMoveTouch(touch.identifier, session.startX, session.startY);
-
-            controls.updateTouch(touch.identifier, touch.clientX, touch.clientY);
-        },
-        onTouchAdopt: (session, touch) => {
-            controlsTouchHandler.onTouchStart(session, touch);
-        },
-        onTouchMove: (session, touch) => {
-            controls.updateTouch(touch.identifier, touch.clientX, touch.clientY);
-        },
-        onTouchEnd: (session, touch) => {
-            controls.endTouch(touch.identifier);
-        },
-        onTouchCancel: (session, touch) => {
-            controls.endTouch(touch.identifier);
-        }
-    };
 
     touchArbiter = new TouchArbiter(canvas, {
         isEnabled: () => controls.isLocked
     });
-    touchArbiter.registerHandler('breadcrumb', breadcrumbTouchHandler);
-    touchArbiter.registerHandler('controls', controlsTouchHandler);
-    touchArbiter.setDefaultHandler('breadcrumb');
+
+    // Touches go to breadcrumbs first; if breadcrumbs yield, controls take over.
+    touchArbiter.registerHandler('breadcrumb', breadcrumbs.createTouchHandler({
+        camera,
+        getMazeData: () => mazeData
+    }));
+    touchArbiter.registerHandler('controls', controls.createTouchHandler());
+
     touchArbiter.connect();
+
+    canvas.addEventListener('mousedown', (event) => {
+        if (event.button !== 0)
+            return;
+        breadcrumbs.handleBreadcrumbClick(camera, mazeData);
+    });
 }
 
 function init() {
@@ -357,8 +318,7 @@ function init() {
     // breadcrumbs
     breadcrumbs = new BreadcrumbManager();
     breadcrumbs.addTo(scene);
-    breadcrumbs.addEventListeners(renderer.domElement, camera, { enableTouch: false });
-    setupTouchArbiter();
+    setupInputBindings();
 
     // dust effect
     dust = new DustEffect({

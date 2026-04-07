@@ -147,7 +147,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
             return;
         }
 
-        if (identifier == panTouchIdentifier && panTouchDragging) {
+        if (identifier === panTouchIdentifier && panTouchDragging) {
             let movementX = clientX - panLastTouchX;
             let movementY = clientY - panLastTouchY;
 
@@ -157,18 +157,45 @@ var FlyPointerLockControls = function ( object, domElement ) {
             scope.tmpVector.set( - movementY, - movementX, 0 );
             scope.applyRotation( scope.tmpVector, 0.006 );
             scope.dispatchEvent( changeEvent );
-        } else if (identifier == moveTouchIdentifier && moveTouchDragging) {
+        } else if (identifier === moveTouchIdentifier && moveTouchDragging) {
             moveLastX = clientX;
             moveLastY = clientY;
         }
     }
 
     this.endTouch = function(identifier) {
-        if (identifier == panTouchIdentifier && panTouchDragging) {
+        if (identifier === panTouchIdentifier && panTouchDragging) {
             panTouchDragging = false;
-        } else if (identifier == moveTouchIdentifier && moveTouchDragging) {
+        } else if (identifier === moveTouchIdentifier && moveTouchDragging) {
             moveTouchDragging = false;
         }
+    }
+
+    this.createTouchHandler = function() {
+        const handler = {
+            onTouchStart: (session, touch) => {
+                const usePan = session.startX >= scope.domElement.clientWidth / 2;
+                if (usePan)
+                    scope.beginPanTouch(touch.identifier, session.startX, session.startY);
+                else
+                    scope.beginMoveTouch(touch.identifier, session.startX, session.startY);
+
+                scope.updateTouch(touch.identifier, touch.clientX, touch.clientY);
+            },
+            onTouchAdopt: (session, touch) => {
+                handler.onTouchStart(session, touch);
+            },
+            onTouchMove: (_session, touch) => {
+                scope.updateTouch(touch.identifier, touch.clientX, touch.clientY);
+            },
+            onTouchEnd: (_session, touch) => {
+                scope.endTouch(touch.identifier);
+            },
+            onTouchCancel: (_session, touch) => {
+                scope.endTouch(touch.identifier);
+            }
+        };
+        return handler;
     }
 
     function onPointerlockChange() {

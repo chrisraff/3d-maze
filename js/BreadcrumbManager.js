@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as maze from './maze.js';
 import checkCollisionOnAxis from './checkCollisionOnAxis.js';
+import { YIELD } from './TouchArbiter.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -33,14 +34,25 @@ export default class BreadcrumbManager {
         this.scene = scene;
     };
 
-    addEventListeners(element, camera) {
-        element.addEventListener('mousedown', (event) =>
-        {
-            if (event.button !== 0)
-                return;
-
-            this.handleBreadcrumbClick(camera, this.mazedata);
-        });
+    createTouchHandler({ camera, getMazeData = () => this.mazedata } = {}) {
+        return {
+            onTouchStart: (session, touch) => {
+                this.beginTouchCandidate(touch.identifier, touch.clientX, touch.clientY, session.startTime);
+            },
+            onTouchMove: (_session, touch) => {
+                if (this.shouldYieldTouchCandidate(touch.identifier, touch.clientX, touch.clientY))
+                    return YIELD;
+            },
+            onTouchEnd: (_session, touch) => {
+                this.finalizeTouchCandidate(touch.identifier, touch.clientX, touch.clientY, camera, getMazeData());
+            },
+            onTouchCancel: (_session, touch) => {
+                this.cancelTouchCandidate(touch.identifier);
+            },
+            onTouchYield: (_session, touch) => {
+                this.cancelTouchCandidate(touch.identifier);
+            }
+        };
     }
 
     beginTouchCandidate(identifier, clientX, clientY, startTime = Date.now()) {
@@ -55,24 +67,23 @@ export default class BreadcrumbManager {
         delete this.touchData[identifier];
     }
 
-    getTouchCandidateDistance2(identifier, clientX, clientY) {
+    getTouchCandidateDistance(identifier, clientX, clientY) {
         const touchData = this.touchData[identifier];
         if (touchData == null)
             return 0;
 
-        return Math.pow(clientX - touchData.touchStartX, 2) + Math.pow(clientY - touchData.touchStartY, 2)
+        const dx = clientX - touchData.touchStartX;
+        const dy = clientY - touchData.touchStartY;
+        return Math.sqrt(dx * dx + dy * dy);
     }
 
-    shouldYieldTouchCandidate(identifier, clientX, clientY, activeTouchCount = 1, now = Date.now()) {
+    shouldYieldTouchCandidate(identifier, clientX, clientY, now = Date.now()) {
         const touchData = this.touchData[identifier];
         if (touchData == null)
             return false;
 
-        if (activeTouchCount > 1)
-            return true;
-
         const timeDiff = now - touchData.touchStartTime;
-        const distance = this.getTouchCandidateDistance2(identifier, clientX, clientY);
+        const distance = this.getTouchCandidateDistance(identifier, clientX, clientY);
         return timeDiff > this.touchTapMaxDurationMs || distance > this.touchTapMaxMovePx;
     }
 
@@ -89,7 +100,7 @@ export default class BreadcrumbManager {
             return false;
 
         const timeDiff = now - touchData.touchStartTime;
-        const distance = this.getTouchCandidateDistance2(identifier, clientX, clientY);
+        const distance = this.getTouchCandidateDistance(identifier, clientX, clientY);
         const isTap = timeDiff <= this.touchTapMaxDurationMs && distance <= this.touchTapMaxMovePx;
 
         delete this.touchData[identifier];
