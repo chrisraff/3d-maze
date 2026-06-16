@@ -8,7 +8,7 @@ import { YIELD } from './TouchArbiter.js';
  */
 
 const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
-const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, colorWrite: false, depthWrite: false });
 
 export default class BreadcrumbManager {
     constructor() {
