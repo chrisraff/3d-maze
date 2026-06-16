@@ -483,7 +483,7 @@ function init() {
         dotMaterials[0].size = dotSizes[0];
         dotMaterials[1].size = dotSizes[1];
         tutorialManager.useAnimations = true;
-        tutorialManager.resetTutorial();
+        tutorialManager.setTutorialType('intro');
         onWindowResize();
     });
 
