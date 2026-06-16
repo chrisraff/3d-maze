@@ -417,7 +417,7 @@ export default class VRManager extends EventTarget {
             }
 
             // Handle right controller rotation via controls
-            if (this.vrRightController.isValid()) {
+            if (this.vrRightController.hasGamepad()) {
                 // take max of stick and touchpad to support both input types
                 const rightAxes = this.vrRightController.inputSource.gamepad.axes;
                 const rightX = Math.abs(rightAxes[2]) >= Math.abs(rightAxes[0]) ? rightAxes[2] : rightAxes[0];
@@ -440,7 +440,7 @@ export default class VRManager extends EventTarget {
             }
 
             // Handle left controller movement
-            if (this.vrLeftController.isValid()) {
+            if (this.vrLeftController.hasGamepad()) {
                 // take max of stick and touchpad to support both input types
                 const leftAxes = this.vrLeftController.inputSource.gamepad.axes;
                 const leftX = Math.abs(leftAxes[2]) >= Math.abs(leftAxes[0]) ? leftAxes[2] : leftAxes[0];
@@ -504,11 +504,11 @@ export default class VRManager extends EventTarget {
 
             // check if either controller is trying to interact with the ui
             if (!this.uiClickState) {
-                if (this.vrRightController.isValid() && this.vrRightController.inputSource.gamepad.buttons[0].pressed) {
+                if (this.vrRightController.hasGamepad() && this.vrRightController.inputSource.gamepad.buttons[0].pressed) {
                     this.setUiInteractor(false, this.vrRightController);
                     this.uiClickState = true;
                 }
-                else if (this.vrLeftController.isValid() && this.vrLeftController.inputSource.gamepad.buttons[0].pressed) {
+                else if (this.vrLeftController.hasGamepad() && this.vrLeftController.inputSource.gamepad.buttons[0].pressed) {
                     this.setUiInteractor(false, this.vrLeftController);
                     this.uiClickState = true;
                 }
@@ -613,6 +613,12 @@ class Controller extends EventTarget {
 
     isValid() {
         return this.object != null && this.inputSource != null;
+    }
+
+    // separate from isValid(): hand-tracking input sources can be valid (trackable, raycastable,
+    // clickable via select events) without ever having a gamepad to read joystick/button state from
+    hasGamepad() {
+        return this.isValid() && this.inputSource.gamepad != null;
     }
 
     update() {
