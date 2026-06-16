@@ -66,9 +66,7 @@ var controls;
 var dotsPerGroup = 20;
 var dotGroup;
 var dotRotationAxes;
-var dotPositionArrays;
-var dotColorArrays;
-var dotGeometries;
+
 var dotTmpQuaternion;
 var dotRotationAnim;
 
@@ -97,8 +95,8 @@ var historyLine;
 var historyMesh;
 // dots
 var dotMaterials;
-var dotSizes = [maze.minorWidth * 5, maze.minorWidth * 2];
-var dotSizesVR = [maze.minorWidth * 10/3, maze.minorWidth * 2/3];
+var dotSizes = [maze.minorWidth * 4, maze.minorWidth * 1.5];
+var dotSizesVR = [maze.minorWidth * 5, maze.minorWidth * 2];
 
 var dust;
 var trail;
@@ -112,29 +110,86 @@ function dotGroupRandomize() {
 
     dotRotationAnim = 0;
 
+    const mat = new THREE.Matrix4();
+
     for ( let i = 0; i < 2; i++ ) {
 
-        for (let k = 0; k < 20; k ++ ) {
+        const mesh = dotGroup.children[i];
 
-            tmpColor.setHSL( Math.random(), 1.0, 0.75);
+        for (let k = 0; k < dotsPerGroup; k++) {
 
-            dotColorArrays[i][ k*3 + 0 ] = tmpColor.r;
-            dotColorArrays[i][ k*3 + 1 ] = tmpColor.g;
-            dotColorArrays[i][ k*3 + 2 ] = tmpColor.b;
+            tmpColor.setHSL( Math.random(), 1.0, 0.75 );
+            mesh.setColorAt( k, tmpColor );
 
-            let newPos = sampleUniformSphere();
-
-            dotPositionArrays[i][ k*3 + 0 ] = newPos[0];
-            dotPositionArrays[i][ k*3 + 1 ] = newPos[1];
-            dotPositionArrays[i][ k*3 + 2 ] = newPos[2];
+            const p = sampleUniformSphere();
+            mat.makeTranslation( p[0], p[1], p[2] );
+            mesh.setMatrixAt( k, mat );
 
         }
 
-        dotGeometries[i].attributes.position.needsUpdate = true;
-        dotGeometries[i].attributes.color.needsUpdate = true;
-        dotGeometries[i].computeBoundingSphere();
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.instanceColor.needsUpdate = true;
 
     }
+
+};
+
+function makeDotMaterial( size, sprite ) {
+
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            map:    { value: sprite },
+            u_size: { value: size },
+        },
+        vertexShader: `
+            #include <common>
+            #include <color_pars_vertex>
+            #include <logdepthbuf_pars_vertex>
+
+            uniform float u_size;
+            varying vec2 vUv;
+
+            void main() {
+                vUv = uv;
+                #include <color_vertex>
+
+                #ifdef USE_INSTANCING
+                    vec4 worldCenter = modelMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+                #else
+                    vec4 worldCenter = modelMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+                #endif
+
+                // viewpoint-oriented billboard: each quad's normal points at the camera
+                vec3 toCamera = normalize( cameraPosition - worldCenter.xyz );
+                vec3 right    = normalize( cross( vec3( 0.0, 1.0, 0.0 ), toCamera ) );
+                vec3 up       = cross( toCamera, right );
+
+                vec3 worldPos = worldCenter.xyz
+                              + right * position.x * u_size
+                              + up    * position.y * u_size;
+
+                gl_Position = projectionMatrix * viewMatrix * vec4( worldPos, 1.0 );
+                #include <logdepthbuf_vertex>
+            }
+        `,
+        fragmentShader: `
+            #include <common>
+            #include <color_pars_fragment>
+            #include <logdepthbuf_pars_fragment>
+
+            uniform sampler2D map;
+            varying vec2 vUv;
+
+            void main() {
+                vec4 texel = texture2D( map, vUv );
+                if ( texel.a < 0.8 ) discard;
+                gl_FragColor = vec4( vColor * texel.rgb, texel.a );
+                #include <logdepthbuf_fragment>
+            }
+        `,
+        transparent: true,
+        depthWrite: true,
+    });
 
 };
 
@@ -397,32 +452,17 @@ function init() {
         new THREE.Vector3(0.75, 0, 0.5).normalize(),
         new THREE.Vector3(0.75, 1, 0.5).normalize()
     ];
-    dotPositionArrays = [
-        new Float32Array( 3 * dotsPerGroup ),
-        new Float32Array( 3 * dotsPerGroup )
-    ];
-    dotColorArrays = [
-        new Float32Array( 3 * dotsPerGroup ),
-        new Float32Array( 3 * dotsPerGroup )
-    ];
-    dotGeometries = [
-        new THREE.BufferGeometry(),
-        new THREE.BufferGeometry()
-    ];
-
-    for (let i = 0; i < 2; i++) {
-        dotGeometries[i].setAttribute( 'position', new THREE.BufferAttribute( dotPositionArrays[i], 3 ) );
-        dotGeometries[i].setAttribute( 'color', new THREE.BufferAttribute( dotColorArrays[i], 3 ) );
-    }
-
+    const dotPlaneGeom = new THREE.PlaneGeometry( 1, 1 );
     dotMaterials = [
-        new THREE.PointsMaterial( { size: dotSizes[0], map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } ),
-        new THREE.PointsMaterial( { size: dotSizes[1], map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } )
+        makeDotMaterial( dotSizes[0], dotSprite ),
+        makeDotMaterial( dotSizes[1], dotSprite ),
     ];
-    let dots = [
-        new THREE.Points( dotGeometries[0], dotMaterials[0] ),
-        new THREE.Points( dotGeometries[1], dotMaterials[1] )
+    const dots = [
+        new THREE.InstancedMesh( dotPlaneGeom, dotMaterials[0], dotsPerGroup ),
+        new THREE.InstancedMesh( dotPlaneGeom, dotMaterials[1], dotsPerGroup ),
     ];
+    dots[0].frustumCulled = false;
+    dots[1].frustumCulled = false;
     dotGroup.add( ...dots );
     dotTmpQuaternion = new THREE.Quaternion();
     dotRotationAnim = 0;
@@ -469,8 +509,8 @@ function init() {
     renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);
         dust._material.size = dustSizeVR;
-        dotMaterials[0].size = dotSizesVR[0];
-        dotMaterials[1].size = dotSizesVR[1];
+        dotMaterials[0].uniforms.u_size.value = dotSizesVR[0];
+        dotMaterials[1].uniforms.u_size.value = dotSizesVR[1];
 
         tutorialManager.useAnimations = false;
         tutorialManager.setTutorialType('vr');
@@ -480,8 +520,8 @@ function init() {
         controls.setXRPresenting(false);
         controls.disableLock(new Event(''));
         dust._material.size = dustSize;
-        dotMaterials[0].size = dotSizes[0];
-        dotMaterials[1].size = dotSizes[1];
+        dotMaterials[0].uniforms.u_size.value = dotSizes[0];
+        dotMaterials[1].uniforms.u_size.value = dotSizes[1];
         tutorialManager.useAnimations = true;
         tutorialManager.setTutorialType('intro');
         onWindowResize();
