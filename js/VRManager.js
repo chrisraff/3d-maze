@@ -86,7 +86,7 @@ export default class VRManager extends EventTarget {
 
         // UI state
         this.uiInteractionEnabled = true;
-        this.uiDom = document.querySelector('body');
+        this.uiDom = document.querySelector('#overlay');
 
         this.pointerObject = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
             map: this.dotSprite,
