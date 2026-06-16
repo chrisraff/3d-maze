@@ -10,18 +10,18 @@ import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
 import TrailEffect from './trail.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
+import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import CompassManager from './compassManagager.js';
 import VRManager from './VRManager.js';
 import TutorialManager from './TutorialManager.js';
 import MenuManager from './MenuManager.js';
+import BreadcrumbManager from './BreadcrumbManager.js';
+import TouchArbiter from './TouchArbiter.js';
 
 // webpage objects
 
 var renderer;
-// var compassRenderer;
 
-// var compassScene;
-// var compassCamera;
 var compassManager;
 
 // ui variables
@@ -46,8 +46,7 @@ const PI_2 = Math.PI / 2;
 // models
 var blockGeometry;
 var wallGeometry;
-
-var arrowMesh;
+var wallHitGeometry;
 
 // vr state
 var vrManager;
@@ -58,6 +57,7 @@ var dotSprite;
 
 var wallMaterial;
 var darkMaterial;
+var basicMaterial;
 
 // controls
 var controls;
@@ -71,8 +71,6 @@ var dotColorArrays;
 var dotGeometries;
 var dotTmpQuaternion;
 var dotRotationAnim;
-
-var lastTrailCameraPosition;
 
 var tmpVector;
 
@@ -99,6 +97,9 @@ var historyMesh;
 var dotMaterials;
 var dotSizes = [maze.minorWidth * 5, maze.minorWidth * 2];
 var dotSizesVR = [maze.minorWidth * 10/3, maze.minorWidth * 2/3];
+// breadcrumbs
+var breadcrumbs;
+var touchArbiter;
 
 var dust;
 var trail;
@@ -267,6 +268,29 @@ function loadSavedVariables()
     document.querySelector('#vr-setting-mirror').checked = vrMirrorEnabled;
 }
 
+function setupInputBindings() {
+    const canvas = renderer.domElement;
+
+    touchArbiter = new TouchArbiter(canvas, {
+        isEnabled: () => controls.isLocked
+    });
+
+    // Touches go to breadcrumbs first; if breadcrumbs yield, controls take over.
+    touchArbiter.registerHandler('breadcrumb', breadcrumbs.createTouchHandler({
+        camera,
+        getMazeData: () => mazeData
+    }));
+    touchArbiter.registerHandler('controls', controls.createTouchHandler());
+
+    touchArbiter.connect();
+
+    canvas.addEventListener('mousedown', (event) => {
+        if (event.button !== 0)
+            return;
+        breadcrumbs.handleBreadcrumbClick(camera, mazeData);
+    });
+}
+
 function init() {
 
     renderer = new THREE.WebGLRenderer( { antialias: true, powerPreference: "high-performance" } );
@@ -300,12 +324,14 @@ function init() {
 
     tmpColor = new THREE.Color();
 
+    wallHitGeometry = new THREE.InstancedBufferGeometry();
+    THREE.BufferGeometry.prototype.copy.call( wallHitGeometry, new THREE.BoxGeometry() );
+
     // load models
     blockGeometry = new THREE.InstancedBufferGeometry();
     THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxGeometry() );
     let loader = new GLTFLoader();
     wallGeometry = new THREE.InstancedBufferGeometry();
-    let arrowGeometry = new THREE.BufferGeometry();
 
     loader.load( 'models/wall.glb', function ( gltf ) {
         let modelWall = gltf.scene.getObjectByName('wall');
@@ -320,12 +346,22 @@ function init() {
 
     } );
 
+    loader.load( 'models/pointer.glb', function ( gltf ) {
+        let modelPointer = gltf.scene.getObjectByName('pointer');
+        breadcrumbs.setPointerGeometry(modelPointer.geometry);
+    }, undefined, function ( error ) {
+
+        console.error( error );
+
+    } );
+
     // load texture
     dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
 
     // materials
     wallMaterial = new THREE.MeshLambertMaterial( { vertexColors: true } );
     darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
+    basicMaterial = new THREE.MeshBasicMaterial();
 
     // set up lights
     let localLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
@@ -358,6 +394,7 @@ function init() {
     } );
     controls.addEventListener( 'unlock', function() {
         document.querySelector('#blocker').style.display = '';
+        touchArbiter?.clear();
 
         // determine if the pause menu should be shown
         if (!finishedMaze && !tutorialManager.inTutorial && menuManager.focusedMenu !== 'menu-rotate-phone')
@@ -431,6 +468,11 @@ function init() {
 
     tmpVector = new THREE.Vector3();
 
+    // breadcrumbs
+    breadcrumbs = new BreadcrumbManager();
+    breadcrumbs.addTo(scene);
+    setupInputBindings();
+
     // dust effect
     dust = new DustEffect({
         count: 2000,
@@ -446,7 +488,7 @@ function init() {
         count: 1000,
         map: dotSprite,
         size: window.innerHeight / 25,
-        collisionDistance: collisionDistance
+        collisionDistance: CameraCollisionDistance
     });
     trail.followObject(cameraNode);
     trail.addTo(scene);
@@ -655,6 +697,8 @@ function buildMaze(size=mazeSize) {
         }
     }
 
+    breadcrumbs.initializeMaze(mazeData);
+
     wallGeometry.setAttribute( 'color', new THREE.InstancedBufferAttribute( new Float32Array( wallColors ), 3 ) );
     let wallInstancedMesh = new THREE.InstancedMesh( wallGeometry, wallMaterial, wallMatrices.length );
     let i = 0;
@@ -668,55 +712,29 @@ function buildMaze(size=mazeSize) {
     blockMatrices.forEach((mat) => blockInstanceMesh.setMatrixAt( i++, mat ) );
     blockInstanceMesh.needsUpdate = true;
 
+    let wallHitInstanceMesh = new THREE.InstancedMesh( wallHitGeometry, basicMaterial, wallMatrices.length + blockMatrices.length );
+    i = 0;
+    wallMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
+    blockMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
+    wallHitInstanceMesh.needsUpdate = true;
+    wallHitInstanceMesh.layers.set(1);
+    wallHitInstanceMesh.userData.isMazeWallHitBox = true;
+
     mazeGroup.add( blockInstanceMesh );
+    mazeGroup.add( wallHitInstanceMesh );
 
     timerRunning = false;
 
 };
 
-const collisionDistance = 0.25;
-var axes = {x: 0, y: 1, z: 2};
-function checkCollisionOnAxis(majorAxis, othA0, othA1, mazePosRelevant, newMazePosRelevant, mazePosOther, sign) {
-    let min0 = Math.min(mazePosRelevant[othA0], mazePosOther[othA0]);
-    let max0 = Math.max(mazePosRelevant[othA0], mazePosOther[othA0]);
-    let min1 = Math.min(mazePosRelevant[othA1], mazePosOther[othA1]);
-    let max1 = Math.max(mazePosRelevant[othA1], mazePosOther[othA1]);
-
-    let collided = false;
-    let colAx = mazePosRelevant[majorAxis] + sign;
-    // solution for reading into maze xyz in correct order
-    let indices = Array(3);
-    indices[axes[majorAxis]] = colAx;
-    function getMazeData(idx0, idx1) {
-        indices[axes[othA0]] = idx0;
-        indices[axes[othA1]] = idx1;
-        return mazeData.collision_map[indices[0]][indices[1]][indices[2]];
-    }
-    // check for collisions on orthogonal axese
-    for (let i = Math.max(min0, 0); i <= Math.min(mazeData.bounds[axes[othA0]]*2, max0); i++) {
-        for (let j = Math.max(min1, 0); j <= Math.min(mazeData.bounds[axes[othA1]]*2, max1); j++) {
-            if (colAx >= 0 && colAx <= mazeData.bounds[axes[majorAxis]]*2 && getMazeData(i, j)) {
-                collided = true;
-                break;
-            }
-        }
-        if (collided)
-            break;
-    }
-    if (collided) {
-        cameraNode.position[majorAxis] = maze.getOffset(mazePosRelevant[majorAxis]+sign) - sign * (collisionDistance + maze.minorWidth/2);
-        newMazePosRelevant[majorAxis] = mazePosRelevant[majorAxis];
-    } else {
-        mazePosRelevant[majorAxis] += sign;
-    }
-};
+const CameraCollisionDistance = 0.25;
 function collisionUpdate() {
     let nearPos = new THREE.Vector3();
     nearPos.copy(cameraNode.position);
-    nearPos.addScalar(-collisionDistance);
+    nearPos.addScalar(-CameraCollisionDistance);
     let farPos = new THREE.Vector3();
     farPos.copy(cameraNode.position);
-    farPos.addScalar(collisionDistance);
+    farPos.addScalar(CameraCollisionDistance);
     let newMazePosNear = maze.getMazePos(nearPos);
     let newMazePosFar = maze.getMazePos(farPos);
 
@@ -749,24 +767,24 @@ function collisionUpdate() {
     // actual collision checking goes here
     if (newMazePosNear.distanceToSquared(mazePosNear) != 0) {
         if (newMazePosNear.x - mazePosNear.x < 0) {
-            checkCollisionOnAxis('x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1, cameraNode.position, CameraCollisionDistance);
         }
         if (newMazePosNear.y - mazePosNear.y < 0) {
-            checkCollisionOnAxis('y', 'x', 'z', mazePosNear, newMazePosNear, mazePosFar, -1);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', mazePosNear, newMazePosNear, mazePosFar, -1, cameraNode.position, CameraCollisionDistance);
         }
         if (newMazePosNear.z - mazePosNear.z < 0) {
-            checkCollisionOnAxis('z', 'y', 'x', mazePosNear, newMazePosNear, mazePosFar, -1);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', mazePosNear, newMazePosNear, mazePosFar, -1, cameraNode.position, CameraCollisionDistance);
         }
     }
     if (newMazePosFar.distanceToSquared(mazePosFar) != 0) {
         if (newMazePosFar.x - mazePosFar.x > 0) {
-            checkCollisionOnAxis('x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1, cameraNode.position, CameraCollisionDistance);
         }
         if (newMazePosFar.y - mazePosFar.y > 0) {
-            checkCollisionOnAxis('y', 'x', 'z', mazePosFar, newMazePosFar, mazePosNear, 1);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', mazePosFar, newMazePosFar, mazePosNear, 1, cameraNode.position, CameraCollisionDistance);
         }
         if (newMazePosFar.z - mazePosFar.z > 0) {
-            checkCollisionOnAxis('z', 'y', 'x', mazePosFar, newMazePosFar, mazePosNear, 1);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', mazePosFar, newMazePosFar, mazePosNear, 1, cameraNode.position, CameraCollisionDistance);
         }
     }
 
@@ -902,14 +920,19 @@ var animate = function () {
 
     collisionUpdate();
 
-    if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( cameraNode.position ) > (0.1 * collisionDistance)**2 )
+    // Update breadcrumb hover highlighting on non-mobile devices
+    if (!isMobile) {
+        breadcrumbs.updateHoveredBreadcrumb(camera);
+    }
+
+    if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( cameraNode.position ) > (0.1 * CameraCollisionDistance)**2 )
     {
         // add to history
         const newHistoryPosition = tmpVector.copy(cameraNode.position);
 
         let lastPos = historyPositions.length > 0 ? historyPositions[historyPositions.length - 1] : cameraNode.position;
         let distance = lastPos.distanceTo(newHistoryPosition);
-        let numPoints = Math.max(1, Math.ceil(distance / collisionDistance));
+        let numPoints = Math.max(1, Math.ceil(distance / CameraCollisionDistance));
 
         // in case of long distances (e.g. teleportation), interpolate points so the line doesn't look broken
         for (let i = 0; i < numPoints; i++) {

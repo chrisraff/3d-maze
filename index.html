@@ -161,12 +161,29 @@
                 padding: 5px;
             }
 
-            #compass-container {
+            #hud-container {
                 position: absolute;
                 top: env(safe-area-inset-top);
                 left: env(safe-area-inset-left);
+                display: flex;
+                align-items: center;
+            }
+
+            #compass-container {
                 animation-duration: 0.5s;
                 animation-iteration-count: 12;
+            }
+
+            #breadcrumb-container {
+                margin-left: 0.5em;
+
+                color: #ffffff;
+                font-family: Arial;
+                font-size: 44px;
+                text-shadow: 2px 2px 4px #000000;
+            }
+            body.formfactor-non-desktop #breadcrumb-container {
+                font-size: 32px;
             }
 
             #rotation-hint-frame {
@@ -412,7 +429,10 @@
             }
         </script>
 
-        <div id="compass-container" class="xr-non-vr"></div>
+        <div id="hud-container" class="xr-non-vr">
+            <div id="compass-container"></div>
+            <div id="breadcrumb-container"></div>
+        </div>
 
         <div id="touch-tutorial-move" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>

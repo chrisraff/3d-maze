@@ -148,65 +148,102 @@ var FlyPointerLockControls = function ( object, domElement ) {
         }
     }
 
-    function onTouchStart( event ) {
-        if ( scope.isLocked === false ) return;
+    this.beginPanTouch = function(identifier, clientX, clientY) {
+        if (scope.isLocked === false) {
+            return false;
+        }
 
-        event.preventDefault();
+        if (panTouchDragging && panTouchIdentifier !== identifier) {
+            return false;
+        }
 
-        for (let i = 0; i < event.changedTouches.length; i++) {
-            let t = event.changedTouches[i];
-            if (t.clientX >= touchDOM.clientWidth / 2 && !panTouchDragging && (!moveTouchDragging || moveTouchIdentifier != t.identifier)) {
-                panTouchDragging = true;
+        if (moveTouchDragging && moveTouchIdentifier === identifier) {
+            return false;
+        }
 
-                panLastTouchX = t.clientX;
-                panLastTouchY = t.clientY;
-                panTouchIdentifier = t.identifier;
-            } else if (!moveTouchDragging && (!panTouchDragging || panTouchIdentifier != t.identifier)) {
-                moveTouchDragging = true;
-                moveStartX = t.clientX;
-                moveStartY = t.clientY;
-                moveTouchIdentifier = t.identifier;
-            }
+        panTouchDragging = true;
+        panTouchIdentifier = identifier;
+        panLastTouchX = clientX;
+        panLastTouchY = clientY;
+        return true;
+    }
+
+    this.beginMoveTouch = function(identifier, clientX, clientY) {
+        if (scope.isLocked === false) {
+            return false;
+        }
+
+        if (moveTouchDragging && moveTouchIdentifier !== identifier) {
+            return false;
+        }
+
+        if (panTouchDragging && panTouchIdentifier === identifier) {
+            return false;
+        }
+
+        moveTouchDragging = true;
+        moveTouchIdentifier = identifier;
+        moveStartX = clientX;
+        moveStartY = clientY;
+        moveLastX = clientX;
+        moveLastY = clientY;
+        return true;
+    }
+
+    this.updateTouch = function(identifier, clientX, clientY) {
+        if (scope.isLocked === false) {
+            return;
+        }
+
+        if (identifier === panTouchIdentifier && panTouchDragging) {
+            let movementX = clientX - panLastTouchX;
+            let movementY = clientY - panLastTouchY;
+
+            panLastTouchX = clientX;
+            panLastTouchY = clientY;
+
+            scope.tmpVector.set( - movementY, - movementX, 0 );
+            scope.applyRotation( scope.tmpVector, 0.006 );
+            scope.dispatchEvent( changeEvent );
+        } else if (identifier === moveTouchIdentifier && moveTouchDragging) {
+            moveLastX = clientX;
+            moveLastY = clientY;
         }
     }
 
-    function onTouchEnd( event ) {
-        event.preventDefault();
-
-        for (let i = 0; i < event.changedTouches.length; i++) {
-            let t = event.changedTouches[i];
-            if (t.identifier == panTouchIdentifier && panTouchDragging) {
-                panTouchDragging = false;
-            } else if (t.identifier == moveTouchIdentifier && moveTouchDragging) {
-                moveTouchDragging = false;
-            }
+    this.endTouch = function(identifier) {
+        if (identifier === panTouchIdentifier && panTouchDragging) {
+            panTouchDragging = false;
+        } else if (identifier === moveTouchIdentifier && moveTouchDragging) {
+            moveTouchDragging = false;
         }
     }
 
-    function onTouchMove( event ) {
-        if ( scope.isLocked === false ) return;
+    this.createTouchHandler = function() {
+        const handler = {
+            onTouchStart: (session, touch) => {
+                const usePan = session.startX >= scope.domElement.clientWidth / 2;
+                if (usePan)
+                    scope.beginPanTouch(touch.identifier, session.startX, session.startY);
+                else
+                    scope.beginMoveTouch(touch.identifier, session.startX, session.startY);
 
-        event.preventDefault();
-
-        for (let i = 0; i < event.touches.length; i++) {
-            let t = event.touches[i];
-            if (t.identifier == panTouchIdentifier && panTouchDragging) {
-                let movementX = (t.clientX - panLastTouchX) || event.mozMovementX || event.webkitMovementX || 0;
-                let movementY = (t.clientY - panLastTouchY) || event.mozMovementY || event.webkitMovementY || 0;
-
-                panLastTouchX = t.clientX;
-                panLastTouchY = t.clientY;
-
-                scope.tmpVector.set( - movementY, - movementX, 0 );
-
-                scope.applyRotation( scope.tmpVector, 0.006 );
-
-                scope.dispatchEvent( changeEvent );
-            } else if (t.identifier == moveTouchIdentifier && moveTouchDragging) {
-                moveLastX = t.clientX;
-                moveLastY = t.clientY;
+                scope.updateTouch(touch.identifier, touch.clientX, touch.clientY);
+            },
+            onTouchAdopt: (session, touch) => {
+                handler.onTouchStart(session, touch);
+            },
+            onTouchMove: (_session, touch) => {
+                scope.updateTouch(touch.identifier, touch.clientX, touch.clientY);
+            },
+            onTouchEnd: (_session, touch) => {
+                scope.endTouch(touch.identifier);
+            },
+            onTouchCancel: (_session, touch) => {
+                scope.endTouch(touch.identifier);
             }
-        }
+        };
+        return handler;
     }
 
     function onPointerlockChange() {
@@ -260,10 +297,6 @@ var FlyPointerLockControls = function ( object, domElement ) {
         scope.domElement.ownerDocument.addEventListener( 'pointerlockerror', onPointerlockError, false);
 
         touchDOM = scope.domElement.ownerDocument.getElementById('mainCanvas');
-        touchDOM.addEventListener( 'touchstart', onTouchStart, false);
-        touchDOM.addEventListener( 'touchmove', onTouchMove, false);
-        touchDOM.addEventListener( 'touchend', onTouchEnd, false);
-        touchDOM.addEventListener( 'touchcancel', onTouchEnd, false);
 
         let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
         exitDOM.addEventListener( 'touchstart', scope.disableLock , false );
@@ -275,11 +308,6 @@ var FlyPointerLockControls = function ( object, domElement ) {
         scope.domElement.ownerDocument.removeEventListener( 'mousemove', onMouseMove, false );
         scope.domElement.ownerDocument.removeEventListener( 'pointerlockchange', onPointerlockChange, false );
         scope.domElement.ownerDocument.removeEventListener( 'pointerlockerror', onPointerlockError, false );
-
-        touchDOM.removeEventListener( 'touchstart', onTouchStart, false);
-        touchDOM.removeEventListener( 'touchmove', onTouchMove, false);
-        touchDOM.removeEventListener( 'touchend', onTouchEnd, false);
-        touchDOM.removeEventListener( 'touchcancel', onTouchEnd, false);
 
         let exitDOM = scope.domElement.ownerDocument.getElementById('completionMessage');
         exitDOM.removeEventListener( 'touchstart', scope.disableLock , false );
