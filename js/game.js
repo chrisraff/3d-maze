@@ -37,6 +37,8 @@ var cameraNode;
 var cameraCompensationNode;
 var camera;
 
+var spectator;
+
 var tmpColor;
 
 const PI_2 = Math.PI / 2;
@@ -49,6 +51,7 @@ var arrowMesh;
 
 // vr state
 var vrManager;
+var vrMirrorEnabled = false;
 
 // materials
 var dotSprite;
@@ -258,6 +261,10 @@ function loadSavedVariables()
     const vrRotationSpeed = Number(storageGetItem('vr-setting-rotation-speed', '0'));
     vrManager.rotationSpeed = Math.pow(3, vrRotationSpeed);
     document.querySelector('#vr-setting-rotation-speed').value = vrRotationSpeed;
+
+    const vrMirroringDefault = getVrDeviceType() === 'vr-device-enabled' ? 'true' : 'false';
+    vrMirrorEnabled = storageGetItem('vr-setting-mirror', vrMirroringDefault) === 'true';
+    document.querySelector('#vr-setting-mirror').checked = vrMirrorEnabled;
 }
 
 function init() {
@@ -287,6 +294,9 @@ function init() {
     cameraCompensationNode = new THREE.Object3D();
     cameraNode.add( cameraCompensationNode );
     cameraCompensationNode.add( camera );
+
+    spectator = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+    cameraCompensationNode.add( spectator );
 
     tmpColor = new THREE.Color();
 
@@ -922,7 +932,31 @@ var animate = function () {
 
     renderer.render( scene, camera );
     compassManager.render();
+
+    if (renderer.xr.isPresenting && vrMirrorEnabled) {
+        mirrorRender();
+    }
 };
+
+function mirrorRender() {
+    // Copy the camera's position and rotation
+    const xrCam = camera;
+    spectator.position.copy(xrCam.position);
+    spectator.quaternion.copy(xrCam.quaternion);
+    spectator.aspect = window.innerWidth / window.innerHeight;
+
+    // turn off the WebXR rendering
+    const currentRenderTarget = renderer.getRenderTarget();
+    renderer.xr.isPresenting = false;
+
+    // render to the main display canvas
+    renderer.setRenderTarget(null);
+    renderer.render(scene, spectator);
+
+    // restore to WebXR render target
+    renderer.setRenderTarget(currentRenderTarget);
+    renderer.xr.isPresenting = true;
+}
 
 init();
 
@@ -1015,6 +1049,11 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
 
 document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
     controls.setGimbalLocked( event.target.checked );
+});
+
+document.querySelector('#vr-setting-mirror').addEventListener('change', (event) => {
+    storageSetItem('vr-setting-mirror', event.target.checked ? 'true' : 'false');
+    vrMirrorEnabled = event.target.checked;
 });
 
 document.querySelectorAll('.menu-radio-button').forEach((el) => {
