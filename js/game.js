@@ -9,11 +9,11 @@ import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
 import TrailEffect from './trail.js';
-import sampleUniformSphere from './sampleUniformSphere.js';
 import CompassManager from './compassManagager.js';
 import VRManager from './VRManager.js';
 import TutorialManager from './TutorialManager.js';
 import MenuManager from './MenuManager.js';
+import GoalDotEffect from './goalDots.js';
 
 // webpage objects
 
@@ -63,12 +63,7 @@ var darkMaterial;
 var controls;
 
 // goal particles
-var dotsPerGroup = 20;
-var dotGroup;
-var dotRotationAxes;
-
-var dotTmpQuaternion;
-var dotRotationAnim;
+var goalDots;
 
 var lastTrailCameraPosition;
 
@@ -93,10 +88,6 @@ var historyPositions;
 var	historyLineMaterial;
 var historyLine;
 var historyMesh;
-// dots
-var dotMaterials;
-var dotSizes = [maze.minorWidth * 4, maze.minorWidth * 1.5];
-var dotSizesVR = [maze.minorWidth * 5, maze.minorWidth * 2];
 
 var dust;
 var trail;
@@ -106,92 +97,6 @@ var dustSizeVR = 0.0075;
 
 var tutorialManager;
 
-function dotGroupRandomize() {
-
-    dotRotationAnim = 0;
-
-    const mat = new THREE.Matrix4();
-
-    for ( let i = 0; i < 2; i++ ) {
-
-        const mesh = dotGroup.children[i];
-
-        for (let k = 0; k < dotsPerGroup; k++) {
-
-            tmpColor.setHSL( Math.random(), 1.0, 0.75 );
-            mesh.setColorAt( k, tmpColor );
-
-            const p = sampleUniformSphere();
-            mat.makeTranslation( p[0], p[1], p[2] );
-            mesh.setMatrixAt( k, mat );
-
-        }
-
-        mesh.instanceMatrix.needsUpdate = true;
-        mesh.instanceColor.needsUpdate = true;
-
-    }
-
-};
-
-function makeDotMaterial( size, sprite ) {
-
-    return new THREE.ShaderMaterial({
-        uniforms: {
-            map:    { value: sprite },
-            u_size: { value: size },
-        },
-        vertexShader: `
-            #include <common>
-            #include <color_pars_vertex>
-            #include <logdepthbuf_pars_vertex>
-
-            uniform float u_size;
-            varying vec2 vUv;
-
-            void main() {
-                vUv = uv;
-                #include <color_vertex>
-
-                #ifdef USE_INSTANCING
-                    vec4 worldCenter = modelMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
-                #else
-                    vec4 worldCenter = modelMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
-                #endif
-
-                // viewpoint-oriented billboard: each quad's normal points at the camera
-                vec3 toCamera = normalize( cameraPosition - worldCenter.xyz );
-                vec3 right    = normalize( cross( vec3( 0.0, 1.0, 0.0 ), toCamera ) );
-                vec3 up       = cross( toCamera, right );
-
-                vec3 worldPos = worldCenter.xyz
-                              + right * position.x * u_size
-                              + up    * position.y * u_size;
-
-                gl_Position = projectionMatrix * viewMatrix * vec4( worldPos, 1.0 );
-                #include <logdepthbuf_vertex>
-            }
-        `,
-        fragmentShader: `
-            #include <common>
-            #include <color_pars_fragment>
-            #include <logdepthbuf_pars_fragment>
-
-            uniform sampler2D map;
-            varying vec2 vUv;
-
-            void main() {
-                vec4 texel = texture2D( map, vUv );
-                if ( texel.a < 0.8 ) discard;
-                gl_FragColor = vec4( vColor * texel.rgb, texel.a );
-                #include <logdepthbuf_fragment>
-            }
-        `,
-        transparent: true,
-        depthWrite: true,
-    });
-
-};
 
 function loadSavedVariables()
 {
@@ -447,27 +352,13 @@ function init() {
     }
 
     // goal particles
-    dotGroup = new THREE.Group();
-    dotRotationAxes = [
-        new THREE.Vector3(0.75, 0, 0.5).normalize(),
-        new THREE.Vector3(0.75, 1, 0.5).normalize()
-    ];
-    const dotPlaneGeom = new THREE.PlaneGeometry( 1, 1 );
-    dotMaterials = [
-        makeDotMaterial( dotSizes[0], dotSprite ),
-        makeDotMaterial( dotSizes[1], dotSprite ),
-    ];
-    const dots = [
-        new THREE.InstancedMesh( dotPlaneGeom, dotMaterials[0], dotsPerGroup ),
-        new THREE.InstancedMesh( dotPlaneGeom, dotMaterials[1], dotsPerGroup ),
-    ];
-    dots[0].frustumCulled = false;
-    dots[1].frustumCulled = false;
-    dotGroup.add( ...dots );
-    dotTmpQuaternion = new THREE.Quaternion();
-    dotRotationAnim = 0;
-
-    scene.add( dotGroup );
+    goalDots = new GoalDotEffect({
+        count:    20,
+        map:      dotSprite,
+        sizes:    [ maze.minorWidth * 4, maze.minorWidth * 1.5 ],
+        sizesVR:  [ maze.minorWidth * 5, maze.minorWidth * 2   ],
+    });
+    goalDots.addTo( scene );
 
     tmpVector = new THREE.Vector3();
 
@@ -509,8 +400,7 @@ function init() {
     renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);
         dust._material.size = dustSizeVR;
-        dotMaterials[0].uniforms.u_size.value = dotSizesVR[0];
-        dotMaterials[1].uniforms.u_size.value = dotSizesVR[1];
+        goalDots.setVR( true );
 
         tutorialManager.useAnimations = false;
         tutorialManager.setTutorialType('vr');
@@ -520,8 +410,7 @@ function init() {
         controls.setXRPresenting(false);
         controls.disableLock(new Event(''));
         dust._material.size = dustSize;
-        dotMaterials[0].uniforms.u_size.value = dotSizes[0];
-        dotMaterials[1].uniforms.u_size.value = dotSizes[1];
+        goalDots.setVR( false );
         tutorialManager.useAnimations = true;
         tutorialManager.setTutorialType('intro');
         onWindowResize();
@@ -611,8 +500,8 @@ function buildMaze(size=mazeSize) {
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
     compassManager.setEndPos( endPos );
 
-    dotGroup.position.copy( endPos );
-    dotGroupRandomize();
+    goalDots.setPosition( endPos );
+    goalDots.randomize();
 
     // set the camera in front of the maze, looking in
     cameraNode.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
@@ -826,6 +715,7 @@ function collisionUpdate() {
 function onMazeCompletion()
 {
     finishedMaze = true;
+    goalDots.finish();
     document.querySelector('#completionMessage').style.display = '';
 
     // switch menu screens
@@ -960,15 +850,7 @@ var animate = function () {
         }
     }
 
-    // make the goal dots spin
-    if (finishedMaze && dotRotationAnim < 1) {
-        dotRotationAnim = Math.min(dotRotationAnim + delta*2, 1);
-    }
-    for (let i = 0; i < dotGroup.children.length; i++) {
-        let mesh = dotGroup.children[i];
-        dotTmpQuaternion.setFromAxisAngle( dotRotationAxes[i], (2.2 + i*0.4) * delta * (0.1 + dotRotationAnim * 0.9) );
-        mesh.applyQuaternion( dotTmpQuaternion );
-    }
+    goalDots.update( delta );
 
     renderer.render( scene, camera );
     compassManager.render();
