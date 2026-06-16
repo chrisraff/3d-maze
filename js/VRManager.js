@@ -48,6 +48,14 @@ export default class VRManager extends EventTarget {
         this.cameraCompensationNode.add(this.controller1);
         this.cameraCompensationNode.add(this.controller2);
 
+        // Grip-space controller objects: track the controller's actual held pose
+        // (unlike the ray-space objects above, which WebXR may offset/angle for pointing).
+        // Used for hand position tracking and hand-driven orientation.
+        this.controllerGrip1 = this.renderer.xr.getControllerGrip(0);
+        this.controllerGrip2 = this.renderer.xr.getControllerGrip(1);
+        this.cameraCompensationNode.add(this.controllerGrip1);
+        this.cameraCompensationNode.add(this.controllerGrip2);
+
         this.controller1.addEventListener('connected', (event) => {
             this.setupController(event, this.controller1);
         });
@@ -101,6 +109,10 @@ export default class VRManager extends EventTarget {
         this.pointerObject.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
         this.pointerObject.visible = false;
 
+        // hand position sprites: show where each hand is in space (grip-space, not ray-space)
+        this.leftHandSprite = this._createHandSprite();
+        this.rightHandSprite = this._createHandSprite();
+
         this.uiUv = new THREE.Vector2();
         this.uiInteractingElement = null;
         this.uiInteractingDetails = {};
@@ -131,6 +143,7 @@ export default class VRManager extends EventTarget {
         if (!controllerSuper) return;
 
         controllerSuper.object = controller;
+        controllerSuper.gripObject = controller === this.controller1 ? this.controllerGrip1 : this.controllerGrip2;
         controllerSuper.inputSource = event.data;
 
         if (this.vrRightController.isValid() || this.vrLeftController.isValid()) {
@@ -283,6 +296,8 @@ export default class VRManager extends EventTarget {
         this.uiMesh.renderOrder = 999;
         this.cameraCompensationNode.add(this.uiMesh);
         this.scene.add(this.pointerObject);
+        this.scene.add(this.leftHandSprite);
+        this.scene.add(this.rightHandSprite);
         this.uiClickState = false;
 
         document.querySelectorAll('.xr-non-vr').forEach((element) => {
@@ -304,6 +319,8 @@ export default class VRManager extends EventTarget {
         this.cameraCompensationNode.remove(this.uiMesh);
         this.uiMesh = null;
         this.scene.remove(this.pointerObject);
+        this.scene.remove(this.leftHandSprite);
+        this.scene.remove(this.rightHandSprite);
         this.blackoutPlane.visible = false;
 
         document.querySelectorAll('.xr-vr').forEach(element => element.style.display = 'none');
@@ -328,6 +345,37 @@ export default class VRManager extends EventTarget {
             this.pointerObject.position.copy(this.tmpVector);
 
             this.pointerObject.visible = true;
+        }
+    }
+
+    _createHandSprite() {
+        const sprite = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
+            map: this.dotSprite,
+            size: 0.02,
+            color: 0xffffff,
+            opacity: 0.8,
+            transparent: true,
+        }));
+        sprite.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+        sprite.visible = false;
+        return sprite;
+    }
+
+    _updateHandSprites() {
+        const pairs = [
+            { controller: this.vrLeftController, sprite: this.leftHandSprite },
+            { controller: this.vrRightController, sprite: this.rightHandSprite },
+        ];
+
+        for (const { controller, sprite } of pairs) {
+            if (!controller.isValid() || !controller.gripObject) {
+                sprite.visible = false;
+                continue;
+            }
+
+            controller.gripObject.getWorldPosition(this.tmpVector);
+            sprite.position.copy(this.tmpVector);
+            sprite.visible = true;
         }
     }
 
@@ -394,6 +442,7 @@ export default class VRManager extends EventTarget {
         this.vrLeftController.update();
         this.vrRightController.update();
         this._updateControllerLines();
+        this._updateHandSprites();
 
         // in vr, compensate for user movement by updating the compensation node to put the head at the camera node position
         this.lastVrCameraPosition.copy(this.newVrCameraPosition);
@@ -643,6 +692,7 @@ class Controller extends EventTarget {
 
     reset() {
         this.object = null;
+        this.gripObject = null;
         this.inputSource = null;
 
         this.buttonsPressed = {};
