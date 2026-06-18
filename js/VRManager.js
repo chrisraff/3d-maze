@@ -240,6 +240,12 @@ export default class VRManager extends EventTarget {
             } else if (event.inputSource.targetRayMode === 'gaze') {
                 this.lastGazeSelectTime = Date.now();
                 this.isGazeSelectingFromGame = true;
+            } else {
+                // non-gaze controller select in game mode → breadcrumb placement toggle
+                const controller = this.controllers.find(c => c.inputSource === event.inputSource);
+                if (controller?.gripObject) {
+                    this.dispatchEvent(new CustomEvent('vrSelectInGame', { detail: { gripObject: controller.gripObject } }));
+                }
             }
         });
 
