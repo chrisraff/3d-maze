@@ -276,11 +276,29 @@ export default class VRManager extends EventTarget {
         this.cameraNode.scale.set(1.5, 1.5, 1.5);
         this.camera.near = 0.001;
 
+        // Target a known-good physical panel size (0.8m × 0.6m in local space,
+        // ×1.5 world scale = 1.2m × 0.9m at 2.25m). HTMLMesh sizes its geometry
+        // as offsetWidth*0.001 × offsetHeight*0.001 m, so we want 800×600 px.
+        // If the viewport is smaller, scale the DOM down proportionally so
+        // elementFromPoint stays in bounds, then compensate with mesh scale so
+        // the physical panel stays the same size (at the cost of blurrier text).
+        const VR_UI_TARGET_WIDTH = 800;
+        const VR_UI_TARGET_HEIGHT = 600;
+        const domScale = Math.min(1,
+            window.innerWidth / VR_UI_TARGET_WIDTH,
+            window.innerHeight / VR_UI_TARGET_HEIGHT
+        );
+        this.uiDom.style.width = Math.round(VR_UI_TARGET_WIDTH * domScale) + 'px';
+        this.uiDom.style.height = Math.round(VR_UI_TARGET_HEIGHT * domScale) + 'px';
+
         this.uiMesh = new HTMLMesh(this.uiDom);
         this.uiMesh.position.set(0, 0, -1.5);
         // always draw the ui on top (but behind pointer)
         this.uiMesh.material.depthTest = false;
         this.uiMesh.renderOrder = 999;
+        // compensate mesh scale so physical size matches the target regardless of domScale
+        const meshScale = 1.6 / domScale;
+        this.uiMesh.scale.set(meshScale, meshScale, 1);
         this.cameraCompensationNode.add(this.uiMesh);
         this.scene.add(this.pointerObject);
         this.uiClickState = false;
@@ -299,6 +317,9 @@ export default class VRManager extends EventTarget {
         this.reset();
         this.cameraNode.scale.set(1, 1, 1);
         this.camera.near = 0.1;
+
+        this.uiDom.style.width = '';
+        this.uiDom.style.height = '';
 
         this.uiMesh.dispose();
         this.cameraCompensationNode.remove(this.uiMesh);

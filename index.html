@@ -43,6 +43,8 @@
 
                 -webkit-user-select: none;
                 user-select: none;
+
+                container-type: inline-size;
             }
             #overlay > * {
                 pointer-events: initial;
@@ -243,9 +245,10 @@
                 width: 100%;
                 pointer-events: none;
                 color: white;
+                white-space: nowrap;
 
                 font-family: Arial;
-                font-size: 25pt;
+                font-size: min(25pt, 3.2cqi);
 
                 animation-duration: 0.5s;
                 animation-iteration-count: 1;
