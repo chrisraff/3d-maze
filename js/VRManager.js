@@ -136,15 +136,11 @@ export default class VRManager extends EventTarget {
         if (this.vrRightController.isValid() || this.vrLeftController.isValid()) {
             this.setUiInteractor(false, this.vrRightController.isValid() ? this.vrRightController : this.vrLeftController);
             this.isUsingGazeControls = false;
-            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = '');
-            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = 'none');
+            this.updateControlSchemeDisplay();
         } else if (this.vrGazeController.isValid()) {
             this.setUiInteractor(false, this.vrGazeController);
-
             this.isUsingGazeControls = true;
-
-            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = 'none');
-            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = '');
+            this.updateControlSchemeDisplay();
         }
     }
 
@@ -612,6 +608,12 @@ export default class VRManager extends EventTarget {
             this.uiIsMouseControlled = false;
             this.uiCurrentController = controller;
         }
+    }
+
+    updateControlSchemeDisplay() {
+        const gaze = this.isUsingGazeControls;
+        document.querySelectorAll('.vr-controls-controllers').forEach(el => el.style.display = gaze ? 'none' : '');
+        document.querySelectorAll('.vr-controls-gaze').forEach(el => el.style.display = gaze ? '' : 'none');
     }
 
     /**

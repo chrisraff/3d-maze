@@ -179,6 +179,7 @@ function loadSavedVariables()
             setup: {
                 0: (tutorialData) => {
                     tutorialData.cameraPos = cameraNode.position.clone();
+                    vrManager.updateControlSchemeDisplay();
                 },
                 1: (tutorialData) => {
                     tutorialData.lastLoggedTime = Date.now();
@@ -403,6 +404,7 @@ function init() {
         goalDots.setVR( true );
 
         tutorialManager.useAnimations = false;
+        tutorialManager.showTutorials['vr'] = true;
         tutorialManager.setTutorialType('vr');
     });
 
@@ -953,7 +955,7 @@ function menuLockControls()
     if (!isMobile || isValidMobileAspectRatio())
         controls.lock();
 
-    if (tutorialManager && tutorialManager.showTutorial && !tutorialManager.inTutorial) {
+    if (tutorialManager && !tutorialManager.inTutorial) {
         tutorialManager.startTutorial();
     }
 
