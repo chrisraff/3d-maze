@@ -474,8 +474,11 @@ function init() {
         button.addEventListener('click', () => {
             if (vrDeviceType === 'vr-device-first' && !renderer.xr.isPresenting) {
                 vrManager.toggleVR();
+                // Defer until after sessionstart, which allows vr tutorial to initialize correctly.
+                renderer.xr.addEventListener('sessionstart', () => menuLockControls(), { once: true });
+            } else {
+                menuLockControls();
             }
-            menuLockControls();
         });
     });
 
