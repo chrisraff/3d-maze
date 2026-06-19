@@ -82,7 +82,7 @@ export default class VRManager extends EventTarget {
         this.setupGamepadListeners();
 
         // Create VR button
-        new VRButtonManager(this.renderer);
+        this.vrButtonManager = new VRButtonManager(this.renderer);
 
         // UI state
         this.uiInteractionEnabled = true;
@@ -571,6 +571,10 @@ export default class VRManager extends EventTarget {
      */
     getButton() {
         return this.vrButton;
+    }
+
+    toggleVR() {
+        this.vrButtonManager.onButtonClicked();
     }
 
     /**

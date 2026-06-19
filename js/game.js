@@ -420,13 +420,13 @@ function init() {
     });
 
     // setup vr ui elements
-    const vrType = getVrDeviceType();
+    const vrDeviceType = getVrDeviceType();
     for (const type of ['vr-device-first', 'vr-device-enabled', 'vr-device-last']) {
         document.querySelectorAll(`.${type}`).forEach((el) => {
             el.style.display = 'none';
         });
     }
-    document.querySelectorAll(`.${vrType}`).forEach((el) => {
+    document.querySelectorAll(`.${vrDeviceType}`).forEach((el) => {
         el.style.display = '';
     });
 
@@ -472,6 +472,9 @@ function init() {
     });
     document.querySelectorAll('.button-play').forEach((button) => {
         button.addEventListener('click', () => {
+            if (vrDeviceType === 'vr-device-first' && !renderer.xr.isPresenting) {
+                vrManager.toggleVR();
+            }
             menuLockControls();
         });
     });
