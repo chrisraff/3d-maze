@@ -273,6 +273,7 @@ export default class VRManager extends EventTarget {
             this.cameraCompensationNode.position.copy(this.camera.position).multiplyScalar(-1);
             this.newVrCameraPosition.copy(this.camera.position);
             this.calibrated = true;
+            this.recenterUI();
         }, 1000);
 
         this.cameraNode.scale.set(1.5, 1.5, 1.5);
