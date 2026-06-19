@@ -33,6 +33,8 @@ export default class VRManager extends EventTarget {
         this.isUsingGazeControls = false;
         this.lastGazeSelectTime = 0;
         this.isGazeSelectingFromGame = false;
+        this.gazeHoldTimeout = null;
+        this.gazeHoldFired = false;
 
         this.rayCaster = new THREE.Raycaster();
         this.rayPosition = new THREE.Vector3();
@@ -223,6 +225,12 @@ export default class VRManager extends EventTarget {
             } else if (event.inputSource.targetRayMode === 'gaze') {
                 this.lastGazeSelectTime = Date.now();
                 this.isGazeSelectingFromGame = true;
+                this.gazeHoldFired = false;
+                this.gazeHoldTimeout = setTimeout(() => {
+                    this.gazeHoldFired = true;
+                    this.isGazeSelectingFromGame = false;
+                    this.dispatchEvent(new CustomEvent('pause'));
+                }, 500);
             }
         });
 
@@ -236,22 +244,20 @@ export default class VRManager extends EventTarget {
 
             // handle gaze input in game mode
             } else if (event.inputSource.targetRayMode === 'gaze') {
+                clearTimeout(this.gazeHoldTimeout);
+
                 if (!this.isGazeSelectingFromGame)
                     return;
 
                 this.isGazeSelectingFromGame = false;
 
-                if (Date.now() - this.lastGazeSelectTime > 500) {
-                    this.dispatchEvent(new CustomEvent('pause'));
-                } else {
-                    // use short selections as forward motion
+                if (!this.gazeHoldFired) {
+                    // short press: use as forward motion
                     this.moveVector.set(0, 0, -1);
                     this.moveVector.applyQuaternion(this.camera.quaternion);
                     this.moveVector.applyQuaternion(this.cameraCompensationNode.quaternion);
 
                     setTimeout(() => {
-                        console.log(this)
-                        // stop movement after a short time
                         this.moveVector.set(0, 0, 0);
                     }, 50);
                 }
