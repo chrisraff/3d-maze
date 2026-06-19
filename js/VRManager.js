@@ -542,18 +542,8 @@ export default class VRManager extends EventTarget {
         cameraXZLook.projectOnPlane(new THREE.Vector3(0, 1, 0));
         cameraXZLook.normalize();
         cameraToUi.normalize();
-        if (cameraXZLook.dot(cameraToUi) < 0.5 || distanceToUi2 > 9) {
-            // set the ui position to be in front of the camera
-            this.uiMesh.position.copy(cameraXZLook);
-            this.uiMesh.position.multiplyScalar(1.5);
-            this.uiMesh.position.add(this.camera.position);
-
-            // make the ui face the camera
-            cameraToUi.copy(this.uiMesh.position);
-            cameraToUi.sub(cameraXZLook);
-            cameraToUi.applyQuaternion(this.cameraCompensationNode.quaternion).add(this.cameraCompensationNode.position);
-            cameraToUi.applyQuaternion(this.cameraNode.quaternion).add(this.cameraNode.position);
-            this.uiMesh.lookAt(cameraToUi);
+        if (cameraXZLook.dot(cameraToUi) < 0.75 || distanceToUi2 > 9) {
+            this.recenterUI();
         }
 
         // teleport effect
@@ -589,6 +579,28 @@ export default class VRManager extends EventTarget {
      */
     isPresenting() {
         return this.renderer.xr.isPresenting;
+    }
+
+    recenterUI() {
+        if (!this.renderer.xr.isPresenting || !this.uiMesh || !this.calibrated) {
+            return;
+        }
+
+        const cameraXZLook = this.tmpVector2.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+        cameraXZLook.projectOnPlane(new THREE.Vector3(0, 1, 0));
+        cameraXZLook.normalize();
+
+        // set the ui position to be in front of the camera
+        this.uiMesh.position.copy(cameraXZLook);
+        this.uiMesh.position.multiplyScalar(1.5);
+        this.uiMesh.position.add(this.camera.position);
+
+        // make the ui face the camera
+        const cameraToUi = this.tmpVector.copy(this.uiMesh.position);
+        cameraToUi.sub(cameraXZLook);
+        cameraToUi.applyQuaternion(this.cameraCompensationNode.quaternion).add(this.cameraCompensationNode.position);
+        cameraToUi.applyQuaternion(this.cameraNode.quaternion).add(this.cameraNode.position);
+        this.uiMesh.lookAt(cameraToUi);
     }
 
     setUiInteraction(enabled) {

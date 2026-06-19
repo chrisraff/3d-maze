@@ -329,6 +329,7 @@ function init() {
         updateMenuCentering();
 
         vrManager.setUiInteraction(true);
+        vrManager.recenterUI();
     } );
     // P key listener
     document.addEventListener('keydown', (event) => {
@@ -721,6 +722,7 @@ function onMazeCompletion()
     document.querySelector('#completionMessage').style.display = '';
 
     // switch menu screens
+    vrManager.recenterUI();
     menuManager.focusRootMenu('menu-new-maze');
 
     let seconds = ( (Date.now() - timerStartMillis) / 1000).toFixed(2);
