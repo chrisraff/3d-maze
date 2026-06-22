@@ -266,6 +266,8 @@ export default class VRManager extends EventTarget {
     }
 
     onXRSessionStart() {
+        gtag('event', 'vr_session_start', { 'event_category': '3d-maze' });
+
         const session = this.renderer.xr.getSession();
 
         // let the session start and the camera update to the initial position before doing the compensation, or else the compensation will be wrong
