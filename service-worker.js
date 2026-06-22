@@ -1,7 +1,7 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v18';
+const CACHE_NAME = 'static-cache-v19';
 const THIRD_PARTY_CACHE = 'third-party-cache-v6';
 
 const FILES_TO_CACHE = [
@@ -13,6 +13,15 @@ const FILES_TO_CACHE = [
     '/js/storage.js',
     '/js/detectmobilebrowser.js',
     '/js/THREE.MeshLine.js',
+    '/js/compassManagager.js',
+    '/js/sampleUniformSphere.js',
+    '/js/dust.js',
+    '/js/MenuManager.js',
+    '/js/trail.js',
+    '/js/VRButtonManager.js',
+    '/js/goalDots.js',
+    '/js/TutorialManager.js',
+    '/js/VRManager.js',
     '/models/wall.glb',
     '/models/arrow.glb',
     '/textures/dot.png',
