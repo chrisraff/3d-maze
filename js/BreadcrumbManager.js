@@ -418,8 +418,10 @@ export default class BreadcrumbManager {
         // Create a plane in front of the camera to raycast against
         const planeNormal = new THREE.Vector3();
         camera.getWorldDirection(planeNormal);
+        const cameraWorldPos = new THREE.Vector3();
+        camera.getWorldPosition(cameraWorldPos);
         const planePoint = new THREE.Vector3();
-        planePoint.copy(camera.position).addScaledVector(planeNormal, maze.majorWidth * 0.33);
+        planePoint.copy(cameraWorldPos).addScaledVector(planeNormal, maze.majorWidth * 0.33);
         const plane = new THREE.Plane(planeNormal, -planeNormal.dot(planePoint));
 
         const intersection = new THREE.Vector3();
@@ -431,7 +433,7 @@ export default class BreadcrumbManager {
         const breadcrumbMazePosFar = maze.getMazePos(tmpVector);
         tmpVector.addScalar(-2*maze.minorWidth);
         const breadcrumbMazePosNear = maze.getMazePos(tmpVector);
-        const cameraMazePos = maze.getMazePos(camera.position);
+        const cameraMazePos = maze.getMazePos(cameraWorldPos);
 
         if (breadcrumbMazePosNear.x - cameraMazePos.x < 0) {
             checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
@@ -456,7 +458,7 @@ export default class BreadcrumbManager {
         this.scene.add(breadcrumb);
 
         // set the breadcrumb to face the same way as the camera
-        breadcrumb.quaternion.copy(camera.quaternion);
+        camera.getWorldQuaternion(breadcrumb.quaternion);
         breadcrumb.rotateY(Math.PI);
 
         this.breadcrumbs.push(breadcrumb);
