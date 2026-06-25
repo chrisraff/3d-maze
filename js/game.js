@@ -9,7 +9,6 @@ import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
 import TrailEffect from './trail.js';
-import sampleUniformSphere from './sampleUniformSphere.js';
 import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import CompassManager from './compassManagager.js';
 import VRManager from './VRManager.js';
@@ -17,6 +16,7 @@ import TutorialManager from './TutorialManager.js';
 import MenuManager from './MenuManager.js';
 import BreadcrumbManager from './BreadcrumbManager.js';
 import TouchArbiter from './TouchArbiter.js';
+import GoalDotEffect from './goalDots.js';
 
 // webpage objects
 
@@ -63,14 +63,7 @@ var basicMaterial;
 var controls;
 
 // goal particles
-var dotsPerGroup = 20;
-var dotGroup;
-var dotRotationAxes;
-var dotPositionArrays;
-var dotColorArrays;
-var dotGeometries;
-var dotTmpQuaternion;
-var dotRotationAnim;
+var goalDots;
 
 var tmpVector;
 
@@ -93,10 +86,6 @@ var historyPositions;
 var	historyLineMaterial;
 var historyLine;
 var historyMesh;
-// dots
-var dotMaterials;
-var dotSizes = [maze.minorWidth * 5, maze.minorWidth * 2];
-var dotSizesVR = [maze.minorWidth * 10/3, maze.minorWidth * 2/3];
 // breadcrumbs
 var breadcrumbs;
 var touchArbiter;
@@ -109,35 +98,6 @@ var dustSizeVR = 0.0075;
 
 var tutorialManager;
 
-function dotGroupRandomize() {
-
-    dotRotationAnim = 0;
-
-    for ( let i = 0; i < 2; i++ ) {
-
-        for (let k = 0; k < 20; k ++ ) {
-
-            tmpColor.setHSL( Math.random(), 1.0, 0.75);
-
-            dotColorArrays[i][ k*3 + 0 ] = tmpColor.r;
-            dotColorArrays[i][ k*3 + 1 ] = tmpColor.g;
-            dotColorArrays[i][ k*3 + 2 ] = tmpColor.b;
-
-            let newPos = sampleUniformSphere();
-
-            dotPositionArrays[i][ k*3 + 0 ] = newPos[0];
-            dotPositionArrays[i][ k*3 + 1 ] = newPos[1];
-            dotPositionArrays[i][ k*3 + 2 ] = newPos[2];
-
-        }
-
-        dotGeometries[i].attributes.position.needsUpdate = true;
-        dotGeometries[i].attributes.color.needsUpdate = true;
-        dotGeometries[i].computeBoundingSphere();
-
-    }
-
-};
 
 function loadSavedVariables()
 {
@@ -220,6 +180,7 @@ function loadSavedVariables()
             setup: {
                 0: (tutorialData) => {
                     tutorialData.cameraPos = cameraNode.position.clone();
+                    vrManager.updateControlSchemeDisplay();
                 },
                 1: (tutorialData) => {
                     tutorialData.lastLoggedTime = Date.now();
@@ -405,6 +366,7 @@ function init() {
         updateMenuCentering();
 
         vrManager.setUiInteraction(true);
+        vrManager.recenterUI();
     } );
     // P key listener
     document.addEventListener('keydown', (event) => {
@@ -429,42 +391,13 @@ function init() {
     }
 
     // goal particles
-    dotGroup = new THREE.Group();
-    dotRotationAxes = [
-        new THREE.Vector3(0.75, 0, 0.5).normalize(),
-        new THREE.Vector3(0.75, 1, 0.5).normalize()
-    ];
-    dotPositionArrays = [
-        new Float32Array( 3 * dotsPerGroup ),
-        new Float32Array( 3 * dotsPerGroup )
-    ];
-    dotColorArrays = [
-        new Float32Array( 3 * dotsPerGroup ),
-        new Float32Array( 3 * dotsPerGroup )
-    ];
-    dotGeometries = [
-        new THREE.BufferGeometry(),
-        new THREE.BufferGeometry()
-    ];
-
-    for (let i = 0; i < 2; i++) {
-        dotGeometries[i].setAttribute( 'position', new THREE.BufferAttribute( dotPositionArrays[i], 3 ) );
-        dotGeometries[i].setAttribute( 'color', new THREE.BufferAttribute( dotColorArrays[i], 3 ) );
-    }
-
-    dotMaterials = [
-        new THREE.PointsMaterial( { size: dotSizes[0], map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } ),
-        new THREE.PointsMaterial( { size: dotSizes[1], map: dotSprite, transparent: true, alphaTest: 0.8, vertexColors: true } )
-    ];
-    let dots = [
-        new THREE.Points( dotGeometries[0], dotMaterials[0] ),
-        new THREE.Points( dotGeometries[1], dotMaterials[1] )
-    ];
-    dotGroup.add( ...dots );
-    dotTmpQuaternion = new THREE.Quaternion();
-    dotRotationAnim = 0;
-
-    scene.add( dotGroup );
+    goalDots = new GoalDotEffect({
+        count:    20,
+        map:      dotSprite,
+        sizes:    [ maze.minorWidth * 4, maze.minorWidth * 1.5 ],
+        sizesVR:  [ maze.minorWidth * 5, maze.minorWidth * 2   ],
+    });
+    goalDots.addTo( scene );
 
     tmpVector = new THREE.Vector3();
 
@@ -520,10 +453,10 @@ function init() {
     renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);
         dust._material.size = dustSizeVR;
-        dotMaterials[0].size = dotSizesVR[0];
-        dotMaterials[1].size = dotSizesVR[1];
+        goalDots.setVR( true );
 
         tutorialManager.useAnimations = false;
+        tutorialManager.showTutorials['vr'] = true;
         tutorialManager.setTutorialType('vr');
     });
 
@@ -531,21 +464,20 @@ function init() {
         controls.setXRPresenting(false);
         controls.disableLock(new Event(''));
         dust._material.size = dustSize;
-        dotMaterials[0].size = dotSizes[0];
-        dotMaterials[1].size = dotSizes[1];
+        goalDots.setVR( false );
         tutorialManager.useAnimations = true;
         tutorialManager.setTutorialType('intro');
         onWindowResize();
     });
 
     // setup vr ui elements
-    const vrType = getVrDeviceType();
+    const vrDeviceType = getVrDeviceType();
     for (const type of ['vr-device-first', 'vr-device-enabled', 'vr-device-last']) {
         document.querySelectorAll(`.${type}`).forEach((el) => {
             el.style.display = 'none';
         });
     }
-    document.querySelectorAll(`.${vrType}`).forEach((el) => {
+    document.querySelectorAll(`.${vrDeviceType}`).forEach((el) => {
         el.style.display = '';
     });
 
@@ -591,7 +523,13 @@ function init() {
     });
     document.querySelectorAll('.button-play').forEach((button) => {
         button.addEventListener('click', () => {
-            menuLockControls();
+            if (vrDeviceType === 'vr-device-first' && !renderer.xr.isPresenting) {
+                vrManager.toggleVR();
+                // Defer until after sessionstart, which allows vr tutorial to initialize correctly.
+                renderer.xr.addEventListener('sessionstart', () => menuLockControls(), { once: true });
+            } else {
+                menuLockControls();
+            }
         });
     });
 
@@ -622,8 +560,8 @@ function buildMaze(size=mazeSize) {
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
     compassManager.setEndPos( endPos );
 
-    dotGroup.position.copy( endPos );
-    dotGroupRandomize();
+    goalDots.setPosition( endPos );
+    goalDots.randomize();
 
     // set the camera in front of the maze, looking in
     cameraNode.position.set( maze.getOffset(1), maze.getOffset(1), maze.getOffset(-2));
@@ -813,9 +751,11 @@ function collisionUpdate() {
 function onMazeCompletion()
 {
     finishedMaze = true;
+    goalDots.finish();
     document.querySelector('#completionMessage').style.display = '';
 
     // switch menu screens
+    vrManager.recenterUI();
     menuManager.focusRootMenu('menu-new-maze');
 
     let seconds = ( (Date.now() - timerStartMillis) / 1000).toFixed(2);
@@ -967,15 +907,7 @@ var animate = function () {
         }
     }
 
-    // make the goal dots spin
-    if (finishedMaze && dotRotationAnim < 1) {
-        dotRotationAnim = Math.min(dotRotationAnim + delta*2, 1);
-    }
-    for (let i = 0; i < dotGroup.children.length; i++) {
-        let mesh = dotGroup.children[i];
-        dotTmpQuaternion.setFromAxisAngle( dotRotationAxes[i], (2.2 + i*0.4) * delta * (0.1 + dotRotationAnim * 0.9) );
-        mesh.applyQuaternion( dotTmpQuaternion );
-    }
+    goalDots.update( delta );
 
     renderer.render( scene, camera );
     compassManager.render();
@@ -1078,7 +1010,7 @@ function menuLockControls()
     if (!isMobile || isValidMobileAspectRatio())
         controls.lock();
 
-    if (tutorialManager && tutorialManager.showTutorial && !tutorialManager.inTutorial) {
+    if (tutorialManager && !tutorialManager.inTutorial) {
         tutorialManager.startTutorial();
     }
 

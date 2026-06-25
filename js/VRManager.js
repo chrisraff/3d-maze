@@ -33,6 +33,8 @@ export default class VRManager extends EventTarget {
         this.isUsingGazeControls = false;
         this.lastGazeSelectTime = 0;
         this.isGazeSelectingFromGame = false;
+        this.gazeHoldTimeout = null;
+        this.gazeHoldFired = false;
 
         this.rayCaster = new THREE.Raycaster();
         this.rayPosition = new THREE.Vector3();
@@ -90,7 +92,7 @@ export default class VRManager extends EventTarget {
         this.setupGamepadListeners();
 
         // Create VR button
-        new VRButtonManager(this.renderer);
+        this.vrButtonManager = new VRButtonManager(this.renderer);
 
         // UI state
         this.uiInteractionEnabled = true;
@@ -149,15 +151,11 @@ export default class VRManager extends EventTarget {
         if (this.vrRightController.isValid() || this.vrLeftController.isValid()) {
             this.setUiInteractor(false, this.vrRightController.isValid() ? this.vrRightController : this.vrLeftController);
             this.isUsingGazeControls = false;
-            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = '');
-            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = 'none');
+            this.updateControlSchemeDisplay();
         } else if (this.vrGazeController.isValid()) {
             this.setUiInteractor(false, this.vrGazeController);
-
             this.isUsingGazeControls = true;
-
-            document.querySelectorAll('.vr-controls-controllers').forEach(element => element.style.display = 'none');
-            document.querySelectorAll('.vr-controls-gaze').forEach(element => element.style.display = '');
+            this.updateControlSchemeDisplay();
         }
     }
 
@@ -240,6 +238,12 @@ export default class VRManager extends EventTarget {
             } else if (event.inputSource.targetRayMode === 'gaze') {
                 this.lastGazeSelectTime = Date.now();
                 this.isGazeSelectingFromGame = true;
+                this.gazeHoldFired = false;
+                this.gazeHoldTimeout = setTimeout(() => {
+                    this.gazeHoldFired = true;
+                    this.isGazeSelectingFromGame = false;
+                    this.dispatchEvent(new CustomEvent('pause'));
+                }, 500);
             } else {
                 // non-gaze controller select in game mode → breadcrumb placement toggle
                 const controller = this.controllers.find(c => c.inputSource === event.inputSource);
@@ -259,22 +263,20 @@ export default class VRManager extends EventTarget {
 
             // handle gaze input in game mode
             } else if (event.inputSource.targetRayMode === 'gaze') {
+                clearTimeout(this.gazeHoldTimeout);
+
                 if (!this.isGazeSelectingFromGame)
                     return;
 
                 this.isGazeSelectingFromGame = false;
 
-                if (Date.now() - this.lastGazeSelectTime > 500) {
-                    this.dispatchEvent(new CustomEvent('pause'));
-                } else {
-                    // use short selections as forward motion
+                if (!this.gazeHoldFired) {
+                    // short press: use as forward motion
                     this.moveVector.set(0, 0, -1);
                     this.moveVector.applyQuaternion(this.camera.quaternion);
                     this.moveVector.applyQuaternion(this.cameraCompensationNode.quaternion);
 
                     setTimeout(() => {
-                        console.log(this)
-                        // stop movement after a short time
                         this.moveVector.set(0, 0, 0);
                     }, 50);
                 }
@@ -283,6 +285,8 @@ export default class VRManager extends EventTarget {
     }
 
     onXRSessionStart() {
+        gtag('event', 'vr_session_start', { 'event_category': '3d-maze' });
+
         const session = this.renderer.xr.getSession();
 
         // let the session start and the camera update to the initial position before doing the compensation, or else the compensation will be wrong
@@ -290,16 +294,35 @@ export default class VRManager extends EventTarget {
             this.cameraCompensationNode.position.copy(this.camera.position).multiplyScalar(-1);
             this.newVrCameraPosition.copy(this.camera.position);
             this.calibrated = true;
+            this.recenterUI();
         }, 1000);
 
         this.cameraNode.scale.set(1.5, 1.5, 1.5);
         this.camera.near = 0.001;
+
+        // Target a known-good physical panel size (0.8m × 0.6m in local space,
+        // ×1.5 world scale = 1.2m × 0.9m at 2.25m). HTMLMesh sizes its geometry
+        // as offsetWidth*0.001 × offsetHeight*0.001 m, so we want 800×600 px.
+        // If the viewport is smaller, scale the DOM down proportionally so
+        // elementFromPoint stays in bounds, then compensate with mesh scale so
+        // the physical panel stays the same size (at the cost of blurrier text).
+        const VR_UI_TARGET_WIDTH = 800;
+        const VR_UI_TARGET_HEIGHT = 600;
+        const domScale = Math.min(1,
+            window.innerWidth / VR_UI_TARGET_WIDTH,
+            window.innerHeight / VR_UI_TARGET_HEIGHT
+        );
+        this.uiDom.style.width = Math.round(VR_UI_TARGET_WIDTH * domScale) + 'px';
+        this.uiDom.style.height = Math.round(VR_UI_TARGET_HEIGHT * domScale) + 'px';
 
         this.uiMesh = new HTMLMesh(this.uiDom);
         this.uiMesh.position.set(0, 0, -1.5);
         // always draw the ui on top (but behind pointer)
         this.uiMesh.material.depthTest = false;
         this.uiMesh.renderOrder = 999;
+        // compensate mesh scale so physical size matches the target regardless of domScale
+        const meshScale = 1.6 / domScale;
+        this.uiMesh.scale.set(meshScale, meshScale, 1);
         this.cameraCompensationNode.add(this.uiMesh);
         this.scene.add(this.pointerObject);
         this.scene.add(this.leftHandSprite);
@@ -320,6 +343,9 @@ export default class VRManager extends EventTarget {
         this.reset();
         this.cameraNode.scale.set(1, 1, 1);
         this.camera.near = 0.1;
+
+        this.uiDom.style.width = '';
+        this.uiDom.style.height = '';
 
         this.uiMesh.dispose();
         this.cameraCompensationNode.remove(this.uiMesh);
@@ -580,18 +606,8 @@ export default class VRManager extends EventTarget {
         cameraXZLook.projectOnPlane(new THREE.Vector3(0, 1, 0));
         cameraXZLook.normalize();
         cameraToUi.normalize();
-        if (cameraXZLook.dot(cameraToUi) < 0.5 || distanceToUi2 > 9) {
-            // set the ui position to be in front of the camera
-            this.uiMesh.position.copy(cameraXZLook);
-            this.uiMesh.position.multiplyScalar(1.5);
-            this.uiMesh.position.add(this.camera.position);
-
-            // make the ui face the camera
-            cameraToUi.copy(this.uiMesh.position);
-            cameraToUi.sub(cameraXZLook);
-            cameraToUi.applyQuaternion(this.cameraCompensationNode.quaternion).add(this.cameraCompensationNode.position);
-            cameraToUi.applyQuaternion(this.cameraNode.quaternion).add(this.cameraNode.position);
-            this.uiMesh.lookAt(cameraToUi);
+        if (cameraXZLook.dot(cameraToUi) < 0.75 || distanceToUi2 > 9) {
+            this.recenterUI();
         }
 
         // teleport effect
@@ -621,12 +637,38 @@ export default class VRManager extends EventTarget {
         return this.vrButton;
     }
 
+    toggleVR() {
+        this.vrButtonManager.onButtonClicked();
+    }
+
     /**
      * Check if VR is currently presenting
      * @returns {boolean}
      */
     isPresenting() {
         return this.renderer.xr.isPresenting;
+    }
+
+    recenterUI() {
+        if (!this.renderer.xr.isPresenting || !this.uiMesh || !this.calibrated) {
+            return;
+        }
+
+        const cameraXZLook = this.tmpVector2.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+        cameraXZLook.projectOnPlane(new THREE.Vector3(0, 1, 0));
+        cameraXZLook.normalize();
+
+        // set the ui position to be in front of the camera
+        this.uiMesh.position.copy(cameraXZLook);
+        this.uiMesh.position.multiplyScalar(1.5);
+        this.uiMesh.position.add(this.camera.position);
+
+        // make the ui face the camera
+        const cameraToUi = this.tmpVector.copy(this.uiMesh.position);
+        cameraToUi.sub(cameraXZLook);
+        cameraToUi.applyQuaternion(this.cameraCompensationNode.quaternion).add(this.cameraCompensationNode.position);
+        cameraToUi.applyQuaternion(this.cameraNode.quaternion).add(this.cameraNode.position);
+        this.uiMesh.lookAt(cameraToUi);
     }
 
     setUiInteraction(enabled) {
@@ -646,6 +688,12 @@ export default class VRManager extends EventTarget {
             this.uiIsMouseControlled = false;
             this.uiCurrentController = controller;
         }
+    }
+
+    updateControlSchemeDisplay() {
+        const gaze = this.isUsingGazeControls;
+        document.querySelectorAll('.vr-controls-controllers').forEach(el => el.style.display = gaze ? 'none' : '');
+        document.querySelectorAll('.vr-controls-gaze').forEach(el => el.style.display = gaze ? '' : 'none');
     }
 
     /**

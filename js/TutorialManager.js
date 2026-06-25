@@ -6,7 +6,7 @@
  * Usage:
  *   const manager = new TutorialManager({
  *       tutorialType: 'intro',
- *       showTutorial: true,
+ *       showTutorials: { intro: true, vr: true },
  *       useAnimations: true,
  *       callbacks: {
  *           intro: {
@@ -29,8 +29,9 @@
 export default class TutorialManager {
     /**
      * @param {Object} options
-     * @param {string} options.tutorialType - The type of tutorial (e.g., 'intro', 'vr')
-     * @param {boolean} [options.showTutorial=true] - Whether to show the tutorial
+     * @param {string} [options.tutorialType='intro'] - The active tutorial type
+     * @param {Object} [options.showTutorials={}] - Per-type show flags. Unset types default to showing.
+     * @param {boolean} [options.showTutorial] - Legacy: sets the show flag for the initial tutorialType
      * @param {boolean} [options.useAnimations=true] - Whether to animate tutorial elements
      * @param {Object} options.callbacks - Tutorial callbacks by type
      *   @param {Object} callbacks[type].conditions - Step completion conditions, indexed by step
@@ -41,13 +42,18 @@ export default class TutorialManager {
      *     teardown(tutorialData): void
      */
     constructor(options = {}) {
-        this.showTutorial = options.showTutorial ?? true;
         this.inTutorial = false;
         this.tutorialType = options.tutorialType || 'intro';
         this.useAnimations = options.useAnimations ?? true;
 
         // External callbacks provided by upstream
         this.callbacks = options.callbacks || {};
+
+        // Per-type show flags
+        this.showTutorials = { ...(options.showTutorials ?? {}) };
+        if (options.showTutorial !== undefined) {
+            this.showTutorials[this.tutorialType] = options.showTutorial;
+        }
 
         // Used for state snapshots. Passed to callbacks for read and write
         this.tutorialData = {
@@ -67,17 +73,13 @@ export default class TutorialManager {
         if (this.tutorialType === type)
             return;
 
-        const wasInTutorial = this.inTutorial;
-
         this.resetTutorial();
         this.tutorialType = type;
-
-        if (wasInTutorial) {
-            this.startTutorial();
-        }
     }
 
     startTutorial() {
+        if (this.showTutorials[this.tutorialType] === false) return;
+
         if (this.inTutorial) {
             this.resetTutorial();
         }
@@ -166,11 +168,11 @@ export default class TutorialManager {
 
     /**
      * Reset tutorial state and cleanup
-     * @param {boolean} [complete=false] - If true, sets showTutorial to false
+     * @param {boolean} [complete=false] - If true, marks this tutorial type as shown (won't show again)
      */
     resetTutorial(complete = false) {
         if (complete) {
-            this.showTutorial = false;
+            this.showTutorials[this.tutorialType] = false;
         }
 
         this.inTutorial = false;

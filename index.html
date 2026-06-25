@@ -43,12 +43,18 @@
 
                 -webkit-user-select: none;
                 user-select: none;
+
+                container-type: inline-size;
             }
             #overlay > * {
                 pointer-events: initial;
             }
             #overlay > .tutorial-element {
                 pointer-events: none;
+            }
+
+            a {
+                color: #ffffff;
             }
 
             #blocker {
@@ -260,9 +266,10 @@
                 width: 100%;
                 pointer-events: none;
                 color: white;
+                white-space: nowrap;
 
                 font-family: Arial;
-                font-size: 25pt;
+                font-size: min(25pt, 3.2cqi);
 
                 animation-duration: 0.5s;
                 animation-iteration-count: 1;
@@ -461,19 +468,19 @@
 
             <div tutorial-type="vr" tutorial-step="0" style="display: none;" class="tutorial-text tutorial-element">
                 <span class="vr-controls-controllers">Use the left thumbstick to move</span>
-                <span class="vr-controls-gaze">To move forward, quickly press "select".</span>
+                <span class="vr-controls-gaze">Tap to move</span>
 
                 <br/>
                 <span style="font-size: 75%;" class="formfactor-desktop">Keyboard + Mouse controls are also available</span>
             </div>
             <div tutorial-type="vr" tutorial-step="1" style="display: none;" class="tutorial-text tutorial-element">
-                <span class="vr-controls-controllers">Use the right thumbstick to rotate left and right</span>
+                <span class="vr-controls-controllers">Use the right thumbstick to turn</span>
                 <span class="vr-controls-gaze">Point your head where you want to go</span>
                 <br/>
                 <span style="font-size: 75%">You can also move up and down</span>
             </div>
             <div tutorial-type="vr" tutorial-step="2" style="display: none;" class="tutorial-text tutorial-element">
-                <span class="vr-controls-controllers">You can adjust movement settings in the "Options" menu</span>
+                <span class="vr-controls-controllers">Adjust movement settings in the "Options" menu</span>
                 <span class="vr-controls-gaze">Press and hold to pause</span>
             </div>
             <div tutorial-type="vr" tutorial-step="3" style="display: none;" class="tutorial-text tutorial-element">
@@ -506,7 +513,7 @@
                         <span class="formfactor-desktop">
                             Explore the maze and find the exit!<br/>
                             <br/>
-                            <span class="xr-non-vr">Try adding this game to your phone's home screen.</span>
+                            <span class="xr-non-vr"><a href="https://www.chrisraff.com/blog/3d-maze-in-vr/" target="_blank"><b>3D Maze now works in VR</b></a></span>
                         </span>
                         <span style="display: none;" class="formfactor-non-desktop">
                             Explore the maze and find the exit!<br/>
@@ -629,7 +636,7 @@
                 </div>
 
                 <div id="version">
-                    Version 0.0.14
+                    Version 0.1.0
                 </div>
             </div>
 
