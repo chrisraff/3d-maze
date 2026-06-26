@@ -664,7 +664,7 @@ function buildMaze(size=mazeSize) {
     wallMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
     blockMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
     wallHitInstanceMesh.needsUpdate = true;
-    wallHitInstanceMesh.layers.set(1);
+    wallHitInstanceMesh.layers.set(3);
     wallHitInstanceMesh.userData.isMazeWallHitBox = true;
 
     mazeGroup.add( blockInstanceMesh );

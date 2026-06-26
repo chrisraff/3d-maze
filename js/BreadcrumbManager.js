@@ -8,7 +8,7 @@ import { YIELD } from './TouchArbiter.js';
  */
 
 const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
-const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, colorWrite: false, depthWrite: false });
+const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 
 export default class BreadcrumbManager {
     constructor() {
@@ -27,12 +27,12 @@ export default class BreadcrumbManager {
         this.touchTapMaxDurationMs = 350;
         this.touchTapMaxMovePx = 10;
 
-        this.raycaster.layers.set(1);
+        this.raycaster.layers.set(3);
 
         this.vrHeldBreadcrumb = null;
         this.vrHeldGrip = null;
         this.vrWallRaycaster = new THREE.Raycaster();
-        this.vrWallRaycaster.layers.set(1);
+        this.vrWallRaycaster.layers.set(3);
         // reusable temp objects to avoid per-frame allocation in updateVRHeld
         this._vrGripPos = new THREE.Vector3();
         this._vrGripQuat = new THREE.Quaternion();
@@ -186,7 +186,7 @@ export default class BreadcrumbManager {
                 hitBox.scale.multiplyScalar(1.2);
                 hitBox.userData.isBreadCrumbHitBox = true;
                 hitBox.userData.parentBreadcrumb = breadcrumb;
-                hitBox.layers.set(1);
+                hitBox.layers.set(3);
                 breadcrumb.add(hitBox);
 
                 breadcrumb.lookAt(directionVector);
