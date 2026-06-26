@@ -431,14 +431,7 @@ function init() {
     // init VR manager
     vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls);
 
-    const _vrPlayerWorldPos = new THREE.Vector3();
-    const _vrLeftGripWorldPos = new THREE.Vector3();
-    const _vrRightGripWorldPos = new THREE.Vector3();
-    const _vrGripPositions = [];
-    vrManager.addEventListener('vrSelectInGame', (event) => {
-        camera.getWorldPosition(_vrPlayerWorldPos);
-        breadcrumbs.handleVRSelect(event.detail.gripObject, _vrPlayerWorldPos);
-    });
+    vrManager.setBreadcrumbs(breadcrumbs);
 
     vrManager.addEventListener('pause', () => {
         if (controls.isLocked) {
@@ -861,21 +854,6 @@ var animate = function () {
     dust.update(delta);
     trail.update(delta);
     vrManager.update(delta);
-    if (renderer.xr.isPresenting) {
-        camera.getWorldPosition(_vrPlayerWorldPos);
-        breadcrumbs.updateVRHeld(_vrPlayerWorldPos);
-
-        _vrGripPositions.length = 0;
-        if (vrManager.vrLeftController.gripObject) {
-            vrManager.vrLeftController.gripObject.getWorldPosition(_vrLeftGripWorldPos);
-            _vrGripPositions.push(_vrLeftGripWorldPos);
-        }
-        if (vrManager.vrRightController.gripObject) {
-            vrManager.vrRightController.gripObject.getWorldPosition(_vrRightGripWorldPos);
-            _vrGripPositions.push(_vrRightGripWorldPos);
-        }
-        breadcrumbs.updateVRProximityHighlight(_vrGripPositions, _vrPlayerWorldPos);
-    }
     compassManager.update();
     tutorialManager.update();
 

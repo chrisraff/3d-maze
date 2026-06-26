@@ -29,14 +29,15 @@ export default class BreadcrumbManager {
 
         this.raycaster.layers.set(3);
 
-        this.vrHeldBreadcrumb = null;
-        this.vrHeldGrip = null;
-        this.vrWallRaycaster = new THREE.Raycaster();
-        this.vrWallRaycaster.layers.set(3);
-        // reusable temp objects to avoid per-frame allocation in updateVRHeld
-        this._vrGripPos = new THREE.Vector3();
-        this._vrGripQuat = new THREE.Quaternion();
-        this._vrRayDir = new THREE.Vector3();
+        this.heldBreadcrumb = null;
+        this.carrier = null;
+        this._wallRaycaster = new THREE.Raycaster();
+        this._wallRaycaster.layers.set(3);
+        // reusable temp objects to avoid per-frame allocation in updateCarried
+        this._carrierPos = new THREE.Vector3();
+        this._carrierQuat = new THREE.Quaternion();
+        this._rayDir = new THREE.Vector3();
+        this._playerWorldPos = new THREE.Vector3();
     }
 
     addTo(scene) {
@@ -237,15 +238,16 @@ export default class BreadcrumbManager {
         this._setHoveredBreadcrumb(this.raycastSearchForBreadcrumb(camera));
     }
 
-    handleVRSelect(gripObject, playerWorldPos) {
-        if (this.vrHeldBreadcrumb !== null) {
-            this._commitVRPlacement();
+    interact(carrier, camera) {
+        if (this.heldBreadcrumb !== null) {
+            this._commitPlacement();
             return;
         }
 
-        // pick up an existing placed breadcrumb if grip is close enough
-        gripObject.getWorldPosition(this._vrGripPos);
-        const nearby = this._findPickupCandidate(this._vrGripPos, playerWorldPos);
+        // pick up an existing placed breadcrumb if carrier is close enough
+        carrier.getWorldPosition(this._carrierPos);
+        camera.getWorldPosition(this._playerWorldPos);
+        const nearby = this._findPickupCandidate(this._carrierPos, this._playerWorldPos);
         if (nearby !== null) {
             this.removeBreadcrumb(nearby);
             return;
@@ -255,8 +257,8 @@ export default class BreadcrumbManager {
             return;
 
         const breadcrumb = this.breadcrumbStack.pop();
-        this.vrHeldBreadcrumb = breadcrumb;
-        this.vrHeldGrip = gripObject;
+        this.heldBreadcrumb = breadcrumb;
+        this.carrier = carrier;
         this.scene.add(breadcrumb);
         this.updateBreadCrumbDisplay();
     }
@@ -284,20 +286,22 @@ export default class BreadcrumbManager {
         return best;
     }
 
-    // Per-frame: highlight the breadcrumb closest to any connected grip that meets both distance gates.
-    // gripPositions is an array of Vector3 world positions (one per connected controller).
-    updateVRProximityHighlight(gripPositions, playerWorldPos) {
-        if (this.vrHeldBreadcrumb !== null) {
+    // Per-frame: highlight the breadcrumb closest to any position that meets both distance gates.
+    // positions is an array of Vector3 world positions (one per connected controller).
+    updateProximityHighlight(positions, camera) {
+        if (this.heldBreadcrumb !== null) {
             this._setHoveredBreadcrumb(null);
             return;
         }
 
+        camera.getWorldPosition(this._playerWorldPos);
+
         let best = null;
         let bestDist = Infinity;
-        for (const gripPos of gripPositions) {
-            const candidate = this._findPickupCandidate(gripPos, playerWorldPos);
+        for (const pos of positions) {
+            const candidate = this._findPickupCandidate(pos, this._playerWorldPos);
             if (candidate !== null) {
-                const d = gripPos.distanceTo(candidate.position);
+                const d = pos.distanceTo(candidate.position);
                 if (d < bestDist) {
                     bestDist = d;
                     best = candidate;
@@ -317,23 +321,25 @@ export default class BreadcrumbManager {
             this.hoveredBreadcrumb.userData.mesh.material = this.highlightMaterial;
     }
 
-    updateVRHeld(playerWorldPosition) {
-        if (this.vrHeldBreadcrumb === null || this.vrHeldGrip === null)
+    updateCarried(camera) {
+        if (this.heldBreadcrumb === null || this.carrier === null)
             return;
 
-        this.vrHeldGrip.getWorldPosition(this._vrGripPos);
-        this.vrHeldGrip.getWorldQuaternion(this._vrGripQuat);
+        this.carrier.getWorldPosition(this._carrierPos);
+        this.carrier.getWorldQuaternion(this._carrierQuat);
 
-        // raycast from player toward grip — clamp to wall if blocked
-        this._vrRayDir.subVectors(this._vrGripPos, playerWorldPosition);
-        const dist = this._vrRayDir.length();
-        this._vrRayDir.divideScalar(dist);
-        this.vrWallRaycaster.set(playerWorldPosition, this._vrRayDir);
-        this.vrWallRaycaster.far = dist;
-        const hits = this.vrWallRaycaster.intersectObjects(this.scene.children, true);
-        this.vrWallRaycaster.far = Infinity;
+        camera.getWorldPosition(this._playerWorldPos);
 
-        let targetPos = this._vrGripPos;
+        // raycast from player toward carrier — clamp to wall if blocked
+        this._rayDir.subVectors(this._carrierPos, this._playerWorldPos);
+        const dist = this._rayDir.length();
+        this._rayDir.divideScalar(dist);
+        this._wallRaycaster.set(this._playerWorldPos, this._rayDir);
+        this._wallRaycaster.far = dist;
+        const hits = this._wallRaycaster.intersectObjects(this.scene.children, true);
+        this._wallRaycaster.far = Infinity;
+
+        let targetPos = this._carrierPos;
         for (const hit of hits) {
             if (hit.object.userData.isMazeWallHitBox) {
                 targetPos = hit.point;
@@ -341,15 +347,15 @@ export default class BreadcrumbManager {
             }
         }
 
-        this.vrHeldBreadcrumb.position.copy(targetPos);
-        this.vrHeldBreadcrumb.quaternion.copy(this._vrGripQuat);
-        this.vrHeldBreadcrumb.rotateY(Math.PI);
+        this.heldBreadcrumb.position.copy(targetPos);
+        this.heldBreadcrumb.quaternion.copy(this._carrierQuat);
+        this.heldBreadcrumb.rotateY(Math.PI);
     }
 
-    _commitVRPlacement() {
-        this.breadcrumbs.push(this.vrHeldBreadcrumb);
-        this.vrHeldBreadcrumb = null;
-        this.vrHeldGrip = null;
+    _commitPlacement() {
+        this.breadcrumbs.push(this.heldBreadcrumb);
+        this.heldBreadcrumb = null;
+        this.carrier = null;
         this.updateBreadCrumbDisplay();
     }
 
@@ -372,7 +378,7 @@ export default class BreadcrumbManager {
                 if (intersects[i].object.userData.isBreadCrumbHitBox) {
                     const breadcrumb = intersects[i].object.userData.parentBreadcrumb;
                     // don't interact with the breadcrumb currently held in VR
-                    if (breadcrumb === this.vrHeldBreadcrumb)
+                    if (breadcrumb === this.heldBreadcrumb)
                         continue;
                     return breadcrumb;
                 }

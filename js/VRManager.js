@@ -44,6 +44,12 @@ export default class VRManager extends EventTarget {
         this.tmpVector = new THREE.Vector3();
         this.tmpVector2 = new THREE.Vector3();
 
+        // Breadcrumb integration
+        this.breadcrumbs = null;
+        this._gripWorldPos1 = new THREE.Vector3();
+        this._gripWorldPos2 = new THREE.Vector3();
+        this._gripWorldPositions = [];
+
         // Controller setup
         this.controller1 = this.renderer.xr.getController(0);
         this.controller2 = this.renderer.xr.getController(1);
@@ -245,10 +251,10 @@ export default class VRManager extends EventTarget {
                     this.dispatchEvent(new CustomEvent('pause'));
                 }, 500);
             } else {
-                // non-gaze controller select in game mode → breadcrumb placement toggle
+                // non-gaze controller select in game mode → breadcrumb interaction
                 const controller = this.controllers.find(c => c.inputSource === event.inputSource);
-                if (controller?.gripObject) {
-                    this.dispatchEvent(new CustomEvent('vrSelectInGame', { detail: { gripObject: controller.gripObject } }));
+                if (controller?.gripObject && this.breadcrumbs) {
+                    this.breadcrumbs.interact(controller.gripObject, this.camera);
                 }
             }
         });
@@ -476,6 +482,11 @@ export default class VRManager extends EventTarget {
         this._updateControllerLines();
         this._updateHandSprites();
 
+        if (this.breadcrumbs) {
+            this.breadcrumbs.updateCarried(this.camera);
+            this.breadcrumbs.updateProximityHighlight(this._collectGripWorldPositions(), this.camera);
+        }
+
         // in vr, compensate for user movement by updating the compensation node to put the head at the camera node position
         this.lastVrCameraPosition.copy(this.newVrCameraPosition);
         this.newVrCameraPosition.copy(this.camera.position);
@@ -694,6 +705,23 @@ export default class VRManager extends EventTarget {
         const gaze = this.isUsingGazeControls;
         document.querySelectorAll('.vr-controls-controllers').forEach(el => el.style.display = gaze ? 'none' : '');
         document.querySelectorAll('.vr-controls-gaze').forEach(el => el.style.display = gaze ? '' : 'none');
+    }
+
+    setBreadcrumbs(breadcrumbs) {
+        this.breadcrumbs = breadcrumbs;
+    }
+
+    _collectGripWorldPositions() {
+        this._gripWorldPositions.length = 0;
+        if (this.vrLeftController.gripObject) {
+            this.vrLeftController.gripObject.getWorldPosition(this._gripWorldPos1);
+            this._gripWorldPositions.push(this._gripWorldPos1);
+        }
+        if (this.vrRightController.gripObject) {
+            this.vrRightController.gripObject.getWorldPosition(this._gripWorldPos2);
+            this._gripWorldPositions.push(this._gripWorldPos2);
+        }
+        return this._gripWorldPositions;
     }
 
     /**
