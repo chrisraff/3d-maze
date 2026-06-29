@@ -29,16 +29,28 @@ export default class BreadcrumbManager {
 
         this.raycaster.layers.set(3);
 
-        this.heldBreadcrumb = null;
-        this.carrier = null;
         this._wallRaycaster = new THREE.Raycaster();
         this._wallRaycaster.layers.set(3);
-        // reusable temp objects to avoid per-frame allocation in updateCarried
-        this._carrierPos = new THREE.Vector3();
-        this._carrierQuat = new THREE.Quaternion();
+        // reusable temp objects to avoid per-frame allocation
+        this._tmpPos = new THREE.Vector3();
         this._rayDir = new THREE.Vector3();
         this._playerWorldPos = new THREE.Vector3();
+
+        // Spatial interaction state (null | 'reorienting' | 'placing')
+        this._interactState = null;
+        this._interactTarget = null;
+        this._interactGripObject = null;
+        this._interactStartPos = new THREE.Vector3();      // grip world pos at interact start
+        this._interactStartQuat = new THREE.Quaternion();  // grip world quat at interact start
+        this._interactTargetStartPos = new THREE.Vector3(); // breadcrumb pos at reorient start
+        this._interactTargetStartQuat = new THREE.Quaternion(); // breadcrumb quat at reorient start
+        this._interactStartOrientQuat = new THREE.Quaternion(); // initial breadcrumb orient for placing
+        this._interactCurrentQuat = new THREE.Quaternion(); // temp
+        this._interactDeltaQuat = new THREE.Quaternion();  // temp
     }
+
+    get interactState() { return this._interactState; }
+    get interactTarget() { return this._interactTarget; }
 
     addTo(scene) {
         this.scene = scene;
@@ -144,8 +156,186 @@ export default class BreadcrumbManager {
         breadcrumb.add(mesh);
     }
 
+    // --- Spatial interaction API ---
+
+    // Returns the closest placed breadcrumb within hand reach of gripWorldPos, or null.
+    findNearby(gripWorldPos, playerWorldPos) {
+        const playerGate = maze.majorWidth * 0.75;
+        const gripGate = maze.majorWidth / 12;
+
+        let best = null;
+        let bestDist = Infinity;
+
+        for (const breadcrumb of this.breadcrumbs) {
+            const playerDist = playerWorldPos.distanceTo(breadcrumb.position);
+            if (playerDist > playerGate)
+                continue;
+            const gripDist = gripWorldPos.distanceTo(breadcrumb.position);
+            if (gripDist > gripGate)
+                continue;
+            if (gripDist < bestDist) {
+                bestDist = gripDist;
+                best = breadcrumb;
+            }
+        }
+        return best;
+    }
+
+    // Begin translating + rotating a placed breadcrumb with the grip.
+    beginReorient(breadcrumb, gripObject) {
+        this._interactState = 'reorienting';
+        this._interactTarget = breadcrumb;
+        this._interactGripObject = gripObject;
+        gripObject.getWorldPosition(this._interactStartPos);
+        gripObject.getWorldQuaternion(this._interactStartQuat);
+        this._interactTargetStartPos.copy(breadcrumb.position);
+        this._interactTargetStartQuat.copy(breadcrumb.quaternion);
+    }
+
+    // Commit the current position/orientation and leave the breadcrumb placed.
+    endReorient() {
+        this._interactState = null;
+        this._interactTarget = null;
+        this._interactGripObject = null;
+    }
+
+    // Restore original position/orientation and return the breadcrumb to the stack.
+    cancelReorient() {
+        this._interactTarget.position.copy(this._interactTargetStartPos);
+        this._interactTarget.quaternion.copy(this._interactTargetStartQuat);
+        this.removeBreadcrumb(this._interactTarget);
+        this._interactState = null;
+        this._interactTarget = null;
+        this._interactGripObject = null;
+    }
+
+    // Pop from stack and begin previewing placement at the grip position.
+    // gripObject: grip-space THREE object (hand position/orientation)
+    // pointObject: ray-space THREE object (controller aim direction for initial orientation)
+    // Returns true if started, false if the stack is empty.
+    beginPlace(gripObject, pointObject) {
+        if (this.breadcrumbStack.length === 0) return false;
+
+        const breadcrumb = this.breadcrumbStack.pop();
+        this.scene.add(breadcrumb);
+
+        pointObject.getWorldQuaternion(breadcrumb.quaternion);
+        breadcrumb.rotateY(Math.PI);
+        this._interactStartOrientQuat.copy(breadcrumb.quaternion);
+
+        gripObject.getWorldPosition(this._interactStartPos);
+        gripObject.getWorldQuaternion(this._interactStartQuat);
+        breadcrumb.position.copy(this._interactStartPos);
+
+        this._interactState = 'placing';
+        this._interactTarget = breadcrumb;
+        this._interactGripObject = gripObject;
+        this.updateBreadCrumbDisplay();
+        return true;
+    }
+
+    // Commit the in-progress placement.
+    endPlace() {
+        this.breadcrumbs.push(this._interactTarget);
+        this._interactState = null;
+        this._interactTarget = null;
+        this._interactGripObject = null;
+    }
+
+    // Per-frame: move and/or rotate the active interaction target to follow the grip.
+    updateInteract(camera) {
+        if (this._interactState === null) return;
+
+        // deltaQuat = currentGripQuat * startGripQuat^-1
+        this._interactGripObject.getWorldQuaternion(this._interactCurrentQuat);
+        this._interactDeltaQuat.copy(this._interactStartQuat).invert();
+        this._interactDeltaQuat.premultiply(this._interactCurrentQuat);
+
+        camera.getWorldPosition(this._playerWorldPos);
+
+        if (this._interactState === 'reorienting') {
+            // translate: breadcrumb follows grip delta, wall-clamped
+            this._interactGripObject.getWorldPosition(this._tmpPos);
+            this._tmpPos.sub(this._interactStartPos).add(this._interactTargetStartPos);
+            this._wallClampPosition(this._tmpPos, this._playerWorldPos);
+
+            // rotate: apply grip delta to the breadcrumb's original orientation
+            this._interactTarget.quaternion
+                .copy(this._interactTargetStartQuat)
+                .premultiply(this._interactDeltaQuat);
+
+        } else if (this._interactState === 'placing') {
+            // position: current grip world position, wall-clamped
+            this._interactGripObject.getWorldPosition(this._tmpPos);
+            this._wallClampPosition(this._tmpPos, this._playerWorldPos);
+
+            // orientation: apply grip delta to the initial point-direction orient
+            this._interactTarget.quaternion
+                .copy(this._interactStartOrientQuat)
+                .premultiply(this._interactDeltaQuat);
+        }
+    }
+
+    // Raycast from playerPos toward targetPos; clamp targetPos to the nearest wall if blocked.
+    _wallClampPosition(targetPos, playerPos) {
+        this._rayDir.subVectors(targetPos, playerPos);
+        const dist = this._rayDir.length();
+        if (dist === 0) return;
+
+        this._rayDir.divideScalar(dist);
+        this._wallRaycaster.set(playerPos, this._rayDir);
+        this._wallRaycaster.far = dist;
+        const hits = this._wallRaycaster.intersectObjects(this.scene.children, true);
+        this._wallRaycaster.far = Infinity;
+
+        for (const hit of hits) {
+            if (hit.object.userData.isMazeWallHitBox) {
+                targetPos.copy(hit.point);
+                break;
+            }
+        }
+        this._interactTarget.position.copy(targetPos);
+    }
+
+    // --- Per-frame proximity highlight (called by VRManager) ---
+
+    // positions: array of Vector3 world positions (one per connected controller).
+    updateProximityHighlight(positions, camera) {
+        if (this._interactState !== null) {
+            // keep the reoriented breadcrumb highlighted during a hold; clear otherwise
+            this._setHoveredBreadcrumb(this._interactState === 'reorienting' ? this._interactTarget : null);
+            return;
+        }
+
+        camera.getWorldPosition(this._playerWorldPos);
+
+        let best = null;
+        let bestDist = Infinity;
+        for (const pos of positions) {
+            const candidate = this.findNearby(pos, this._playerWorldPos);
+            if (candidate !== null) {
+                const d = pos.distanceTo(candidate.position);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = candidate;
+                }
+            }
+        }
+        this._setHoveredBreadcrumb(best);
+    }
+
+    // --- Maze lifecycle ---
+
     initializeMaze(mazedata) {
         this.mazedata = mazedata;
+
+        // cancel any in-progress spatial interaction
+        if (this._interactState === 'placing' && this._interactTarget !== null) {
+            this.scene.remove(this._interactTarget);
+        }
+        this._interactState = null;
+        this._interactTarget = null;
+        this._interactGripObject = null;
 
         // clear existing breadcrumbs
         for (let i = 0; i < this.breadcrumbs.length; i++) {
@@ -211,11 +401,12 @@ export default class BreadcrumbManager {
         this.updateBreadCrumbDisplay();
     }
 
+    // --- Non-VR interaction (touch / mouse) ---
+
     handleBreadcrumbTap(camera, mazeData, sceneX=0, sceneY=0)
     {
         const breadcrumb = this.raycastSearchForBreadcrumb(camera, sceneX, sceneY);
         if (breadcrumb !== null) {
-            // remove the breadcrumb
             this.removeBreadcrumb(breadcrumb);
             return;
         }
@@ -224,7 +415,6 @@ export default class BreadcrumbManager {
     }
 
     handleBreadcrumbClick(camera, mazeData) {
-        // if a breadcrumb is hovered, remove it
         if (this.hoveredBreadcrumb) {
             this.removeBreadcrumb(this.hoveredBreadcrumb);
             return;
@@ -238,79 +428,6 @@ export default class BreadcrumbManager {
         this._setHoveredBreadcrumb(this.raycastSearchForBreadcrumb(camera));
     }
 
-    interact(carrier, camera) {
-        if (this.heldBreadcrumb !== null) {
-            this._commitPlacement();
-            return;
-        }
-
-        // pick up an existing placed breadcrumb if carrier is close enough
-        carrier.getWorldPosition(this._carrierPos);
-        camera.getWorldPosition(this._playerWorldPos);
-        const nearby = this._findPickupCandidate(this._carrierPos, this._playerWorldPos);
-        if (nearby !== null) {
-            this.removeBreadcrumb(nearby);
-            return;
-        }
-
-        if (this.breadcrumbStack.length === 0)
-            return;
-
-        const breadcrumb = this.breadcrumbStack.pop();
-        this.heldBreadcrumb = breadcrumb;
-        this.carrier = carrier;
-        this.scene.add(breadcrumb);
-        this.updateBreadCrumbDisplay();
-    }
-
-    // Returns the closest breadcrumb within both the player distance gate and the grip proximity gate, or null.
-    _findPickupCandidate(gripWorldPos, playerWorldPos) {
-        const playerGate = maze.majorWidth * 0.75;
-        const gripGate = maze.majorWidth * 0.5;
-
-        let best = null;
-        let bestDist = Infinity;
-
-        for (const breadcrumb of this.breadcrumbs) {
-            const playerDist = playerWorldPos.distanceTo(breadcrumb.position);
-            if (playerDist > playerGate)
-                continue;
-            const gripDist = gripWorldPos.distanceTo(breadcrumb.position);
-            if (gripDist > gripGate)
-                continue;
-            if (gripDist < bestDist) {
-                bestDist = gripDist;
-                best = breadcrumb;
-            }
-        }
-        return best;
-    }
-
-    // Per-frame: highlight the breadcrumb closest to any position that meets both distance gates.
-    // positions is an array of Vector3 world positions (one per connected controller).
-    updateProximityHighlight(positions, camera) {
-        if (this.heldBreadcrumb !== null) {
-            this._setHoveredBreadcrumb(null);
-            return;
-        }
-
-        camera.getWorldPosition(this._playerWorldPos);
-
-        let best = null;
-        let bestDist = Infinity;
-        for (const pos of positions) {
-            const candidate = this._findPickupCandidate(pos, this._playerWorldPos);
-            if (candidate !== null) {
-                const d = pos.distanceTo(candidate.position);
-                if (d < bestDist) {
-                    bestDist = d;
-                    best = candidate;
-                }
-            }
-        }
-        this._setHoveredBreadcrumb(best);
-    }
-
     _setHoveredBreadcrumb(breadcrumb) {
         if (breadcrumb === this.hoveredBreadcrumb)
             return;
@@ -319,44 +436,6 @@ export default class BreadcrumbManager {
         this.hoveredBreadcrumb = breadcrumb;
         if (this.hoveredBreadcrumb !== null)
             this.hoveredBreadcrumb.userData.mesh.material = this.highlightMaterial;
-    }
-
-    updateCarried(camera) {
-        if (this.heldBreadcrumb === null || this.carrier === null)
-            return;
-
-        this.carrier.getWorldPosition(this._carrierPos);
-        this.carrier.getWorldQuaternion(this._carrierQuat);
-
-        camera.getWorldPosition(this._playerWorldPos);
-
-        // raycast from player toward carrier — clamp to wall if blocked
-        this._rayDir.subVectors(this._carrierPos, this._playerWorldPos);
-        const dist = this._rayDir.length();
-        this._rayDir.divideScalar(dist);
-        this._wallRaycaster.set(this._playerWorldPos, this._rayDir);
-        this._wallRaycaster.far = dist;
-        const hits = this._wallRaycaster.intersectObjects(this.scene.children, true);
-        this._wallRaycaster.far = Infinity;
-
-        let targetPos = this._carrierPos;
-        for (const hit of hits) {
-            if (hit.object.userData.isMazeWallHitBox) {
-                targetPos = hit.point;
-                break;
-            }
-        }
-
-        this.heldBreadcrumb.position.copy(targetPos);
-        this.heldBreadcrumb.quaternion.copy(this._carrierQuat);
-        this.heldBreadcrumb.rotateY(Math.PI);
-    }
-
-    _commitPlacement() {
-        this.breadcrumbs.push(this.heldBreadcrumb);
-        this.heldBreadcrumb = null;
-        this.carrier = null;
-        this.updateBreadCrumbDisplay();
     }
 
     // look for a breadcrumb at a corresponding screen position
@@ -377,8 +456,7 @@ export default class BreadcrumbManager {
                 }
                 if (intersects[i].object.userData.isBreadCrumbHitBox) {
                     const breadcrumb = intersects[i].object.userData.parentBreadcrumb;
-                    // don't interact with the breadcrumb currently held in VR
-                    if (breadcrumb === this.heldBreadcrumb)
+                    if (breadcrumb === this._interactTarget)
                         continue;
                     return breadcrumb;
                 }

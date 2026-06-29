@@ -49,6 +49,8 @@ export default class VRManager extends EventTarget {
         this._gripWorldPos1 = new THREE.Vector3();
         this._gripWorldPos2 = new THREE.Vector3();
         this._gripWorldPositions = [];
+        this._selectStartTime = 0;
+        this._tapThresholdMs = 300;
 
         // Controller setup
         this.controller1 = this.renderer.xr.getController(0);
@@ -251,10 +253,18 @@ export default class VRManager extends EventTarget {
                     this.dispatchEvent(new CustomEvent('pause'));
                 }, 500);
             } else {
-                // non-gaze controller select in game mode → breadcrumb interaction
+                // non-gaze controller selectstart in game mode
                 const controller = this.controllers.find(c => c.inputSource === event.inputSource);
                 if (controller?.gripObject && this.breadcrumbs) {
-                    this.breadcrumbs.interact(controller.gripObject, this.camera);
+                    controller.gripObject.getWorldPosition(this.tmpVector);
+                    this.camera.getWorldPosition(this.tmpVector2);
+                    const nearby = this.breadcrumbs.findNearby(this.tmpVector, this.tmpVector2);
+                    if (nearby) {
+                        this.breadcrumbs.beginReorient(nearby, controller.gripObject);
+                    } else {
+                        this.breadcrumbs.beginPlace(controller.gripObject, controller.object);
+                    }
+                    this._selectStartTime = Date.now();
                 }
             }
         });
@@ -285,6 +295,18 @@ export default class VRManager extends EventTarget {
                     setTimeout(() => {
                         this.moveVector.set(0, 0, 0);
                     }, 50);
+                }
+            } else {
+                // non-gaze controller selectend in game mode
+                if (this.breadcrumbs) {
+                    const isTap = (Date.now() - this._selectStartTime) < this._tapThresholdMs;
+                    const state = this.breadcrumbs.interactState;
+                    if (state === 'reorienting') {
+                        if (isTap) this.breadcrumbs.cancelReorient();
+                        else this.breadcrumbs.endReorient();
+                    } else if (state === 'placing') {
+                        this.breadcrumbs.endPlace();
+                    }
                 }
             }
         });
@@ -483,7 +505,7 @@ export default class VRManager extends EventTarget {
         this._updateHandSprites();
 
         if (this.breadcrumbs) {
-            this.breadcrumbs.updateCarried(this.camera);
+            this.breadcrumbs.updateInteract(this.camera);
             this.breadcrumbs.updateProximityHighlight(this._collectGripWorldPositions(), this.camera);
         }
 
