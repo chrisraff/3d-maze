@@ -173,12 +173,30 @@ export default class BreadcrumbManager {
             const gripDist = gripWorldPos.distanceTo(breadcrumb.position);
             if (gripDist > gripGate)
                 continue;
+            if (this._hasWallBetween(playerWorldPos, breadcrumb.position))
+                continue;
             if (gripDist < bestDist) {
                 bestDist = gripDist;
                 best = breadcrumb;
             }
         }
         return best;
+    }
+
+    // Returns true if a maze wall blocks line-of-sight between two world positions.
+    _hasWallBetween(fromPos, toPos) {
+        this._rayDir.subVectors(toPos, fromPos);
+        const dist = this._rayDir.length();
+        if (dist === 0) return false;
+        this._rayDir.divideScalar(dist);
+        this._wallRaycaster.set(fromPos, this._rayDir);
+        this._wallRaycaster.far = dist;
+        const hits = this._wallRaycaster.intersectObjects(this.scene.children, true);
+        this._wallRaycaster.far = Infinity;
+        for (const hit of hits) {
+            if (hit.object.userData.isMazeWallHitBox) return true;
+        }
+        return false;
     }
 
     // Begin translating + rotating a placed breadcrumb with the grip.
