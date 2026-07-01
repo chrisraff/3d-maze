@@ -386,7 +386,7 @@ export default class BreadcrumbManager {
 
                 const breadcrumb = new THREE.Object3D();
 
-                const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`});
+                const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`, vertexColors: true});
                 breadcrumb.userData.originalMaterial = newMaterial; // Store the original material for unhighlight
 
                 this.updateBreadcrumbMesh(breadcrumb);
