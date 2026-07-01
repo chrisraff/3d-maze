@@ -18,7 +18,6 @@ export default class BreadcrumbManager {
         this.raycaster = new THREE.Raycaster();
         this.mouseVector = new THREE.Vector2();
         this.hoveredBreadcrumb = null;
-        this.highlightMaterial = new THREE.MeshLambertMaterial({color: 0xffff00, emissive: 0xffffff});
         this.breadcrumbGeometry = null;
 
         this.breadcrumbStack = [];
@@ -450,10 +449,10 @@ export default class BreadcrumbManager {
         if (breadcrumb === this.hoveredBreadcrumb)
             return;
         if (this.hoveredBreadcrumb !== null)
-            this.hoveredBreadcrumb.userData.mesh.material = this.hoveredBreadcrumb.userData.originalMaterial;
+            this.hoveredBreadcrumb.userData.mesh.material.emissive.setScalar(0);
         this.hoveredBreadcrumb = breadcrumb;
         if (this.hoveredBreadcrumb !== null)
-            this.hoveredBreadcrumb.userData.mesh.material = this.highlightMaterial;
+            this.hoveredBreadcrumb.userData.mesh.material.emissive.setScalar(0.3);
     }
 
     // look for a breadcrumb at a corresponding screen position
@@ -494,7 +493,7 @@ export default class BreadcrumbManager {
         }
         // if necessary, unhighlight the breadcrumb
         if (this.hoveredBreadcrumb === breadcrumb) {
-            this.hoveredBreadcrumb.userData.mesh.material = this.hoveredBreadcrumb.userData.originalMaterial;
+            this.hoveredBreadcrumb.userData.mesh.material.emissive.setScalar(0);
         };
         this.hoveredBreadcrumb = null;
 
