@@ -172,7 +172,7 @@ export default class BreadcrumbManager {
             const gripDist = gripWorldPos.distanceTo(breadcrumb.position);
             if (gripDist > gripGate)
                 continue;
-            if (this._hasWallBetween(playerWorldPos, breadcrumb.position))
+            if (!this._canReachBreadcrumb(playerWorldPos, breadcrumb))
                 continue;
             if (gripDist < bestDist) {
                 bestDist = gripDist;
@@ -182,18 +182,21 @@ export default class BreadcrumbManager {
         return best;
     }
 
-    // Returns true if a maze wall blocks line-of-sight between two world positions.
-    _hasWallBetween(fromPos, toPos) {
-        this._rayDir.subVectors(toPos, fromPos);
+    // Returns true if a raycast from fromPos to breadcrumb's hitbox hits the hitbox before any wall.
+    _canReachBreadcrumb(fromPos, breadcrumb) {
+        this._rayDir.subVectors(breadcrumb.position, fromPos);
         const dist = this._rayDir.length();
-        if (dist === 0) return false;
+        if (dist === 0) return true;
         this._rayDir.divideScalar(dist);
         this._wallRaycaster.set(fromPos, this._rayDir);
         this._wallRaycaster.far = dist;
         const hits = this._wallRaycaster.intersectObjects(this.scene.children, true);
         this._wallRaycaster.far = Infinity;
         for (const hit of hits) {
-            if (hit.object.userData.isMazeWallHitBox) return true;
+            if (hit.object.userData.isBreadCrumbHitBox && hit.object.userData.parentBreadcrumb === breadcrumb)
+                return true;
+            if (hit.object.userData.isMazeWallHitBox)
+                return false;
         }
         return false;
     }
