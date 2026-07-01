@@ -274,9 +274,8 @@ export default class BreadcrumbManager {
         camera.getWorldPosition(this._playerWorldPos);
 
         if (this._interactState === 'reorienting') {
-            // translate: breadcrumb follows grip delta, wall-clamped
+            // translate: breadcrumb snaps to and follows grip, wall-clamped
             this._interactGripObject.getWorldPosition(this._tmpPos);
-            this._tmpPos.sub(this._interactStartPos).add(this._interactTargetStartPos);
             this._wallClampPosition(this._tmpPos, this._playerWorldPos);
 
             // rotate: apply grip delta to the breadcrumb's original orientation
