@@ -9,6 +9,38 @@ import { YIELD } from './TouchArbiter.js';
 
 const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
 const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+const glowSphereGeometry = new THREE.SphereGeometry(0.6, 16, 12);
+
+function createGlowMaterial() {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            uAlpha: { value: 0.0 },
+        },
+        vertexShader: `
+            varying vec3 vNormal;
+            varying vec3 vLook;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vec4 worldPosition = modelViewMatrix * vec4(position, 1.0);
+                vLook = normalize(worldPosition.xyz);
+                gl_Position = projectionMatrix * worldPosition;
+            }
+        `,
+        fragmentShader: `
+            uniform float uAlpha;
+            varying vec3 vNormal;
+            varying vec3 vLook;
+            void main() {
+                float intensity = dot(vNormal, vLook);
+                gl_FragColor = vec4(1.0, 1.0, 1.0, intensity * uAlpha);
+            }
+        `,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false,
+    });
+}
 
 export default class BreadcrumbManager {
     constructor() {
@@ -46,6 +78,8 @@ export default class BreadcrumbManager {
         this._interactStartOrientQuat = new THREE.Quaternion(); // initial breadcrumb orient for placing
         this._interactCurrentQuat = new THREE.Quaternion(); // temp
         this._interactDeltaQuat = new THREE.Quaternion();  // temp
+
+        this._glowLastTime = null;
     }
 
     get interactState() { return this._interactState; }
@@ -151,8 +185,19 @@ export default class BreadcrumbManager {
             mesh = new THREE.Mesh(this.breadcrumbGeometry, breadcrumb.userData.originalMaterial);
 
         breadcrumb.userData.mesh = mesh;
-
         breadcrumb.add(mesh);
+
+        this.updateGlowMesh(breadcrumb);
+    }
+
+    updateGlowMesh(breadcrumb) {
+        if (breadcrumb.userData.glowMesh) {
+            breadcrumb.remove(breadcrumb.userData.glowMesh);
+            breadcrumb.userData.glowMesh = null;
+        }
+        const glowMesh = new THREE.Mesh(glowSphereGeometry, breadcrumb.userData.glowMaterial);
+        breadcrumb.userData.glowMesh = glowMesh;
+        breadcrumb.add(glowMesh);
     }
 
     // --- Spatial interaction API ---
@@ -320,13 +365,14 @@ export default class BreadcrumbManager {
 
     // positions: array of Vector3 world positions (one per connected controller).
     updateProximityHighlight(positions, camera) {
+        camera.getWorldPosition(this._playerWorldPos);
+
         if (this._interactState !== null) {
             // keep the reoriented breadcrumb highlighted during a hold; clear otherwise
             this._setHoveredBreadcrumb(this._interactState === 'reorienting' ? this._interactTarget : null);
+            this.updateGlowHighlight(this._playerWorldPos);
             return;
         }
-
-        camera.getWorldPosition(this._playerWorldPos);
 
         let best = null;
         let bestDist = Infinity;
@@ -341,6 +387,33 @@ export default class BreadcrumbManager {
             }
         }
         this._setHoveredBreadcrumb(best);
+        this.updateGlowHighlight(this._playerWorldPos);
+    }
+
+    updateGlowHighlight(playerWorldPos) {
+        const now = performance.now();
+        const deltaTime = this._glowLastTime === null ? 0 : (now - this._glowLastTime) / 1000;
+        this._glowLastTime = now;
+
+        const FADE_SPEED = 16.0;
+        const playerGate = maze.majorWidth * 0.75;
+
+        for (const breadcrumb of this.breadcrumbs) {
+            if (breadcrumb === this._interactTarget) continue;
+
+            const playerDist = playerWorldPos.distanceTo(breadcrumb.position);
+            const inRange = playerDist <= playerGate
+                && this._canReachBreadcrumb(playerWorldPos, breadcrumb);
+
+            const target = inRange ? 0.5 * (playerDist / playerGate)**2 : 0.0;
+            const alpha = THREE.MathUtils.lerp(
+                breadcrumb.userData.glowAlpha,
+                target,
+                1 - Math.exp(-FADE_SPEED * deltaTime)
+            );
+            breadcrumb.userData.glowAlpha = alpha;
+            breadcrumb.userData.glowMaterial.uniforms.uAlpha.value = alpha;
+        }
     }
 
     // --- Maze lifecycle ---
@@ -388,7 +461,9 @@ export default class BreadcrumbManager {
                 const breadcrumb = new THREE.Object3D();
 
                 const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`, vertexColors: true});
-                breadcrumb.userData.originalMaterial = newMaterial; // Store the original material for unhighlight
+                breadcrumb.userData.originalMaterial = newMaterial;
+                breadcrumb.userData.glowMaterial = createGlowMaterial();
+                breadcrumb.userData.glowAlpha = 0.0;
 
                 this.updateBreadcrumbMesh(breadcrumb);
 
@@ -445,6 +520,8 @@ export default class BreadcrumbManager {
     updateHoveredBreadcrumb(camera)
     {
         this._setHoveredBreadcrumb(this.raycastSearchForBreadcrumb(camera));
+        camera.getWorldPosition(this._playerWorldPos);
+        this.updateGlowHighlight(this._playerWorldPos);
     }
 
     _setHoveredBreadcrumb(breadcrumb) {
@@ -498,6 +575,10 @@ export default class BreadcrumbManager {
             this.hoveredBreadcrumb.userData.mesh.material.emissive.setScalar(0);
         };
         this.hoveredBreadcrumb = null;
+
+        breadcrumb.userData.glowAlpha = 0.0;
+        if (breadcrumb.userData.glowMaterial)
+            breadcrumb.userData.glowMaterial.uniforms.uAlpha.value = 0.0;
 
         this.breadcrumbStack.push(breadcrumb);
 
