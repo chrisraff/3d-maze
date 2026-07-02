@@ -367,7 +367,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
             const shouldInstantRotate = this.isXRPresenting && !this.vrControlOptions.rotationSmoothing;
             if (!shouldInstantRotate) {
                 scope.object.rotateOnWorldAxis(new Vector3(0, 1, 0), rotationVector_.y * scaleFactor);
-                scope.object.rotateX(rotationVector_.x * scaleFactor);
+                scope.tmpEulerAngle.setFromQuaternion(scope.object.quaternion, 'YXZ');
+                scope.tmpEulerAngle.x = clamp(scope.tmpEulerAngle.x + rotationVector_.x * scaleFactor, -Math.PI / 2, Math.PI / 2);
+                scope.tmpEulerAngle.z = 0;
+                scope.object.rotation.copy(scope.tmpEulerAngle);
             } else {
                 // Instant rotation mode: snap rotation with cooldown
                 const elapsedTime = Date.now() - this.vrLastRotateTime;
