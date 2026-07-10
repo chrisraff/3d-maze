@@ -8,6 +8,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "playwright-core": "^1.61.1",
     "three": "0.181.0",
     "vitest": "^3.2.4"
   }

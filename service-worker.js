@@ -1,7 +1,7 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v20';
+const CACHE_NAME = 'static-cache-v21';
 const THIRD_PARTY_CACHE = 'third-party-cache-v6';
 
 const FILES_TO_CACHE = [
@@ -22,8 +22,19 @@ const FILES_TO_CACHE = [
     '/js/goalDots.js',
     '/js/TutorialManager.js',
     '/js/VRManager.js',
+    '/js/BreadcrumbManager.js',
+    '/js/TouchArbiter.js',
+    '/js/checkCollisionOnAxis.js',
+    '/js/PlayerCollider.js',
+    '/js/EventBus.js',
+    '/js/analytics.js',
+    '/js/GameSession.js',
+    '/js/RunHistory.js',
+    '/js/MazeWorld.js',
+    '/js/Settings.js',
     '/models/wall.glb',
     '/models/arrow.glb',
+    '/models/pointer.glb',
     '/textures/dot.png',
 ];
 const RESOURCES_TO_CACHE = [
