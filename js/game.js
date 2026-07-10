@@ -2,7 +2,6 @@
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
 import * as THREE from 'three';
-import { MeshLine, MeshLineMaterial } from './THREE.MeshLine.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FlyPointerLockControls } from './controls.js';
 import * as maze from './maze.js';
@@ -19,6 +18,10 @@ import TouchArbiter from './TouchArbiter.js';
 import GoalDotEffect from './goalDots.js';
 import bus from './EventBus.js';
 import initAnalytics from './analytics.js';
+import GameSession, { formatMazeTime } from './GameSession.js';
+import RunHistory from './RunHistory.js';
+import MazeWorld from './MazeWorld.js';
+import Settings from './Settings.js';
 
 initAnalytics();
 
@@ -33,8 +36,6 @@ var menuManager = null;
 
 // basic objects
 var fpsClock;
-var timerStartMillis;
-var timerRunning;
 
 var scene;
 var cameraNode;
@@ -43,25 +44,14 @@ var camera;
 
 var spectator;
 
-var tmpColor;
-
-const PI_2 = Math.PI / 2;
-
-// models
-var blockGeometry;
-var wallGeometry;
-var wallHitGeometry;
-
 // vr state
 var vrManager;
-var vrMirrorEnabled = false;
 
-// materials
+// user settings
+var settings;
+
+// textures
 var dotSprite;
-
-var wallMaterial;
-var darkMaterial;
-var basicMaterial;
 
 // controls
 var controls;
@@ -74,10 +64,9 @@ var tmpVector;
 // maze variables
 var mazeSize;
 var mazeData;
-var mazeGroup;
-// checkpoints
-var startedMaze;
-var finishedMaze;
+var mazeWorld;
+// run state (timer + checkpoints)
+var session;
 // save the positions of the entrance and exit of the maze
 var startPos;
 var segments;
@@ -85,10 +74,7 @@ var endPos;
 // collisions
 var playerCollider;
 // history
-var historyPositions;
-var	historyLineMaterial;
-var historyLine;
-var historyMesh;
+var runHistory;
 // breadcrumbs
 var breadcrumbs;
 var touchArbiter;
@@ -208,28 +194,6 @@ function loadSavedVariables()
     document.querySelectorAll('.menu-experienced').forEach((el) => {
         el.style.display = showTutorial ? 'none' : '';
     });
-
-    const vrTeleport = storageGetItem('vr-setting-movement', 'teleport');
-    controls.vrControlOptions.teleportationEnabled = vrTeleport == 'teleport';
-    document.querySelectorAll('[name="vr-setting-movement"]').forEach((el) => {
-        el.checked = el.value == vrTeleport;
-    });
-
-    const vrRotation = storageGetItem('vr-setting-rotation', 'instant');
-    controls.vrControlOptions.rotationSmoothing = vrRotation == 'smooth';
-    document.querySelectorAll('[name="vr-setting-rotation"]').forEach((el) => {
-        el.checked = el.value == vrRotation;
-    });
-
-    updateVrRotateSpeedSettingEnabled();
-
-    const vrRotationSpeed = Number(storageGetItem('vr-setting-rotation-speed', '0'));
-    vrManager.rotationSpeed = Math.pow(3, vrRotationSpeed);
-    document.querySelector('#vr-setting-rotation-speed').value = vrRotationSpeed;
-
-    const vrMirroringDefault = getVrDeviceType() === 'vr-device-enabled' ? 'true' : 'false';
-    vrMirrorEnabled = storageGetItem('vr-setting-mirror', vrMirroringDefault) === 'true';
-    document.querySelector('#vr-setting-mirror').checked = vrMirrorEnabled;
 }
 
 function setupInputBindings() {
@@ -271,8 +235,6 @@ function init() {
 
     // setup basic objects
     fpsClock = new THREE.Clock();
-    timerStartMillis = 0;
-    timerRunning = false;
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
@@ -286,20 +248,16 @@ function init() {
     spectator = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
     cameraCompensationNode.add( spectator );
 
-    tmpColor = new THREE.Color();
-
-    wallHitGeometry = new THREE.InstancedBufferGeometry();
-    THREE.BufferGeometry.prototype.copy.call( wallHitGeometry, new THREE.BoxGeometry() );
+    // maze world (owns maze geometry, materials and the maze scene group)
+    mazeWorld = new MazeWorld();
+    mazeWorld.addTo(scene);
 
     // load models
-    blockGeometry = new THREE.InstancedBufferGeometry();
-    THREE.BufferGeometry.prototype.copy.call( blockGeometry, new THREE.BoxGeometry() );
     let loader = new GLTFLoader();
-    wallGeometry = new THREE.InstancedBufferGeometry();
 
     loader.load( 'models/wall.glb', function ( gltf ) {
         let modelWall = gltf.scene.getObjectByName('wall');
-        THREE.BufferGeometry.prototype.copy.call(wallGeometry, modelWall.geometry);
+        mazeWorld.setWallGeometry(modelWall.geometry);
 
         // build maze for first time
         // (must wait for this model to load or the colors don't work)
@@ -321,11 +279,6 @@ function init() {
 
     // load texture
     dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
-
-    // materials
-    wallMaterial = new THREE.MeshLambertMaterial( { vertexColors: true } );
-    darkMaterial = new THREE.MeshPhongMaterial( {color: 'hsl(0, 0%, 10%)'} );
-    basicMaterial = new THREE.MeshBasicMaterial();
 
     // set up lights
     let localLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
@@ -349,10 +302,7 @@ function init() {
     controls.rollSpeed = 1;
     controls.addEventListener( 'lock', function() {
         document.querySelector('#blocker').style.display = 'none';
-        if (!timerRunning) {
-            timerRunning = true;
-            timerStartMillis = Date.now();
-        }
+        session.startTimer();
 
         vrManager.setUiInteraction(false);
     } );
@@ -361,7 +311,7 @@ function init() {
         touchArbiter?.clear();
 
         // determine if the pause menu should be shown
-        if (!finishedMaze && !tutorialManager.inTutorial && menuManager.focusedMenu !== 'menu-rotate-phone')
+        if (!session.finishedMaze && !tutorialManager.inTutorial && menuManager.focusedMenu !== 'menu-rotate-phone')
         {
             menuManager.focusRootMenu('menu-pause');
         }
@@ -480,11 +430,8 @@ function init() {
     // maze variables
     mazeSize = 3;
     mazeData = null;
-    mazeGroup = new THREE.Group();
-    scene.add( mazeGroup );
-    // checkpoints
-    startedMaze = false;
-    finishedMaze = false;
+    // run state (timer + checkpoints)
+    session = new GameSession(bus);
     // save the positions of the entrance and exit of the maze
     startPos = new THREE.Vector3( maze.getOffset(1), maze.getOffset(1), maze.getOffset(1) );
     segments = mazeSize * 2 - 0.5;
@@ -492,20 +439,12 @@ function init() {
     // collisions
     playerCollider = new PlayerCollider(CameraCollisionDistance);
     // history
-    historyPositions = [];
-    historyLineMaterial = new MeshLineMaterial( {
-        useMap: true,
+    runHistory = new RunHistory({
         map: dotSprite,
-		opacity: 1,
-		resolution: new THREE.Vector2( window.innerWidth, window.innerHeight ),
-		sizeAttenuation: true,
-		lineWidth: 0.01,
-        vertexColors: true
-	});
-    historyLine = new MeshLine(); // this is a geometry;
-
-    historyMesh = new THREE.Mesh(historyLine, historyLineMaterial);
-    scene.add( historyMesh );
+        resolution: new THREE.Vector2( window.innerWidth, window.innerHeight ),
+        pointSpacing: CameraCollisionDistance
+    });
+    runHistory.addTo(scene);
 
     // setup window resize handlers
     window.addEventListener( 'resize', onWindowResize, false );
@@ -539,14 +478,19 @@ function init() {
 
     loadSavedVariables();
 
+    // user settings (storage <-> DOM <-> controls)
+    settings = new Settings({ controls, vrManager, renderer, vrDeviceType });
+    settings.load();
+    settings.bindDom();
+
+    // completion UI reacts to the session's completion event
+    bus.on('maze:completed', onMazeCompleted);
+
     tutorialManager.cameraNode = cameraNode;
 }
 
 function buildMaze(size=mazeSize) {
     mazeSize = size;
-
-    startedMaze = false;
-    finishedMaze = false;
 
     playerCollider.reset();
 
@@ -571,120 +515,27 @@ function buildMaze(size=mazeSize) {
         cameraNode.rotation.y -= targetRotation;
     }
 
-    historyPositions = [];
-    historyLine.geometry.dispose();
-    historyMesh.visible = false;
+    runHistory.reset();
 
     dust.respawnAllParticles();
     trail.reset();
 
-    mazeGroup.remove(...mazeGroup.children);
-
-    let dummyWall = new THREE.Object3D;
-    let wallMatrices = [];
-    let wallColors = [];
-    let blockMatrices = [];
-
-    mazeData = maze.generateMaze(mazeSize);
-    for (let i = 0; i < mazeData.collision_map.length; i++) {
-        for (let j = 0; j < mazeData.collision_map[i].length; j++) {
-            for (let k = 0; k < mazeData.collision_map[i][j].length; k++) {
-                if (    !mazeData.collision_map[i][j][k] ||
-                        (i!=0 && i!=mazeData.bounds[0]*2 && j!=0 && j!=mazeData.bounds[1]*2 && k!=0 && k!=mazeData.bounds[2]*2 && // if we're inside...
-                            i%2==0 && j%2==0 && k%2==0)) // don't create unseen blocks
-                    continue;
-
-                let iWidth = maze.getWidth(i);
-                let jWidth = maze.getWidth(j);
-                let kWidth = maze.getWidth(k);
-
-                // only large walls get color
-                let colorful = false;
-                if (iWidth + jWidth + kWidth >= 2 * maze.majorWidth + maze.minorWidth)
-                    colorful = true;
-
-                if (colorful) {
-                    dummyWall.scale.set( maze.majorWidth, maze.minorWidth, maze.majorWidth );
-                    dummyWall.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
-
-                    // rotate appropriately
-                    if (iWidth == maze.minorWidth) {
-                        dummyWall.rotation.z = PI_2;
-                    } else if (kWidth == maze.minorWidth) {
-                        dummyWall.rotation.x = PI_2;
-                    }
-
-                    dummyWall.updateMatrix();
-
-                    dummyWall.rotation.set(0,0,0);
-
-                    wallMatrices.push( dummyWall.matrix.clone() );
-
-                    wallColors.push(
-                        0.05 + 0.9 * (i-1)/(mazeData.segments[0]),
-                        0.05 + 0.9 * (j-1)/(mazeData.segments[1]),
-                        0.05 + 0.9 * (k-1)/(mazeData.segments[2])
-                    );
-
-                } else {
-                    dummyWall.scale.set( iWidth, jWidth, kWidth );
-                    dummyWall.position.set( maze.getOffset(i), maze.getOffset(j), maze.getOffset(k) );
-
-                    dummyWall.updateMatrix();
-
-                    blockMatrices.push( dummyWall.matrix.clone() );
-                }
-            }
-        }
-    }
+    mazeData = mazeWorld.build(mazeSize);
 
     breadcrumbs.initializeMaze(mazeData);
 
-    wallGeometry.setAttribute( 'color', new THREE.InstancedBufferAttribute( new Float32Array( wallColors ), 3 ) );
-    let wallInstancedMesh = new THREE.InstancedMesh( wallGeometry, wallMaterial, wallMatrices.length );
-    let i = 0;
-    wallMatrices.forEach((mat) => wallInstancedMesh.setMatrixAt( i++, mat ) );
-    wallInstancedMesh.needsUpdate = true;
-
-    mazeGroup.add( wallInstancedMesh );
-
-    let blockInstanceMesh = new THREE.InstancedMesh( blockGeometry, darkMaterial, blockMatrices.length );
-    i = 0;
-    blockMatrices.forEach((mat) => blockInstanceMesh.setMatrixAt( i++, mat ) );
-    blockInstanceMesh.needsUpdate = true;
-
-    let wallHitInstanceMesh = new THREE.InstancedMesh( wallHitGeometry, basicMaterial, wallMatrices.length + blockMatrices.length );
-    i = 0;
-    wallMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
-    blockMatrices.forEach((mat) => wallHitInstanceMesh.setMatrixAt( i++, mat ) );
-    wallHitInstanceMesh.needsUpdate = true;
-    wallHitInstanceMesh.layers.set(3);
-    wallHitInstanceMesh.userData.isMazeWallHitBox = true;
-
-    mazeGroup.add( blockInstanceMesh );
-    mazeGroup.add( wallHitInstanceMesh );
-
-    timerRunning = false;
-
+    session.newMaze(mazeData);
 };
 
 const CameraCollisionDistance = 0.25;
 function collisionUpdate() {
     const mazePosFar = playerCollider.update(mazeData, cameraNode.position);
-
-    // check for maze completion
-    if (mazePosFar.z == -1 && startedMaze) {
-        startedMaze = false;
-    } else if (!startedMaze && mazePosFar.z == 1 && mazePosFar.x == 1 && mazePosFar.y == 1) {
-        startedMaze = true;
-    } else if (!finishedMaze && startedMaze && mazePosFar.z == mazeData.bounds[2] * 2 + 1) {
-        onMazeCompletion();
-    }
+    session.updateCheckpoints(mazePosFar);
 };
 
-function onMazeCompletion()
+// runs when the session emits 'maze:completed' on the bus
+function onMazeCompleted({ mazeData: completedMazeData, elapsedMillis })
 {
-    finishedMaze = true;
     goalDots.finish();
     document.querySelector('#completionMessage').style.display = '';
 
@@ -692,55 +543,16 @@ function onMazeCompletion()
     vrManager.recenterUI();
     menuManager.focusRootMenu('menu-new-maze');
 
-    let seconds = ( (Date.now() - timerStartMillis) / 1000).toFixed(2);
-    let timeString = seconds;
-    if (seconds >= 60) {
-        let minutes = Math.floor(seconds / 60);
-        let secondString = "" + seconds % 60;
-        if (secondString < 10) {
-            secondString = `0${secondString}`;
-        }
-        // toFixed can't be trusted
-        secondString = secondString.substring(0, 5);
-        timeString = `${minutes}:${secondString}`;
-    } else {
-        timeString = seconds.substring(0, seconds >= 10 ? 5 : 4);
-    }
-    document.querySelector('#mazeTimeSpan').textContent = timeString;
-    document.querySelector('#mazeCompSizeSpan').textContent = mazeData.size_string;
+    document.querySelector('#mazeTimeSpan').textContent = formatMazeTime(elapsedMillis);
+    document.querySelector('#mazeCompSizeSpan').textContent = completedMazeData.size_string;
 
-    // build history
-    let historyVerts = new Float32Array( 3 * historyPositions.length );
-    let historyCols  = new Float32Array( 6 * historyPositions.length );
-
-    for (let i = 0; i < historyPositions.length; i++)
-    {
-        historyVerts[i*3 + 0] = historyPositions[i].x;
-        historyVerts[i*3 + 1] = historyPositions[i].y;
-        historyVerts[i*3 + 2] = historyPositions[i].z;
-
-        tmpColor.setHSL( i / historyPositions.length, 1.0, 0.75);
-
-        historyCols[ i*6 + 0 ] = tmpColor.r;
-        historyCols[ i*6 + 1 ] = tmpColor.g;
-        historyCols[ i*6 + 2 ] = tmpColor.b;
-        historyCols[ i*6 + 0+3 ] = tmpColor.r;
-        historyCols[ i*6 + 1+3 ] = tmpColor.g;
-        historyCols[ i*6 + 2+3 ] = tmpColor.b;
-    }
-
-    historyLine.setPoints(historyVerts);
-    historyLine.setAttribute( 'color',    new THREE.BufferAttribute( historyCols,  3 ) );
-
-    historyMesh.visible = true;
+    runHistory.showCompletedTrail();
 
     // complete tutorial
     if (tutorialManager) {
         tutorialManager.resetTutorial(true);
         storageSetItem('lastMazeCompletionDate', Date.now());
     }
-
-    bus.emit('maze:completed', { mazeData, elapsedMillis: Date.now() - timerStartMillis });
 }
 
 function onWindowResize() {
@@ -802,30 +614,14 @@ var animate = function () {
     }
     breadcrumbs.updateGlowForCamera(camera);
 
-    if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( cameraNode.position ) > (0.1 * CameraCollisionDistance)**2 )
-    {
-        // add to history
-        const newHistoryPosition = tmpVector.copy(cameraNode.position);
-
-        let lastPos = historyPositions.length > 0 ? historyPositions[historyPositions.length - 1] : cameraNode.position;
-        let distance = lastPos.distanceTo(newHistoryPosition);
-        let numPoints = Math.max(1, Math.ceil(distance / CameraCollisionDistance));
-
-        // in case of long distances (e.g. teleportation), interpolate points so the line doesn't look broken
-        for (let i = 0; i < numPoints; i++) {
-            let t = numPoints > 1 ? i / (numPoints - 1) : 1;
-            let interpolatedPos = new THREE.Vector3();
-            interpolatedPos.lerpVectors(lastPos, newHistoryPosition, t);
-            historyPositions.push(interpolatedPos);
-        }
-    }
+    runHistory.recordPosition(cameraNode.position);
 
     goalDots.update( delta );
 
     renderer.render( scene, camera );
     compassManager.render();
 
-    if (renderer.xr.isPresenting && vrMirrorEnabled) {
+    if (renderer.xr.isPresenting && settings.vrMirrorEnabled) {
         mirrorRender();
     }
 };
@@ -854,7 +650,7 @@ init();
 
 function buildMazeAndUpdateUI(size)
 {
-    verifyAndReportAbandonedMaze();
+    session.reportIfAbandoned();
 
     buildMaze(size);
 
@@ -869,16 +665,6 @@ function buildMazeAndUpdateUI(size)
     if (tutorialManager) tutorialManager.resetTutorial();
 
     bus.emit('maze:built', { size: mazeSize });
-}
-
-function verifyAndReportAbandonedMaze()
-{
-    // check if maze was started and if time has passed
-    const elapsed_time = Date.now() - timerStartMillis;
-    if (startedMaze && !finishedMaze && elapsed_time > 7000)
-    {
-        bus.emit('maze:abandoned', { mazeData, elapsedMillis: elapsed_time });
-    }
 }
 
 function updateMenuCentering()
@@ -920,7 +706,7 @@ function menuLockControls()
         tutorialManager.startTutorial();
     }
 
-    if (finishedMaze) {
+    if (session.finishedMaze) {
         document.querySelector('#completionMessage').style.display = '';
     }
 }
@@ -932,34 +718,6 @@ document.querySelector('#menu-new-maze-button').addEventListener('click', (event
     menuLockControls();
 });
 
-document.querySelector('#setting-fixed-camera').addEventListener('change', (event) => {
-    controls.setGimbalLocked( event.target.checked );
-});
-
-document.querySelector('#vr-setting-mirror').addEventListener('change', (event) => {
-    storageSetItem('vr-setting-mirror', event.target.checked ? 'true' : 'false');
-    vrMirrorEnabled = event.target.checked;
-});
-
-document.querySelectorAll('.menu-radio-button').forEach((el) => {
-    el.addEventListener('change', (event) => {
-        if (event.target.name == 'vr-setting-movement') {
-            controls.vrControlOptions.teleportationEnabled = event.target.value == 'teleport';
-            storageSetItem('vr-setting-movement', event.target.value);
-        }
-        if (event.target.name == 'vr-setting-rotation') {
-            controls.vrControlOptions.rotationSmoothing = event.target.value == 'smooth';
-            updateVrRotateSpeedSettingEnabled();
-            storageSetItem('vr-setting-rotation', event.target.value);
-        }
-    });
-});
-
-function updateVrRotateSpeedSettingEnabled() {
-    const vrRotationSpeedSetting = document.querySelector('#vr-setting-rotation-speed');
-    vrRotationSpeedSetting.disabled = !controls.vrControlOptions.rotationSmoothing;
-}
-
 function getVrDeviceType() {
     if (navigator.userAgent.indexOf('OculusBrowser') !== -1) {
         return 'vr-device-first';
@@ -970,24 +728,4 @@ function getVrDeviceType() {
     return 'vr-device-enabled';
 }
 
-document.querySelectorAll('.menu-slider').forEach((el) => {
-    el.addEventListener('input', (event) => {
-        const value = event.target.value;
-        if (event.target.id == 'vr-setting-rotation-speed') {
-            const expValue = Math.pow(3, value);
-            vrManager.rotationSpeed = expValue;
-            storageSetItem('vr-setting-rotation-speed', value);
-        }
-        vrManager.uiMesh.material.map.update();
-    });
-});
-
-document.querySelectorAll('.xr-force-redraw').forEach((el) => {
-    el.addEventListener('change', (event) => {
-        if (renderer.xr.isPresenting) {
-            vrManager.uiMesh.material.map.update();
-        }
-    });
-});
-
-window.addEventListener('beforeunload', verifyAndReportAbandonedMaze);
+window.addEventListener('beforeunload', () => session.reportIfAbandoned());
