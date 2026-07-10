@@ -1,0 +1,14 @@
+{
+  "name": "3d-maze",
+  "private": true,
+  "type": "module",
+  "description": "Dev tooling only — the site itself is buildless and served statically.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "three": "0.181.0",
+    "vitest": "^3.2.4"
+  }
+}

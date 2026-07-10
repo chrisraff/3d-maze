@@ -226,7 +226,7 @@ function generateMaze(size) {
         let curr_z = current_item.position[2];
 
 
-        if (curr_x == mazeData.segments[0] - 2 && curr_y == mazeData.segments[1] - 2 && mazeData.segments[2] - 2)
+        if (curr_x == mazeData.segments[0] - 2 && curr_y == mazeData.segments[1] - 2 && curr_z == mazeData.segments[2] - 2)
         {
             end_analysis = current_item;
         }
