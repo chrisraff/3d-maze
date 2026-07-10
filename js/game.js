@@ -9,7 +9,7 @@ import * as maze from './maze.js';
 import { storageGetItem, storageSetItem } from './storage.js';
 import DustEffect from './dust.js';
 import TrailEffect from './trail.js';
-import checkCollisionOnAxis from './checkCollisionOnAxis.js';
+import PlayerCollider from './PlayerCollider.js';
 import CompassManager from './compassManagager.js';
 import VRManager from './VRManager.js';
 import TutorialManager from './TutorialManager.js';
@@ -79,8 +79,7 @@ var startPos;
 var segments;
 var endPos;
 // collisions
-var mazePosNear;
-var mazePosFar;
+var playerCollider;
 // history
 var historyPositions;
 var	historyLineMaterial;
@@ -487,8 +486,7 @@ function init() {
     segments = mazeSize * 2 - 0.5;
     endPos = new THREE.Vector3();
     // collisions
-    mazePosNear = null; // closer to 0,0,0 (-)
-    mazePosFar = null;
+    playerCollider = new PlayerCollider(CameraCollisionDistance);
     // history
     historyPositions = [];
     historyLineMaterial = new MeshLineMaterial( {
@@ -546,8 +544,7 @@ function buildMaze(size=mazeSize) {
     startedMaze = false;
     finishedMaze = false;
 
-    mazePosNear = null;
-    mazePosFar = null;
+    playerCollider.reset();
 
     segments = mazeSize * 2 - 1;
     endPos.set( maze.getOffset(segments), maze.getOffset(segments), maze.getOffset(segments + 2) );
@@ -669,67 +666,7 @@ function buildMaze(size=mazeSize) {
 
 const CameraCollisionDistance = 0.25;
 function collisionUpdate() {
-    let nearPos = new THREE.Vector3();
-    nearPos.copy(cameraNode.position);
-    nearPos.addScalar(-CameraCollisionDistance);
-    let farPos = new THREE.Vector3();
-    farPos.copy(cameraNode.position);
-    farPos.addScalar(CameraCollisionDistance);
-    let newMazePosNear = maze.getMazePos(nearPos);
-    let newMazePosFar = maze.getMazePos(farPos);
-
-    // initialize (only happens at start)
-    if (mazePosNear == null && mazePosFar == null) {
-        mazePosNear = newMazePosNear;
-        mazePosFar = newMazePosFar;
-    }
-
-    // if the player moved more than 1 unit on any axis, adjust newMazePos
-    if (Math.abs(newMazePosNear.x - mazePosNear.x) > 1) {
-        newMazePosNear.x = mazePosNear.x + Math.sign(newMazePosNear.x - mazePosNear.x);
-    }
-    if (Math.abs(newMazePosNear.y - mazePosNear.y) > 1) {
-        newMazePosNear.y = mazePosNear.y + Math.sign(newMazePosNear.y - mazePosNear.y);
-    }
-    if (Math.abs(newMazePosNear.z - mazePosNear.z) > 1) {
-        newMazePosNear.z = mazePosNear.z + Math.sign(newMazePosNear.z - mazePosNear.z);
-    }
-    if (Math.abs(newMazePosFar.x - mazePosFar.x) > 1) {
-        newMazePosFar.x = mazePosFar.x + Math.sign(newMazePosFar.x - mazePosFar.x);
-    }
-    if (Math.abs(newMazePosFar.y - mazePosFar.y) > 1) {
-        newMazePosFar.y = mazePosFar.y + Math.sign(newMazePosFar.y - mazePosFar.y);
-    }
-    if (Math.abs(newMazePosFar.z - mazePosFar.z) > 1) {
-        newMazePosFar.z = mazePosFar.z + Math.sign(newMazePosFar.z - mazePosFar.z);
-    }
-
-    // actual collision checking goes here
-    if (newMazePosNear.distanceToSquared(mazePosNear) != 0) {
-        if (newMazePosNear.x - mazePosNear.x < 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', mazePosNear, newMazePosNear, mazePosFar, -1, cameraNode.position, CameraCollisionDistance);
-        }
-        if (newMazePosNear.y - mazePosNear.y < 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', mazePosNear, newMazePosNear, mazePosFar, -1, cameraNode.position, CameraCollisionDistance);
-        }
-        if (newMazePosNear.z - mazePosNear.z < 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', mazePosNear, newMazePosNear, mazePosFar, -1, cameraNode.position, CameraCollisionDistance);
-        }
-    }
-    if (newMazePosFar.distanceToSquared(mazePosFar) != 0) {
-        if (newMazePosFar.x - mazePosFar.x > 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', mazePosFar, newMazePosFar, mazePosNear, 1, cameraNode.position, CameraCollisionDistance);
-        }
-        if (newMazePosFar.y - mazePosFar.y > 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', mazePosFar, newMazePosFar, mazePosNear, 1, cameraNode.position, CameraCollisionDistance);
-        }
-        if (newMazePosFar.z - mazePosFar.z > 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', mazePosFar, newMazePosFar, mazePosNear, 1, cameraNode.position, CameraCollisionDistance);
-        }
-    }
-
-    mazePosNear = newMazePosNear;
-    mazePosFar = newMazePosFar;
+    const mazePosFar = playerCollider.update(mazeData, cameraNode.position);
 
     // check for maze completion
     if (mazePosFar.z == -1 && startedMaze) {

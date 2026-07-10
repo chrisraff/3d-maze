@@ -1,7 +1,8 @@
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
+ *
+ * Pure maze logic — no THREE, no DOM. Keep it that way so it stays unit-testable.
  */
-import * as THREE from 'three';
 
 var majorWidth = 2;
 var minorWidth = 2 * 1/32
@@ -27,8 +28,9 @@ function getSegment(x) {
         return out;
     return out + 1;
 }
+// accepts anything with x/y/z; returns a plain {x, y, z} of maze segment indices
 function getMazePos(pos) {
-    return new THREE.Vector3(getSegment(pos.x), getSegment(pos.y), getSegment(pos.z));
+    return { x: getSegment(pos.x), y: getSegment(pos.y), z: getSegment(pos.z) };
 }
 
 function generateMaze(size) {
