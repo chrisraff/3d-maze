@@ -520,6 +520,9 @@ export default class BreadcrumbManager {
     updateHoveredBreadcrumb(camera)
     {
         this._setHoveredBreadcrumb(this.raycastSearchForBreadcrumb(camera));
+    }
+
+    updateGlowForCamera(camera) {
         camera.getWorldPosition(this._playerWorldPos);
         this.updateGlowHighlight(this._playerWorldPos);
     }

@@ -866,6 +866,7 @@ var animate = function () {
     if (!isMobile && (!vrManager.isPresenting() || vrManager.isUsingGazeControls)) {
         breadcrumbs.updateHoveredBreadcrumb(camera);
     }
+    breadcrumbs.updateGlowForCamera(camera);
 
     if ( historyPositions.length == 0 || historyPositions[historyPositions.length - 1].distanceToSquared( cameraNode.position ) > (0.1 * CameraCollisionDistance)**2 )
     {
