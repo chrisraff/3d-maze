@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
 import VRButtonManager from './VRButtonManager.js';
+import bus from './EventBus.js';
 
 export default class VRManager extends EventTarget {
     constructor(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls) {
@@ -313,7 +314,7 @@ export default class VRManager extends EventTarget {
     }
 
     onXRSessionStart() {
-        gtag('event', 'vr_session_start', { 'event_category': '3d-maze' });
+        bus.emit('vr:sessionStart');
 
         const session = this.renderer.xr.getSession();
 

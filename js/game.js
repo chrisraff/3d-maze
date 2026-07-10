@@ -17,6 +17,10 @@ import MenuManager from './MenuManager.js';
 import BreadcrumbManager from './BreadcrumbManager.js';
 import TouchArbiter from './TouchArbiter.js';
 import GoalDotEffect from './goalDots.js';
+import bus from './EventBus.js';
+import initAnalytics from './analytics.js';
+
+initAnalytics();
 
 // webpage objects
 
@@ -736,14 +740,7 @@ function onMazeCompletion()
         storageSetItem('lastMazeCompletionDate', Date.now());
     }
 
-    gtag('event', 'maze_completed', {
-            'event_category': '3d-maze',
-            'value': mazeData.size_string,
-            'solution_length': mazeData.analytics.distance_to_end,
-            'branches_on_solution': mazeData.analytics.branches_on_solution,
-            'branches_total': mazeData.analytics.branches_on_solution,
-            'time_since_start': Date.now() - timerStartMillis
-    });
+    bus.emit('maze:completed', { mazeData, elapsedMillis: Date.now() - timerStartMillis });
 }
 
 function onWindowResize() {
@@ -871,7 +868,7 @@ function buildMazeAndUpdateUI(size)
 
     if (tutorialManager) tutorialManager.resetTutorial();
 
-    gtag('event', 'maze_built', {'event_category': '3d-maze', 'value': mazeSize});
+    bus.emit('maze:built', { size: mazeSize });
 }
 
 function verifyAndReportAbandonedMaze()
@@ -880,14 +877,7 @@ function verifyAndReportAbandonedMaze()
     const elapsed_time = Date.now() - timerStartMillis;
     if (startedMaze && !finishedMaze && elapsed_time > 7000)
     {
-        gtag('event', 'maze_abandoned', {
-                'event_category': '3d-maze',
-                'value': mazeData.size_string,
-                'solution_length': mazeData.analytics.distance_to_end,
-                'branches_on_solution': mazeData.analytics.branches_on_solution,
-                'branches_total': mazeData.analytics.branches_on_solution,
-                'time_since_start': elapsed_time
-        });
+        bus.emit('maze:abandoned', { mazeData, elapsedMillis: elapsed_time });
     }
 }
 
