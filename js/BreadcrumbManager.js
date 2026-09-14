@@ -527,14 +527,19 @@ export default class BreadcrumbManager {
         this.updateGlowHighlight(this._playerWorldPos);
     }
 
+    // prevent errors when breadcrumb mesh hasn't loaded yet
+    _setBreadcrumbEmissive(breadcrumb, value) {
+        const material = breadcrumb?.userData.mesh?.material;
+        if (material)
+            material.emissive.setScalar(value);
+    }
+
     _setHoveredBreadcrumb(breadcrumb) {
         if (breadcrumb === this.hoveredBreadcrumb)
             return;
-        if (this.hoveredBreadcrumb !== null)
-            this.hoveredBreadcrumb.userData.mesh.material.emissive.setScalar(0);
+        this._setBreadcrumbEmissive(this.hoveredBreadcrumb, 0);
         this.hoveredBreadcrumb = breadcrumb;
-        if (this.hoveredBreadcrumb !== null)
-            this.hoveredBreadcrumb.userData.mesh.material.emissive.setScalar(0.3);
+        this._setBreadcrumbEmissive(this.hoveredBreadcrumb, 0.3);
     }
 
     // look for a breadcrumb at a corresponding screen position
@@ -575,7 +580,7 @@ export default class BreadcrumbManager {
         }
         // if necessary, unhighlight the breadcrumb
         if (this.hoveredBreadcrumb === breadcrumb) {
-            this.hoveredBreadcrumb.userData.mesh.material.emissive.setScalar(0);
+            this._setBreadcrumbEmissive(this.hoveredBreadcrumb, 0);
         };
         this.hoveredBreadcrumb = null;
 
