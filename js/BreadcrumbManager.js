@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as maze from './maze.js';
 import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import { YIELD } from './TouchArbiter.js';
+import BreadcrumbBaseDecor from './BreadcrumbBaseDecor.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -42,6 +43,18 @@ function createGlowMaterial() {
     });
 }
 
+// a dead end's `direction` is the axis-aligned move that led into it (see
+// maze.js's analytics pass), which is exactly the same {axis, dir} the
+// blocking wall sits at - the room's own collision_map is solid there by
+// construction, since that's the move that couldn't continue
+function surfaceFromDirection(direction) {
+    const axes = ['x', 'y', 'z'];
+    for (let i = 0; i < 3; i++) {
+        if (direction[i] !== 0) return { axis: axes[i], dir: Math.sign(direction[i]) };
+    }
+    return null;
+}
+
 export default class BreadcrumbManager {
     constructor() {
         this.scene = null;
@@ -80,6 +93,11 @@ export default class BreadcrumbManager {
         this._interactDeltaQuat = new THREE.Quaternion();  // temp
 
         this._glowLastTime = null;
+
+        // marks exactly where each originally-spawned breadcrumb was placed
+        // (see BreadcrumbBaseDecor's file comment) - never moves, never
+        // appears for a breadcrumb the player places themselves
+        this.base = new BreadcrumbBaseDecor();
     }
 
     get interactState() { return this._interactState; }
@@ -87,7 +105,12 @@ export default class BreadcrumbManager {
 
     addTo(scene) {
         this.scene = scene;
+        this.base.addTo(scene);
     };
+
+    updateBases(dt) {
+        this.base.update(dt);
+    }
 
     createTouchHandler({ camera, getMazeData = () => this.mazedata } = {}) {
         return {
@@ -255,6 +278,13 @@ export default class BreadcrumbManager {
         gripObject.getWorldQuaternion(this._interactStartQuat);
         this._interactTargetStartPos.copy(breadcrumb.position);
         this._interactTargetStartQuat.copy(breadcrumb.quaternion);
+        this._deenergizeBase(breadcrumb);
+    }
+
+    // no-op for a breadcrumb the player placed themselves (no medallionIndex)
+    _deenergizeBase(breadcrumb) {
+        if (breadcrumb.userData.medallionIndex !== undefined)
+            this.base.deenergize(breadcrumb.userData.medallionIndex);
     }
 
     // Commit the current position/orientation and leave the breadcrumb placed.
@@ -453,6 +483,7 @@ export default class BreadcrumbManager {
 
         // add breadcrumbs
         const directionVector = new THREE.Vector3();
+        const medallionSites = [];
         for (let i = 0; i < mazedata.analytics.dead_ends_data.length; i++) {
             if (deadEndSelection[i]) {
                 const deadEnd = mazedata.analytics.dead_ends_data[i];
@@ -462,6 +493,29 @@ export default class BreadcrumbManager {
 
                 const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`, vertexColors: true});
                 breadcrumb.userData.originalMaterial = newMaterial;
+
+                const surface = surfaceFromDirection(deadEnd.direction);
+                if (surface) {
+                    // read the hue back out of the material's actual color
+                    // rather than reusing the value passed into the CSS hsl()
+                    // string above - Color.setStyle() runs that through an
+                    // sRGB conversion that Color.setHSL() (used by the
+                    // medallion) doesn't, so the two would otherwise drift
+                    // apart and the medallion would end up a visibly
+                    // different hue than its own breadcrumb
+                    const hsl = { h: 0, s: 0, l: 0 };
+                    newMaterial.color.getHSL(hsl);
+                    // remembered so grabbing this exact breadcrumb later can
+                    // de-energize its own base - see removeBreadcrumb/beginReorient
+                    breadcrumb.userData.medallionIndex = medallionSites.length;
+                    medallionSites.push({
+                        room: { x: deadEnd.position[0], y: deadEnd.position[1], z: deadEnd.position[2] },
+                        surface,
+                        hue: hsl.h,
+                        saturation: hsl.s,
+                        lightness: hsl.l,
+                    });
+                }
                 breadcrumb.userData.glowMaterial = createGlowMaterial();
                 breadcrumb.userData.glowAlpha = 0.0;
 
@@ -491,6 +545,8 @@ export default class BreadcrumbManager {
                 this.breadcrumbs.push(breadcrumb);
             }
         }
+
+        this.base.build(mazedata, medallionSites);
 
         this.updateBreadCrumbDisplay();
     }
@@ -572,6 +628,8 @@ export default class BreadcrumbManager {
     removeBreadcrumb(breadcrumb) {
         if (breadcrumb == null)
             return;
+
+        this._deenergizeBase(breadcrumb);
 
         this.scene.remove(breadcrumb);
         const idx = this.breadcrumbs.indexOf(breadcrumb);

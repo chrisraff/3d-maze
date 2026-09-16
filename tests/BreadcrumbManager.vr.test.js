@@ -34,7 +34,7 @@ function makeManager(count = 1) {
     const n = deadEnds.length;
     let calls = 0;
     const rand = vi.spyOn(Math, 'random').mockImplementation(() => (calls++ % n) / n);
-    manager.initializeMaze({ analytics: { dead_ends_data: deadEnds } });
+    manager.initializeMaze({ segments: [50, 50, 50], analytics: { dead_ends_data: deadEnds } });
     rand.mockRestore();
 
     manager.setPointerGeometry(new THREE.BoxGeometry(0.2, 0.2, 0.2));
@@ -427,7 +427,7 @@ describe('initializeMaze', () => {
             { position: [6, 0, 8], direction: [1, 0, 0] },
         ];
         const rand = vi.spyOn(Math, 'random').mockImplementation(() => 0); // always pick index 0
-        manager.initializeMaze({ analytics: { dead_ends_data: deadEnds } });
+        manager.initializeMaze({ segments: [50, 50, 50], analytics: { dead_ends_data: deadEnds } });
         rand.mockRestore();
 
         expect(manager.breadcrumbs).toHaveLength(1); // floor(2 * 0.5)
@@ -450,6 +450,7 @@ describe('initializeMaze', () => {
         expect(scene.children).toContain(b);
 
         manager.initializeMaze({
+            segments: [50, 50, 50],
             analytics: { dead_ends_data: [{ position: [0, 0, 0], direction: [0, 0, 1] }] },
         });
 

@@ -1,7 +1,7 @@
 'use strict';
 
 // The cache name should be updated any time the cached files change
-const CACHE_NAME = 'static-cache-v21';
+const CACHE_NAME = 'static-cache-v22';
 const THIRD_PARTY_CACHE = 'third-party-cache-v6';
 
 const FILES_TO_CACHE = [
@@ -32,6 +32,7 @@ const FILES_TO_CACHE = [
     '/js/RunHistory.js',
     '/js/MazeWorld.js',
     '/js/Settings.js',
+    '/js/BreadcrumbBaseDecor.js',
     '/models/wall.glb',
     '/models/arrow.glb',
     '/models/pointer.glb',

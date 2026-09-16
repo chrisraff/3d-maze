@@ -613,6 +613,7 @@ var animate = function () {
         breadcrumbs.updateHoveredBreadcrumb(camera);
     }
     breadcrumbs.updateGlowForCamera(camera);
+    breadcrumbs.updateBases(delta);
 
     runHistory.recordPosition(cameraNode.position);
 
