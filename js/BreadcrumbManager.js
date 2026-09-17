@@ -55,6 +55,11 @@ function surfaceFromDirection(direction) {
     return null;
 }
 
+// half-angle cone (as a dot-product threshold) the aim reticle lights up
+// within - wide on purpose, since its job is to draw the eye toward a
+// breadcrumb before the player's aim is precise enough to actually click it
+const RETICLE_AIM_COS = Math.cos(THREE.MathUtils.degToRad(25));
+
 export default class BreadcrumbManager {
     constructor() {
         this.scene = null;
@@ -79,6 +84,7 @@ export default class BreadcrumbManager {
         this._tmpPos = new THREE.Vector3();
         this._rayDir = new THREE.Vector3();
         this._playerWorldPos = new THREE.Vector3();
+        this._cameraForward = new THREE.Vector3();
 
         // Spatial interaction state (null | 'reorienting' | 'placing')
         this._interactState = null;
@@ -575,7 +581,53 @@ export default class BreadcrumbManager {
 
     updateHoveredBreadcrumb(camera)
     {
-        this._setHoveredBreadcrumb(this.raycastSearchForBreadcrumb(camera));
+        const { anyInRange, reticleVisible } = this._scanBreadcrumbAim(camera);
+
+        // raycastSearchForBreadcrumb walks the whole scene graph
+        // (intersectObjects(..., true)) every call, so it's worth skipping
+        // outright once nothing is even within grabbing range - it could
+        // never hit anything in that case, so this only ever saves cost,
+        // never changes the result
+        this._setHoveredBreadcrumb(anyInRange ? this.raycastSearchForBreadcrumb(camera) : null);
+
+        // also show the reticle on an exact hover hit even outside the aim
+        // cone - at close range the actual hitbox can subtend a wider angle
+        // than RETICLE_AIM_COS allows for, so a breadcrumb can be hovered
+        // (and clickable) without the cone test alone picking it up
+        this._updateReticle(reticleVisible || this.hoveredBreadcrumb !== null);
+    }
+
+    // one pass over placed breadcrumbs computing both signals the caller
+    // needs: anyInRange (cheap distance-only gate for the expensive raycast
+    // above) and reticleVisible (anyInRange further narrowed to a wide
+    // dot-product cone - RETICLE_AIM_COS - plus a reachability check, so the
+    // aim reticle can guide the player's aim before it's precise enough to
+    // actually hit, rather than only confirming a hit they've already made)
+    _scanBreadcrumbAim(camera) {
+        camera.getWorldPosition(this._playerWorldPos);
+        camera.getWorldDirection(this._cameraForward);
+        const playerGate = maze.majorWidth * 0.75;
+
+        let anyInRange = false;
+        let reticleVisible = false;
+
+        for (const breadcrumb of this.breadcrumbs) {
+            const dist = this._playerWorldPos.distanceTo(breadcrumb.position);
+            if (dist === 0 || dist > playerGate) continue;
+            anyInRange = true;
+
+            if (reticleVisible) continue;
+            this._tmpPos.subVectors(breadcrumb.position, this._playerWorldPos).divideScalar(dist);
+            if (this._tmpPos.dot(this._cameraForward) < RETICLE_AIM_COS) continue;
+            if (this._canReachBreadcrumb(this._playerWorldPos, breadcrumb)) reticleVisible = true;
+        }
+
+        return { anyInRange, reticleVisible };
+    }
+
+    _updateReticle(visible) {
+        const reticle = document.getElementById('breadcrumb-reticle');
+        if (reticle) reticle.classList.toggle('visible', visible);
     }
 
     updateGlowForCamera(camera) {

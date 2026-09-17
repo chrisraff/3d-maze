@@ -192,6 +192,26 @@
                 font-size: 32px;
             }
 
+            #breadcrumb-reticle {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 12px;
+                height: 12px;
+                box-sizing: border-box;
+                border: 2px solid rgba(255, 255, 255, 0.85);
+                border-radius: 50%;
+                box-shadow: 0 0 4px 1px rgba(0, 0, 0, 0.6);
+                pointer-events: none;
+
+                opacity: 0;
+                transition: opacity 0.25s ease;
+            }
+            #breadcrumb-reticle.visible {
+                opacity: 1;
+            }
+
             #rotation-hint-frame {
                 display: flex;
                 justify-content: center;
@@ -440,6 +460,8 @@
             <div id="compass-container"></div>
             <div id="breadcrumb-container"></div>
         </div>
+
+        <div id="breadcrumb-reticle" class="formfactor-desktop xr-non-vr"></div>
 
         <div id="touch-tutorial-move" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>
