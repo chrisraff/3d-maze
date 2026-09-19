@@ -4,6 +4,7 @@ import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import { YIELD } from './TouchArbiter.js';
 import BreadcrumbBaseDecor from './BreadcrumbBaseDecor.js';
 import createGlowMaterial from './glowMaterial.js';
+import { breadcrumbIconSource } from './BreadcrumbIcon.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -740,10 +741,26 @@ export default class BreadcrumbManager {
     }
 
     updateBreadCrumbDisplay() {
-        const breadcrumbContainer = document.getElementById('breadcrumb-container');
-        if (this.breadcrumbStack.length > 0)
-            breadcrumbContainer.innerText = this.breadcrumbStack.length.toString();
-        else
-            breadcrumbContainer.innerText = "";
+        const count = this.breadcrumbStack.length;
+
+        const container = document.getElementById('breadcrumb-container');
+        // nothing is shown at all while the inventory is empty
+        if (container?.classList)
+            container.classList.toggle('hide', count === 0);
+
+        if (count === 0)
+            return;
+
+        const countElement = document.getElementById('breadcrumb-count');
+        if (countElement)
+            countElement.textContent = count.toString();
+
+        // the icon depicts the breadcrumb that addBreadcrumb would pop next
+        const iconElement = document.getElementById('breadcrumb-icon');
+        if (iconElement) {
+            const source = breadcrumbIconSource(this.breadcrumbStack[count - 1]);
+            if (source !== null)
+                iconElement.src = source;
+        }
     }
 }

@@ -16,6 +16,8 @@ import MenuManager from './MenuManager.js';
 import BreadcrumbManager from './BreadcrumbManager.js';
 import TouchArbiter from './TouchArbiter.js';
 import GoalDotEffect from './goalDots.js';
+import { mountGoalIcons } from './GoalDotIcon.js';
+import { setBreadcrumbIconGeometry } from './BreadcrumbIcon.js';
 import bus from './EventBus.js';
 import initAnalytics from './analytics.js';
 import GameSession, { formatMazeTime } from './GameSession.js';
@@ -281,6 +283,10 @@ function init() {
     loader.load( 'models/pointer.glb', function ( gltf ) {
         let modelPointer = gltf.scene.getObjectByName('pointer');
         breadcrumbs.setPointerGeometry(modelPointer.geometry);
+
+        // the HUD inventory icon uses the same geometry
+        setBreadcrumbIconGeometry(modelPointer.geometry);
+        breadcrumbs.updateBreadCrumbDisplay();
     }, undefined, function ( error ) {
 
         console.error( error );
@@ -288,7 +294,10 @@ function init() {
     } );
 
     // load texture
-    dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
+    dotSprite = new THREE.TextureLoader().load( 'textures/dot.png', () => {
+        // draw the goal dot glyph into the copy that mentions the exit
+        mountGoalIcons( dotSprite );
+    } );
 
     // set up lights
     playerLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
