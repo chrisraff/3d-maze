@@ -14,7 +14,7 @@ import iconRenderer from './IconRenderer.js';
 
 const HUE_STEPS = 32;
 // three-quarter view
-const VIEW_ROTATION = [0.35, -1.45, 0.0];
+const VIEW_ROTATION = [0.35, 1.45, 0.0];
 const CAMERA_FOV = 30;
 // how much of the frame the dart fills; the rest is breathing room
 const FILL = 0.92;
