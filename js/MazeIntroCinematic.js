@@ -19,10 +19,16 @@ import createGlowMaterial from './glowMaterial.js';
  * player systems for the duration.
  */
 
-const PULL_OUT_SECONDS = 1.4;
-const ORBIT_SECONDS    = 2.4;
-const HOLD_SECONDS     = 0.4;
-const RETURN_SECONDS   = 1.2;
+const PULL_OUT_SECONDS = 1.3;
+const ORBIT_SECONDS    = 2.2;
+// a beat on the whole maze before closing in, so the orbit's last framing
+// registers before the camera commits to the exit
+const SETTLE_SECONDS   = 1.0;
+const PUSH_IN_SECONDS  = 1.2;
+// the still beat, once the camera has settled on the dots - the caption is
+// already up from the push-in and gets read here, with nothing moving
+const HOLD_SECONDS     = 1.0;
+const RETURN_SECONDS   = 1.1;
 
 // the orbit starts low, looking up at the near-bottom corner the player
 // entered from, and finishes above, looking down at the far-top corner
@@ -44,6 +50,17 @@ const FILL = 0.88;
 // how far the camera's aim drifts off the maze centre toward the exit as the
 // orbit finishes - enough to favour the goal dots without losing the maze
 const EXIT_AIM_BIAS = 0.25;
+
+// the goal dots occupy a unit ball plus their own size, whatever the maze size
+const EXIT_RADIUS = 1.25;
+// fraction of the frame the dot cluster fills once the push-in settles
+const EXIT_FILL = 0.6;
+// ...but always close at least this much of the gap, so the push reads as a
+// push on narrow screens too, where fitting the narrower axis would otherwise
+// leave the camera further out than the orbit already was
+const EXIT_MIN_CLOSE = 0.4;
+// and never closer than this, or the camera ends up inside the cluster
+const EXIT_MIN_DISTANCE = 2.5;
 
 const GLOW_ALPHA = 0.9;
 // steep, so the marker is a bright core feathering out to nothing rather than
@@ -89,6 +106,8 @@ export default class MazeIntroCinematic {
         this._lightParent = null;
         this._followers = [];
         this._followerTargets = [];
+        this._phase = null;
+        this._onPhase = null;
 
         this._center        = new THREE.Vector3();
         this._aimStart      = new THREE.Vector3();
@@ -99,6 +118,8 @@ export default class MazeIntroCinematic {
         this._establishQuat = new THREE.Quaternion();
         this._orbitEndPos   = new THREE.Vector3();
         this._orbitEndQuat  = new THREE.Quaternion();
+        this._pushEndPos    = new THREE.Vector3();
+        this._pushEndQuat   = new THREE.Quaternion();
 
         this._tmpPos = new THREE.Vector3();
         this._tmpAim = new THREE.Vector3();
@@ -120,10 +141,12 @@ export default class MazeIntroCinematic {
      * @param {THREE.Light} [light] - the player's light, borrowed for the shot
      * @param {Array} [followers] - effects with followObject(), re-pointed at
      *        the shot camera for the duration (the dust field)
+     * @param {function} [onPhase] - called with 'pullOut' | 'orbit' | 'settle' |
+     *        'pushIn' | 'hold' | 'return' as the shot moves between them
      * @param {function} [onComplete]
      */
     play({ segments, endPos, fromCamera, light = null, followers = [],
-           onComplete = null }) {
+           onPhase = null, onComplete = null }) {
         if (this.isActive) this._stop();
 
         this.camera.fov = fromCamera.fov;
@@ -153,6 +176,21 @@ export default class MazeIntroCinematic {
         this._poseAt(this._azimuthEnd, END_ELEVATION, this._aimEnd,
                      this._orbitEndPos, this._orbitEndQuat);
 
+        // the push-in runs straight down the line from the orbit's last pose to
+        // the dots, stopping where the cluster frames up
+        this._pushEndPos.subVectors(this._orbitEndPos, endPos);
+        const standoff = this._pushEndPos.length();
+        const settleAt = Math.max(
+            EXIT_MIN_DISTANCE,
+            Math.min(this._fitDistance(EXIT_RADIUS, EXIT_FILL),
+                     standoff * (1 - EXIT_MIN_CLOSE)));
+        this._pushEndPos
+            .multiplyScalar(Math.min(settleAt, standoff) / standoff)
+            .add(endPos);
+
+        this._lookMatrix.lookAt(this._pushEndPos, endPos, this._up);
+        this._pushEndQuat.setFromRotationMatrix(this._lookMatrix);
+
         this._glow.position.copy(this._fromPos);
         this._glow.scale.setScalar(maze.majorWidth * GLOW_RADIUS_CELLS);
         this._setGlow(0);
@@ -174,6 +212,8 @@ export default class MazeIntroCinematic {
         for (const follower of followers) follower.followObject(this.camera);
 
         this._elapsed = 0;
+        this._phase = null;
+        this._onPhase = onPhase;
         this._onComplete = onComplete;
         this.isActive = true;
 
@@ -197,6 +237,7 @@ export default class MazeIntroCinematic {
         let t = this._elapsed;
 
         if (t < PULL_OUT_SECONDS) {
+            this._setPhase('pullOut');
             const k = smoothstep(t / PULL_OUT_SECONDS);
             this.camera.position.lerpVectors(this._fromPos, this._establishPos, k);
             this.camera.quaternion.slerpQuaternions(this._fromQuat, this._establishQuat, k);
@@ -206,6 +247,7 @@ export default class MazeIntroCinematic {
         t -= PULL_OUT_SECONDS;
 
         if (t < ORBIT_SECONDS) {
+            this._setPhase('orbit');
             const k = smoothstep(t / ORBIT_SECONDS);
             this._tmpAim.lerpVectors(this._aimStart, this._aimEnd, k);
             this._poseAt(
@@ -219,24 +261,53 @@ export default class MazeIntroCinematic {
         }
         t -= ORBIT_SECONDS;
 
-        if (t < HOLD_SECONDS) {
+        if (t < SETTLE_SECONDS) {
+            this._setPhase('settle');
             this.camera.position.copy(this._orbitEndPos);
             this.camera.quaternion.copy(this._orbitEndQuat);
+            this._setGlow(0);
+            return true;
+        }
+        t -= SETTLE_SECONDS;
+
+        // the orbit only brings the exit into frame; closing on it is what
+        // actually says "this one"
+        if (t < PUSH_IN_SECONDS) {
+            this._setPhase('pushIn');
+            const k = smoothstep(t / PUSH_IN_SECONDS);
+            this.camera.position.lerpVectors(this._orbitEndPos, this._pushEndPos, k);
+            this.camera.quaternion.slerpQuaternions(this._orbitEndQuat, this._pushEndQuat, k);
+            this._setGlow(0);
+            return true;
+        }
+        t -= PUSH_IN_SECONDS;
+
+        if (t < HOLD_SECONDS) {
+            this._setPhase('hold');
+            this.camera.position.copy(this._pushEndPos);
+            this.camera.quaternion.copy(this._pushEndQuat);
             this._setGlow(0);
             return true;
         }
         t -= HOLD_SECONDS;
 
         if (t < RETURN_SECONDS) {
+            this._setPhase('return');
             const k = smoothstep(t / RETURN_SECONDS);
-            this.camera.position.lerpVectors(this._orbitEndPos, this._fromPos, k);
-            this.camera.quaternion.slerpQuaternions(this._orbitEndQuat, this._fromQuat, k);
+            this.camera.position.lerpVectors(this._pushEndPos, this._fromPos, k);
+            this.camera.quaternion.slerpQuaternions(this._pushEndQuat, this._fromQuat, k);
             this._setGlow(0);
             return true;
         }
 
         this.skip();
         return false;
+    }
+
+    _setPhase(phase) {
+        if (this._phase === phase) return;
+        this._phase = phase;
+        if (this._onPhase !== null) this._onPhase(phase);
     }
 
     _setGlow(k) {
@@ -246,10 +317,10 @@ export default class MazeIntroCinematic {
 
     // camera distance at which a sphere of this radius fits the narrower of
     // the two frustum axes, so portrait phones frame it too
-    _fitDistance(radius) {
+    _fitDistance(radius, fill = FILL) {
         const halfVertical = THREE.MathUtils.degToRad(this.camera.fov) / 2;
         const halfHorizontal = Math.atan(Math.tan(halfVertical) * this.camera.aspect);
-        return radius / (Math.sin(Math.min(halfVertical, halfHorizontal)) * FILL);
+        return radius / (Math.sin(Math.min(halfVertical, halfHorizontal)) * fill);
     }
 
     _azimuthOf(point) {
@@ -290,6 +361,8 @@ export default class MazeIntroCinematic {
 
         this.isActive = false;
         this._onComplete = null;
+        this._onPhase = null;
+        this._phase = null;
         this._glow.visible = false;
         this._setGlow(0);
         for (const name of SKIP_EVENTS)

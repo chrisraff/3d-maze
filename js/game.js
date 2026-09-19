@@ -308,6 +308,11 @@ function init() {
         }));
     }
     controls = new FlyPointerLockControls(cameraNode, renderer.domElement);
+    // A phone has no cursor to capture, and Chrome on Android answers the
+    // request with a banner that sits on screen for seconds. Anything with both
+    // input methods - tablets, Surfaces, touchscreen laptops - is not matched by
+    // isMobile and keeps pointer lock alongside its touch handling.
+    controls.pointerLockEnabled = !isMobile;
     controls.movementSpeed = maze.majorWidth;
     controls.rollSpeed = 1;
     controls.addEventListener( 'lock', function() {
@@ -738,6 +743,32 @@ function shouldPlayIntroCinematic()
         && tutorialManager.showTutorials['intro'] !== false;
 }
 
+// the caption comes up on the settle beat and stays through the push-in and the
+// hold; it goes away again as the camera heads back
+function showCinematicCaption(visible)
+{
+    const caption = document.querySelector('#cinematic-caption');
+    if (!caption) return;
+
+    // its own keyframes, not the shared tutorial ones: those fade `color`,
+    // which leaves the caption's text-shadow behind
+    if (visible) {
+        caption.style.display = '';
+        caption.style.animationName = 'cinematic-caption-fade-in';
+    } else {
+        caption.style.animationName = 'cinematic-caption-fade-out';
+    }
+    caption.style.animationFillMode = 'forwards';
+}
+
+function hideCinematicCaption()
+{
+    const caption = document.querySelector('#cinematic-caption');
+    if (!caption) return;
+    caption.style.display = 'none';
+    caption.style.animationName = '';
+}
+
 function playIntroCinematic()
 {
     document.querySelector('#hud-container').classList.add('hide');
@@ -750,7 +781,12 @@ function playIntroCinematic()
         // them back at the end
         light: playerLight,
         followers: [ dust ],
+        onPhase: (phase) => {
+            if (phase === 'settle') showCinematicCaption(true);
+            else if (phase === 'return') showCinematicCaption(false);
+        },
         onComplete: () => {
+            hideCinematicCaption();
             document.querySelector('#hud-container').classList.remove('hide');
             // the shot is time the player had no control over, so it isn't
             // charged to their run
@@ -763,13 +799,17 @@ function playIntroCinematic()
 function menuLockControls()
 {
     const startingTutorial = tutorialManager && !tutorialManager.inTutorial;
-    introCinematicPending = startingTutorial && shouldPlayIntroCinematic();
+    const playingCinematic = startingTutorial && shouldPlayIntroCinematic();
+    introCinematicPending = playingCinematic;
 
     // do not allow locking on mobile when in portrait mode
     if (!isMobile || isValidMobileAspectRatio())
         controls.lock();
 
-    if (startingTutorial && !introCinematicPending) {
+    // branch on the local, not the flag: on touch, lock() dispatches its event
+    // synchronously, so the handler has already consumed the flag by now and
+    // the prompts would start on top of the cinematic
+    if (startingTutorial && !playingCinematic) {
         tutorialManager.startTutorial();
     }
 

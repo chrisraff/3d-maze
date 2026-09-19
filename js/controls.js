@@ -88,6 +88,9 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     this.touchable = is_touch_device();
 
+    // set false for devices with no cursor to capture - see game.js
+    this.pointerLockEnabled = true;
+
     var touchDOM = null;
 
     var panTouchDragging = false;
@@ -503,12 +506,14 @@ var FlyPointerLockControls = function ( object, domElement ) {
     };
 
     this.lock = function() {
-        try {
-            this.domElement.requestPointerLock();
-        }
-        catch (e) {
-            // do nothing
-            console.error(e);
+        if (scope.pointerLockEnabled) {
+            try {
+                this.domElement.requestPointerLock();
+            }
+            catch (e) {
+                // do nothing
+                console.error(e);
+            }
         }
 
         if (!this.isLocked && (this.touchable || this.isXRPresenting)) {

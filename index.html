@@ -295,6 +295,34 @@
                 animation-iteration-count: 1;
             }
 
+            /* Sits low so it never covers the dots the push-in is closing on. */
+            #cinematic-caption {
+                top: 72%;
+                text-shadow: 2px 2px 4px #000000;
+                will-change: opacity;
+            }
+
+            /* The shared tutorial fade animates `color`, which a text-shadow
+               cannot follow - it has its own colour, so fading the glyphs away
+               leaves the shadow sitting there at full strength. Fade the whole
+               element instead. */
+            @keyframes cinematic-caption-fade-in {
+                0% {
+                    opacity: 0;
+                }
+                100% {
+                    opacity: 1;
+                }
+            }
+            @keyframes cinematic-caption-fade-out {
+                0% {
+                    opacity: 1;
+                }
+                100% {
+                    opacity: 0;
+                }
+            }
+
             .touch-tutorial {
                 background-color: rgba(0,0,0,0.5);
                 border: 1px solid rgba(230, 230, 230, 0.5);
@@ -466,6 +494,12 @@
         <div id="touch-tutorial-move" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>
         <div id="touch-tutorial-look" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
+        </div>
+
+        <!-- shown only while the intro fly-around closes on the exit; not a
+             .tutorial-element, so resetTutorial() leaves it alone -->
+        <div id="cinematic-caption" style="display: none;" class="tutorial-text">
+            Make your way to the exit
         </div>
 
         <div id="computer-tutorial-look" tutorial-step="0" tutorial-type="intro" style="display: none;" class="tutorial-text tutorial-element">
