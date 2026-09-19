@@ -183,6 +183,9 @@
             #breadcrumb-container {
                 margin-left: 0.5em;
 
+                display: flex;
+                align-items: center;
+
                 color: #ffffff;
                 font-family: Arial;
                 font-size: 44px;
@@ -190,6 +193,30 @@
             }
             body.formfactor-non-desktop #breadcrumb-container {
                 font-size: 32px;
+            }
+
+            #breadcrumb-icon {
+                /* the dart is a wide, short silhouette, so a 1em box leaves it
+                   visibly smaller than the digit beside it */
+                width: 1.3em;
+                height: 1.3em;
+                filter: drop-shadow(2px 2px 4px #000000);
+            }
+
+            #breadcrumb-count {
+                margin-left: 0.1em;
+            }
+
+            /* inline glyph of the goal dots, used wherever copy names the exit */
+            .goal-icon {
+                width: 1em;
+                height: 1em;
+                vertical-align: -0.2em;
+            }
+
+            /* until an icon has been rendered there is nothing to show */
+            #breadcrumb-icon:not([src]), .goal-icon:not([src]) {
+                display: none;
             }
 
             #breadcrumb-reticle {
@@ -458,7 +485,10 @@
 
         <div id="hud-container" class="xr-non-vr">
             <div id="compass-container"></div>
-            <div id="breadcrumb-container"></div>
+            <div id="breadcrumb-container" class="hide">
+                <img id="breadcrumb-icon" alt="" />
+                <span id="breadcrumb-count"></span>
+            </div>
         </div>
 
         <div id="breadcrumb-reticle" class="formfactor-desktop xr-non-vr"></div>
@@ -481,7 +511,7 @@
             <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Drag on the left side of the screen</span>
         </div>
         <div id="computer-tutorial-compass" tutorial-step="2" tutorial-type="intro" style="display: none;" class="tutorial-text tutorial-element">
-            <span>The compass points towards the exit</span>
+            <span>The compass points towards the exit&nbsp;<img class="goal-icon" alt="" /></span>
             <br style="display: none;" class='formfactor-non-desktop' />
             <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Tap the compass to pause</span>
         </div>
@@ -533,12 +563,12 @@
                     <div id="menu-intro" class="focusable-menu menu-active">
                         <br/><br class="formfactor-desktop"/>
                         <span class="formfactor-desktop">
-                            Explore the maze and find the exit!<br/>
+                            Explore the maze and find the exit&nbsp;<img class="goal-icon" alt="" />!<br/>
                             <br/>
                             <span class="xr-non-vr"><a href="https://www.chrisraff.com/blog/3d-maze-in-vr/" target="_blank"><b>3D Maze now works in VR</b></a></span>
                         </span>
                         <span style="display: none;" class="formfactor-non-desktop">
-                            Explore the maze and find the exit!<br/>
+                            Explore the maze and find the exit&nbsp;<img class="goal-icon" alt="" />!<br/>
                         </span>
 
                         <div class="button-zone">
