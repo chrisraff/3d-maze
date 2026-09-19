@@ -33,6 +33,8 @@ const FILES_TO_CACHE = [
     '/js/MazeWorld.js',
     '/js/Settings.js',
     '/js/BreadcrumbBaseDecor.js',
+    '/js/glowMaterial.js',
+    '/js/MazeIntroCinematic.js',
     '/models/wall.glb',
     '/models/arrow.glb',
     '/models/pointer.glb',

@@ -109,6 +109,20 @@ describe('GameSession timer', () => {
         session.startTimer();
         expect(session.timerStartMillis).toBe(started + 4000);
     });
+
+    it('restartTimer drops the time spent in the intro fly-around', () => {
+        vi.useFakeTimers();
+        const { session } = makeSession();
+        session.startTimer();
+
+        vi.advanceTimersByTime(5400); // the establishing shot
+        session.restartTimer();
+        expect(session.elapsedMillis).toBe(0);
+
+        vi.advanceTimersByTime(2000); // the player's own time
+        expect(session.elapsedMillis).toBe(2000);
+        expect(session.timerRunning).toBe(true);
+    });
 });
 
 describe('formatMazeTime', () => {

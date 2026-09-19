@@ -21,6 +21,7 @@ import initAnalytics from './analytics.js';
 import GameSession, { formatMazeTime } from './GameSession.js';
 import RunHistory from './RunHistory.js';
 import MazeWorld from './MazeWorld.js';
+import MazeIntroCinematic from './MazeIntroCinematic.js';
 import Settings from './Settings.js';
 
 initAnalytics();
@@ -86,6 +87,12 @@ var dustSize   = 0.025;
 var dustSizeVR = 0.0075;
 
 var tutorialManager;
+var playerLight;
+var introCinematic;
+// armed before controls.lock() - on touch devices lock() dispatches its event
+// synchronously - and consumed by the lock handler, so the shot only starts
+// once the player is actually in the maze and the menu is gone
+var introCinematicPending = false;
 
 
 function loadSavedVariables()
@@ -248,6 +255,9 @@ function init() {
     spectator = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
     cameraCompensationNode.add( spectator );
 
+    // establishing shot; runs on its own camera so cameraNode is untouched
+    introCinematic = new MazeIntroCinematic( scene );
+
     // maze world (owns maze geometry, materials and the maze scene group)
     mazeWorld = new MazeWorld();
     mazeWorld.addTo(scene);
@@ -281,8 +291,8 @@ function init() {
     dotSprite = new THREE.TextureLoader().load( 'textures/dot.png' );
 
     // set up lights
-    let localLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
-    camera.add( localLight );
+    playerLight = new THREE.PointLight( 0xffffff, 5, 0, 0.2 );
+    camera.add( playerLight );
     scene.add( cameraNode );
     let ambLight = new THREE.AmbientLight( 0x808080 );
     scene.add( ambLight );
@@ -305,8 +315,15 @@ function init() {
         session.startTimer();
 
         vrManager.setUiInteraction(false);
+
+        if (introCinematicPending) {
+            introCinematicPending = false;
+            playIntroCinematic();
+        }
     } );
     controls.addEventListener( 'unlock', function() {
+        introCinematicPending = false;
+        introCinematic.skip();
         document.querySelector('#blocker').style.display = '';
         touchArbiter?.clear();
 
@@ -560,6 +577,9 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 
+    introCinematic.setAspect( camera.aspect );
+    runHistory.setResolution( window.innerWidth, window.innerHeight );
+
     renderer.setSize( window.innerWidth, window.innerHeight );
 
     updateUIDeviceRotation();
@@ -595,6 +615,16 @@ function updateUIDeviceRotation()
 
 var animate = function () {
     let delta = Math.min(fpsClock.getDelta(), 0.1);
+
+    if (introCinematic.isActive) {
+        // the player systems all read or write the player camera, so they sit
+        // the shot out - nothing moves except the scene's own ambient effects
+        introCinematic.update(delta);
+        dust.update(delta);
+        goalDots.update(delta);
+        renderer.render( scene, introCinematic.camera );
+        return;
+    }
 
     controls.update(delta);
     dust.update(delta);
@@ -697,13 +727,49 @@ function updateMenuCentering()
     }
 }
 
+// The fly-around is gated on the same thing the intro tutorial is: it is an
+// orientation aid, not something a returning player should sit through. VR
+// runs its own tutorial type and would be a motion-sickness problem besides.
+function shouldPlayIntroCinematic()
+{
+    return mazeData !== null
+        && !renderer.xr.isPresenting
+        && tutorialManager.tutorialType === 'intro'
+        && tutorialManager.showTutorials['intro'] !== false;
+}
+
+function playIntroCinematic()
+{
+    document.querySelector('#hud-container').classList.add('hide');
+
+    introCinematic.play({
+        segments,
+        endPos,
+        fromCamera: camera,
+        // the shot borrows the player's light and the dust field, and hands
+        // them back at the end
+        light: playerLight,
+        followers: [ dust ],
+        onComplete: () => {
+            document.querySelector('#hud-container').classList.remove('hide');
+            // the shot is time the player had no control over, so it isn't
+            // charged to their run
+            session.restartTimer();
+            tutorialManager.startTutorial();
+        },
+    });
+}
+
 function menuLockControls()
 {
+    const startingTutorial = tutorialManager && !tutorialManager.inTutorial;
+    introCinematicPending = startingTutorial && shouldPlayIntroCinematic();
+
     // do not allow locking on mobile when in portrait mode
     if (!isMobile || isValidMobileAspectRatio())
         controls.lock();
 
-    if (tutorialManager && !tutorialManager.inTutorial) {
+    if (startingTutorial && !introCinematicPending) {
         tutorialManager.startTutorial();
     }
 

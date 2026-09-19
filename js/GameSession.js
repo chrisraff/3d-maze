@@ -50,6 +50,12 @@ export default class GameSession {
         }
     }
 
+    // call when forced, non-interactive time (the intro fly-around) has
+    // passed and shouldn't be charged to the run
+    restartTimer() {
+        this.timerStartMillis = Date.now();
+    }
+
     get elapsedMillis() {
         return Date.now() - this.timerStartMillis;
     }

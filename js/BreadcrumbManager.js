@@ -3,6 +3,7 @@ import * as maze from './maze.js';
 import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import { YIELD } from './TouchArbiter.js';
 import BreadcrumbBaseDecor from './BreadcrumbBaseDecor.js';
+import createGlowMaterial from './glowMaterial.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -12,36 +13,6 @@ const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
 const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 const glowSphereGeometry = new THREE.SphereGeometry(0.6, 16, 12);
 
-function createGlowMaterial() {
-    return new THREE.ShaderMaterial({
-        uniforms: {
-            uAlpha: { value: 0.0 },
-        },
-        vertexShader: `
-            varying vec3 vNormal;
-            varying vec3 vLook;
-            void main() {
-                vNormal = normalize(normalMatrix * normal);
-                vec4 worldPosition = modelViewMatrix * vec4(position, 1.0);
-                vLook = normalize(worldPosition.xyz);
-                gl_Position = projectionMatrix * worldPosition;
-            }
-        `,
-        fragmentShader: `
-            uniform float uAlpha;
-            varying vec3 vNormal;
-            varying vec3 vLook;
-            void main() {
-                float intensity = dot(vNormal, vLook);
-                gl_FragColor = vec4(1.0, 1.0, 1.0, intensity * uAlpha);
-            }
-        `,
-        side: THREE.BackSide,
-        blending: THREE.AdditiveBlending,
-        transparent: true,
-        depthWrite: false,
-    });
-}
 
 // a dead end's `direction` is the axis-aligned move that led into it (see
 // maze.js's analytics pass), which is exactly the same {axis, dir} the

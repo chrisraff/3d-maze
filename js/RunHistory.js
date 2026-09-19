@@ -32,6 +32,13 @@ export default class RunHistory {
         scene.add(this.mesh);
     }
 
+    // MeshLine sizes the line in screen space, so the material has to be told
+    // when the viewport changes or the trail keeps rendering at the width the
+    // window had when it was constructed
+    setResolution(width, height) {
+        this.lineMaterial.resolution.set(width, height);
+    }
+
     reset() {
         this.positions = [];
         this.line.geometry.dispose();
