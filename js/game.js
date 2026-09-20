@@ -167,9 +167,9 @@ function loadSavedVariables()
             }
         },
         breadcrumbs: {
-            // the test that drives the glow, so the prompt only appears with
-            // a marker lit up to point at
-            available: () => breadcrumbs.nearestReachable !== null,
+            // in range, reachable and centred enough in view that the player
+            // has plainly seen it - not just backed into or panned past
+            available: () => breadcrumbs.nearestInView !== null,
             conditions: {
                 0: (tutorialData) => breadcrumbs.pickupCount > tutorialData.pickupStart,
                 1: (tutorialData) => breadcrumbs.placeCount > tutorialData.placeStart,
@@ -180,7 +180,7 @@ function loadSavedVariables()
                     tutorialData.pickupStart = breadcrumbs.pickupCount;
                     // kept for later steps: carrying one takes it out of
                     // `breadcrumbs`, and placing it empties the stack
-                    tutorialData.marker = breadcrumbs.nearestReachable;
+                    tutorialData.marker = breadcrumbs.nearestInView;
                     mountBreadcrumbIcons(tutorialData.marker);
                 },
                 1: (tutorialData) => {

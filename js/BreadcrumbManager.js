@@ -50,6 +50,10 @@ export const TAP_ZONE_EDGE_MARGIN_PX = 72;
 // window for a second click/tap to re-aim the breadcrumb the first one placed
 export const DOUBLE_ACTIVATE_MS = 300;
 
+// how centred `nearestInView` demands a breadcrumb be; an NDC ellipse, so it
+// reads as an oval on a wide screen
+export const IN_VIEW_NDC_RADIUS = 0.6;
+
 const HOVER_EMISSIVE_WHITE = new THREE.Color(1, 1, 1);
 
 export default class BreadcrumbManager {
@@ -66,6 +70,7 @@ export default class BreadcrumbManager {
 
         // tutorial signals; counts are monotonic across a maze
         this.nearestReachable = null;
+        this.nearestInView = null;
         this.pickupCount = 0;
         this.placeCount = 0;
         this.reaimCount = 0;
@@ -84,6 +89,7 @@ export default class BreadcrumbManager {
         this._lastPlacement = null;
         this._rayDir = new THREE.Vector3();
         this._playerWorldPos = new THREE.Vector3();
+        this._tmpProject = new THREE.Vector3();
         this._cameraForward = new THREE.Vector3();
 
         // Spatial interaction state (null | 'reorienting' | 'placing')
@@ -450,7 +456,7 @@ export default class BreadcrumbManager {
         this.updateGlowHighlight(this._playerWorldPos);
     }
 
-    updateGlowHighlight(playerWorldPos) {
+    updateGlowHighlight(playerWorldPos, camera = null) {
         const now = performance.now();
         const deltaTime = this._glowLastTime === null ? 0 : (now - this._glowLastTime) / 1000;
         this._glowLastTime = now;
@@ -462,6 +468,9 @@ export default class BreadcrumbManager {
         // that drives the glow - no second pass needed
         let nearest = null;
         let nearestDist = Infinity;
+        // and the closest of those the player is actually looking at
+        let inView = null;
+        let inViewDist = Infinity;
 
         for (const breadcrumb of this.breadcrumbs) {
             if (breadcrumb === this._interactTarget) continue;
@@ -473,6 +482,11 @@ export default class BreadcrumbManager {
             if (inRange && playerDist < nearestDist) {
                 nearestDist = playerDist;
                 nearest = breadcrumb;
+            }
+            if (inRange && playerDist < inViewDist
+                && camera !== null && this._isInView(breadcrumb, camera)) {
+                inViewDist = playerDist;
+                inView = breadcrumb;
             }
 
             const target = inRange ? 0.5 * (playerDist / playerGate)**2 : 0.0;
@@ -486,6 +500,7 @@ export default class BreadcrumbManager {
         }
 
         this.nearestReachable = nearest;
+        if (camera !== null) this.nearestInView = inView;
     }
 
     // --- Maze lifecycle ---
@@ -510,6 +525,7 @@ export default class BreadcrumbManager {
         this.breadcrumbStack = [];
         this.hoveredBreadcrumb = null;
         this.nearestReachable = null;
+        this.nearestInView = null;
         this.pickupCount = 0;
         this.placeCount = 0;
         this.reaimCount = 0;
@@ -712,7 +728,17 @@ export default class BreadcrumbManager {
 
     updateGlowForCamera(camera) {
         camera.getWorldPosition(this._playerWorldPos);
-        this.updateGlowHighlight(this._playerWorldPos);
+        this.updateGlowHighlight(this._playerWorldPos, camera);
+    }
+
+    // in the centred oval of the view, not merely on screen - panning past
+    // the far edge shouldn't count. Behind the camera projects to |z| > 1.
+    _isInView(breadcrumb, camera) {
+        const ndc = this._tmpProject.copy(breadcrumb.position).project(camera);
+        if (Math.abs(ndc.z) > 1) return false;
+
+        return ndc.x * ndc.x + ndc.y * ndc.y
+            <= IN_VIEW_NDC_RADIUS * IN_VIEW_NDC_RADIUS;
     }
 
     // prevent errors when breadcrumb mesh hasn't loaded yet

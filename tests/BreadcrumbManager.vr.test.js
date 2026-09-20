@@ -520,3 +520,77 @@ describe('nearestReachable', () => {
         expect(manager.nearestReachable).toBe(near);
     });
 });
+
+// nearestInView narrows nearestReachable to a centred oval of the view, so the
+// tutorial doesn't fire when the player backs into a marker or pans past one.
+describe('nearestInView', () => {
+    // looks down -Z by default, like the player camera
+    function makeCamera(lookAt = v(0, 0, -1)) {
+        const camera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 100);
+        camera.position.set(0, 0, 0);
+        camera.lookAt(lookAt);
+        camera.updateMatrixWorld(true);
+        return camera;
+    }
+
+    it('finds a breadcrumb in front of the player', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        placeAt(scene, b, 0, 0, -PLAYER_GATE * 0.5);
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+        expect(manager.nearestInView).toBe(b);
+    });
+
+    it('ignores one out at the edge of the frame', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        // ~0.80 in NDC x at this FOV and aspect: on screen, outside the oval
+        placeAt(scene, b, 0.82, 0, -0.75);
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+
+        expect(manager.nearestInView).toBeNull();
+        expect(manager.nearestReachable).toBe(b);
+    });
+
+    it('ignores one behind the player, which nearestReachable still sees', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        placeAt(scene, b, 0, 0, PLAYER_GATE * 0.5); // behind: camera looks down -Z
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+
+        expect(manager.nearestInView).toBeNull();
+        expect(manager.nearestReachable).toBe(b);
+    });
+
+    it('picks an on-screen breadcrumb over a closer one behind', () => {
+        const { manager, scene } = makeManager(2);
+        const [behind, ahead] = manager.breadcrumbs;
+        placeAt(scene, behind, 0, 0, PLAYER_GATE * 0.3);
+        placeAt(scene, ahead, 0, 0, -PLAYER_GATE * 0.7);
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+
+        expect(manager.nearestReachable).toBe(behind);
+        expect(manager.nearestInView).toBe(ahead);
+    });
+
+    it('accepts the same spot once it is nearer the middle', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        placeAt(scene, b, 0.2, 0, -0.75);
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+        expect(manager.nearestInView).toBe(b);
+    });
+
+    it('is left alone when no camera is given, as in VR', () => {
+        const { manager, scene } = makeManager(1);
+        placeAt(scene, manager.breadcrumbs[0], 0, 0, -PLAYER_GATE * 0.5);
+
+        manager.updateGlowHighlight(v(0, 0, 0));
+        expect(manager.nearestInView).toBeNull();
+    });
+});
