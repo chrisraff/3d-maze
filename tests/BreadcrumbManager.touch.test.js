@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as THREE from 'three';
 import BreadcrumbManager, {
     TAP_ZONE_DIAMETER_SCALE,
-    TAP_ZONE_EDGE_MARGIN_PX
+    TAP_ZONE_EDGE_MARGIN_PX,
+    DOUBLE_ACTIVATE_MS
 } from '../js/BreadcrumbManager.js';
 import { YIELD } from '../js/TouchArbiter.js';
 
@@ -110,5 +112,123 @@ describe('createTouchHandler tap zone gating', () => {
 
         expect(handler.onTouchStart(session, touchAt(WIDE.width / 2, WIDE.height / 2))).not.toBe(YIELD);
         expect(manager.touchData[1]).toBeDefined();
+    });
+});
+
+describe('double click / tap placement facing', () => {
+    // a wall-free maze, so addBreadcrumb's collision passes leave placement alone
+    const emptyMazeData = () => ({
+        bounds: [2, 2, 2],
+        collision_map: Array.from({ length: 5 },
+            () => Array.from({ length: 5 }, () => Array(5).fill(false)))
+    });
+
+    function makeManager() {
+        const manager = new BreadcrumbManager();
+        const scene = new THREE.Scene();
+        manager.addTo(scene);
+
+        vi.stubGlobal('window', { innerWidth: WIDE.width, innerHeight: WIDE.height });
+        const rand = vi.spyOn(Math, 'random').mockReturnValue(0);
+        manager.initializeMaze({
+            segments: [50, 50, 50],
+            analytics: { dead_ends_data: [{ position: [0, 0, 0], direction: [0, 0, 1] },
+                                          { position: [4, 0, 0], direction: [0, 0, 1] }] }
+        });
+        rand.mockRestore();
+
+        manager.setPointerGeometry(new THREE.BoxGeometry(0.2, 0.2, 0.2));
+
+        // everything in hand, so nothing is already placed to confuse a hit test
+        for (const b of [...manager.breadcrumbs])
+            manager.removeBreadcrumb(b);
+        scene.updateMatrixWorld(true);
+
+        const camera = new THREE.PerspectiveCamera();
+        camera.lookAt(0, 0, -1);
+        camera.updateMatrixWorld(true);
+        return { manager, camera };
+    }
+
+    // +Z is the facing axis; 1 means aimed at the camera, -1 means away from it
+    const facingTowardCamera = (breadcrumb, camera) => {
+        const facing = new THREE.Vector3(0, 0, 1).applyQuaternion(breadcrumb.quaternion);
+        const toCamera = camera.position.clone().sub(breadcrumb.position).normalize();
+        return facing.dot(toCamera);
+    };
+
+    function place(manager, camera, now = 1000) {
+        const placed = manager.addBreadcrumb(camera, emptyMazeData());
+        manager._rememberPlacement(placed, now);
+        return placed;
+    }
+
+    it('places facing away from the player on a single click', () => {
+        const { manager, camera } = makeManager();
+
+        manager.handleBreadcrumbClick(camera, emptyMazeData());
+
+        const [placed] = manager.breadcrumbs;
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+    });
+
+    it('turns that breadcrumb around on a second click that hits it', () => {
+        const { manager, camera } = makeManager();
+        const placed = place(manager, camera);
+
+        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1100)).toBe(true);
+
+        expect(manager.breadcrumbs).toContain(placed);
+        expect(manager.breadcrumbStack).not.toContain(placed);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(1, 6);
+    });
+
+    it('leaves it alone when the second click hits nothing, so a second can be placed', () => {
+        const { manager, camera } = makeManager();
+        const placed = place(manager, camera);
+
+        expect(manager._tryPointPlacementAtPlayer(camera, null, 1100)).toBe(false);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+    });
+
+    it('leaves it alone when the second click hits a different breadcrumb', () => {
+        const { manager, camera } = makeManager();
+        const placed = place(manager, camera);
+        const other = manager.breadcrumbStack[0];
+
+        expect(manager._tryPointPlacementAtPlayer(camera, other, 1100)).toBe(false);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+    });
+
+    it('does nothing when the second click comes too late', () => {
+        const { manager, camera } = makeManager();
+        const placed = place(manager, camera);
+
+        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1000 + DOUBLE_ACTIVATE_MS + 1)).toBe(false);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+    });
+
+    it('is consumed by a single attempt, so a third click behaves normally', () => {
+        const { manager, camera } = makeManager();
+        const placed = place(manager, camera);
+
+        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1100)).toBe(true);
+        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1150)).toBe(false);
+    });
+
+    it('does not arm the gesture when the stack was empty', () => {
+        const { manager, camera } = makeManager();
+        manager.breadcrumbStack.length = 0;
+
+        expect(place(manager, camera)).toBeNull();
+        expect(manager._lastPlacement).toBeNull();
+    });
+
+    it('does nothing when that breadcrumb was picked back up in between', () => {
+        const { manager, camera } = makeManager();
+        const placed = place(manager, camera);
+        manager.removeBreadcrumb(placed);
+
+        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1100)).toBe(false);
     });
 });

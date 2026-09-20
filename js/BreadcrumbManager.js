@@ -47,6 +47,9 @@ export const TAP_ZONE_DIAMETER_SCALE = 1.25;
 // (44px + 10px margin + safe-area slack) on a near-4:3 screen
 export const TAP_ZONE_EDGE_MARGIN_PX = 72;
 
+// window for a second click/tap to re-aim the breadcrumb the first one placed
+export const DOUBLE_ACTIVATE_MS = 300;
+
 const HOVER_EMISSIVE_WHITE = new THREE.Color(1, 1, 1);
 
 export default class BreadcrumbManager {
@@ -71,6 +74,8 @@ export default class BreadcrumbManager {
         this._wallRaycaster.layers.set(3);
         // reusable temp objects to avoid per-frame allocation
         this._tmpPos = new THREE.Vector3();
+        // the breadcrumb the last click/tap placed, for the double gesture
+        this._lastPlacement = null;
         this._rayDir = new THREE.Vector3();
         this._playerWorldPos = new THREE.Vector3();
         this._cameraForward = new THREE.Vector3();
@@ -570,21 +575,54 @@ export default class BreadcrumbManager {
     handleBreadcrumbTap(camera, mazeData, sceneX=0, sceneY=0)
     {
         const breadcrumb = this.raycastSearchForBreadcrumb(camera, sceneX, sceneY);
+
+        if (this._tryPointPlacementAtPlayer(camera, breadcrumb))
+            return;
+
         if (breadcrumb !== null) {
             this.removeBreadcrumb(breadcrumb);
             return;
         }
 
-        this.addBreadcrumb(camera, mazeData, sceneX, sceneY);
+        this._rememberPlacement(this.addBreadcrumb(camera, mazeData, sceneX, sceneY));
     }
 
     handleBreadcrumbClick(camera, mazeData) {
+        if (this._tryPointPlacementAtPlayer(camera, this.hoveredBreadcrumb))
+            return;
+
         if (this.hoveredBreadcrumb) {
             this.removeBreadcrumb(this.hoveredBreadcrumb);
             return;
         }
 
-        this.addBreadcrumb(camera, mazeData);
+        this._rememberPlacement(this.addBreadcrumb(camera, mazeData));
+    }
+
+    _rememberPlacement(breadcrumb, now = Date.now()) {
+        this._lastPlacement = breadcrumb == null ? null : { breadcrumb, time: now };
+    }
+
+    // Second half of a double click/tap: turn the breadcrumb the first half
+    // placed around to point at the player instead of away. `target` is what
+    // this click/tap actually hit - aiming somewhere else places a second
+    // breadcrumb as usual rather than spinning the first one.
+    _tryPointPlacementAtPlayer(camera, target, now = Date.now()) {
+        const placement = this._lastPlacement;
+        this._lastPlacement = null;
+
+        if (placement == null || target !== placement.breadcrumb)
+            return false;
+        if (now - placement.time > DOUBLE_ACTIVATE_MS)
+            return false;
+        if (!this.breadcrumbs.includes(placement.breadcrumb))
+            return false;
+
+        // lookAt points +Z at the target - the same axis addBreadcrumb aims
+        // along the view direction, so this is placement's facing reversed
+        camera.getWorldPosition(this._tmpPos);
+        placement.breadcrumb.lookAt(this._tmpPos);
+        return true;
     }
 
     updateHoveredBreadcrumb(camera)
@@ -716,10 +754,11 @@ export default class BreadcrumbManager {
         this.updateBreadCrumbDisplay(true);
     }
 
+    // returns the breadcrumb placed, or null if the stack was empty
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
         const breadcrumbCollisionDistance = maze.minorWidth * 2;
         if (this.breadcrumbStack.length === 0)
-            return;
+            return null;
 
         let breadcrumb = this.breadcrumbStack.pop();
 
@@ -779,6 +818,7 @@ export default class BreadcrumbManager {
         this.breadcrumbs.push(breadcrumb);
 
         this.updateBreadCrumbDisplay();
+        return breadcrumb;
     }
 
     // pickedUp pops the icon; the other callers (placing, a new maze) shouldn't
