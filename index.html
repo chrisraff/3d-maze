@@ -265,10 +265,14 @@
                 pointer-events: none;
 
                 opacity: 0;
-                transition: opacity 0.25s ease;
+                transition: opacity 0.25s ease, transform 0.15s ease;
             }
             #breadcrumb-reticle.visible {
                 opacity: 1;
+            }
+            /* grow when actually pointing at a breadcrumb, not just near one */
+            #breadcrumb-reticle.hovered {
+                transform: translate(-50%, -50%) scale(1.8);
             }
 
             #rotation-hint-frame {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager from '../js/BreadcrumbManager.js';
+import BreadcrumbManager, { HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS } from '../js/BreadcrumbManager.js';
 import * as maze from '../js/maze.js';
 
 // Gates from findNearby / updateGlowHighlight
@@ -59,6 +59,18 @@ function addWall(scene, x, y, z, { width = 4, height = 4, depth = 0.05 } = {}) {
     scene.add(wall);
     scene.updateMatrixWorld(true);
     return wall;
+}
+
+// a hovered breadcrumb lights up in its own hue pulled partway toward white,
+// not in plain white - assert against the material's actual color so this
+// stays independent of which random hue the stubbed Math.random produced
+function expectHueTintedEmissive(breadcrumb) {
+    const { color, emissive } = breadcrumb.userData.mesh.material;
+    const expected = color.clone()
+        .lerp(new THREE.Color(1, 1, 1), HOVER_EMISSIVE_WHITENESS)
+        .multiplyScalar(HOVER_EMISSIVE);
+    for (const channel of ['r', 'g', 'b'])
+        expect(emissive[channel]).toBeCloseTo(expected[channel], 6);
 }
 
 function makeGrip(x = 0, y = 0, z = 0) {
@@ -299,8 +311,8 @@ describe('updateProximityHighlight', () => {
         manager.updateProximityHighlight([v(0, 0, 0.12), v(0.5, 0, 0.05)], camera);
 
         expect(manager.hoveredBreadcrumb).toBe(b1);
-        expect(b1.userData.mesh.material.emissive.r).toBeCloseTo(0.3, 6);
-        expect(b0.userData.mesh.material.emissive.r).toBe(0);
+        expectHueTintedEmissive(b1);
+        expect(b0.userData.mesh.material.emissive.getHex()).toBe(0x000000);
     });
 
     it('clears the hover when no breadcrumb is in reach', () => {
@@ -314,7 +326,7 @@ describe('updateProximityHighlight', () => {
 
         manager.updateProximityHighlight([v(5, 5, 5)], camera);
         expect(manager.hoveredBreadcrumb).toBeNull();
-        expect(b.userData.mesh.material.emissive.r).toBe(0);
+        expect(b.userData.mesh.material.emissive.getHex()).toBe(0x000000);
     });
 
     it('keeps the target highlighted while reorienting', () => {
@@ -326,7 +338,7 @@ describe('updateProximityHighlight', () => {
         manager.updateProximityHighlight([], makeCamera(0, 0, 1));
 
         expect(manager.hoveredBreadcrumb).toBe(b);
-        expect(b.userData.mesh.material.emissive.r).toBeCloseTo(0.3, 6);
+        expectHueTintedEmissive(b);
     });
 
     it('clears the hover while placing', () => {

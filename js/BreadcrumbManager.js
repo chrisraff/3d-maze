@@ -32,6 +32,16 @@ function surfaceFromDirection(direction) {
 // breadcrumb before the player's aim is precise enough to actually click it
 const RETICLE_AIM_COS = Math.cos(THREE.MathUtils.degToRad(25));
 
+// how hard a hovered breadcrumb lights up, as a multiplier on its tint
+export const HOVER_EMISSIVE = 0.2;
+
+// how far that tint goes from the breadcrumb's own hue (0) toward white (1).
+// Pure white washes out against the additive-white proximity glow behind the
+// arrow; pure hue reads dim. In between keeps both.
+export const HOVER_EMISSIVE_WHITENESS = 0.5;
+
+const HOVER_EMISSIVE_WHITE = new THREE.Color(1, 1, 1);
+
 export default class BreadcrumbManager {
     constructor() {
         this.scene = null;
@@ -566,7 +576,8 @@ export default class BreadcrumbManager {
         // cone - at close range the actual hitbox can subtend a wider angle
         // than RETICLE_AIM_COS allows for, so a breadcrumb can be hovered
         // (and clickable) without the cone test alone picking it up
-        this._updateReticle(reticleVisible || this.hoveredBreadcrumb !== null);
+        this._updateReticle(reticleVisible || this.hoveredBreadcrumb !== null,
+                            this.hoveredBreadcrumb !== null);
     }
 
     // one pass over placed breadcrumbs computing both signals the caller
@@ -597,9 +608,11 @@ export default class BreadcrumbManager {
         return { anyInRange, reticleVisible };
     }
 
-    _updateReticle(visible) {
+    _updateReticle(visible, hovered=false) {
         const reticle = document.getElementById('breadcrumb-reticle');
-        if (reticle) reticle.classList.toggle('visible', visible);
+        if (!reticle) return;
+        reticle.classList.toggle('visible', visible);
+        reticle.classList.toggle('hovered', hovered);
     }
 
     updateGlowForCamera(camera) {
@@ -611,7 +624,9 @@ export default class BreadcrumbManager {
     _setBreadcrumbEmissive(breadcrumb, value) {
         const material = breadcrumb?.userData.mesh?.material;
         if (material)
-            material.emissive.setScalar(value);
+            material.emissive.copy(material.color)
+                .lerp(HOVER_EMISSIVE_WHITE, HOVER_EMISSIVE_WHITENESS)
+                .multiplyScalar(value);
     }
 
     _setHoveredBreadcrumb(breadcrumb) {
@@ -619,7 +634,7 @@ export default class BreadcrumbManager {
             return;
         this._setBreadcrumbEmissive(this.hoveredBreadcrumb, 0);
         this.hoveredBreadcrumb = breadcrumb;
-        this._setBreadcrumbEmissive(this.hoveredBreadcrumb, 0.3);
+        this._setBreadcrumbEmissive(this.hoveredBreadcrumb, HOVER_EMISSIVE);
     }
 
     // look for a breadcrumb at a corresponding screen position
