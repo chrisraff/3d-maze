@@ -89,6 +89,36 @@ describe('isWithinTapZone', () => {
     });
 });
 
+// The oval gates placement only. Picking a breadcrumb up has an explicit
+// target under the finger, so it just has to clear the edge margins.
+describe('isWithinTapMargins', () => {
+    const inMargins = (manager, x, y, { width, height }) =>
+        manager.isWithinTapMargins(x, y, width, height);
+
+    it('accepts a point the oval rejects', () => {
+        const manager = new BreadcrumbManager();
+        const radius = WIDE.height * TAP_ZONE_DIAMETER_SCALE / 2;
+        const x = WIDE.width / 2 + radius + 1;
+        const y = WIDE.height / 2;
+
+        expect(inZone(manager, x, y, WIDE)).toBe(false);
+        expect(inMargins(manager, x, y, WIDE)).toBe(true);
+    });
+
+    it('still rejects the pause button', () => {
+        const manager = new BreadcrumbManager();
+        for (const pause of PAUSE_BUTTON_POINTS(WIDE.width))
+            expect(inMargins(manager, pause.x, pause.y, WIDE)).toBe(false);
+    });
+
+    it('still rejects the screen edges', () => {
+        const manager = new BreadcrumbManager();
+        expect(inMargins(manager, 20, WIDE.height / 2, WIDE)).toBe(false);
+        expect(inMargins(manager, WIDE.width - 20, WIDE.height / 2, WIDE)).toBe(false);
+        expect(inMargins(manager, WIDE.width / 2, 20, WIDE)).toBe(false);
+    });
+});
+
 describe('createTouchHandler tap zone gating', () => {
     function setup() {
         const manager = new BreadcrumbManager();
@@ -111,6 +141,14 @@ describe('createTouchHandler tap zone gating', () => {
         const { manager, handler } = setup();
 
         expect(handler.onTouchStart(session, touchAt(WIDE.width / 2, WIDE.height / 2))).not.toBe(YIELD);
+        expect(manager.touchData[1]).toBeDefined();
+    });
+
+    it('tracks a tap outside the oval but clear of the margins', () => {
+        const { manager, handler } = setup();
+        const x = WIDE.width / 2 + WIDE.height * TAP_ZONE_DIAMETER_SCALE / 2 + 1;
+
+        expect(handler.onTouchStart(session, touchAt(x, WIDE.height / 2))).not.toBe(YIELD);
         expect(manager.touchData[1]).toBeDefined();
     });
 });
@@ -162,6 +200,37 @@ describe('double click / tap placement facing', () => {
         manager._rememberPlacement(placed, now);
         return placed;
     }
+
+    it('places on a tap inside the oval', () => {
+        const { manager, camera } = makeManager();
+
+        manager.handleBreadcrumbTap(camera, emptyMazeData(), 0, 0, true);
+
+        expect(manager.breadcrumbs).toHaveLength(1);
+    });
+
+    it('will not place on a tap outside the oval', () => {
+        const { manager, camera } = makeManager();
+        const held = manager.breadcrumbStack.length;
+
+        manager.handleBreadcrumbTap(camera, emptyMazeData(), 0, 0, false);
+
+        expect(manager.breadcrumbs).toHaveLength(0);
+        expect(manager.breadcrumbStack).toHaveLength(held);
+    });
+
+    it('still picks one up on a tap outside the oval', () => {
+        const { manager, camera } = makeManager();
+        const placed = place(manager, camera);
+        manager._lastPlacement = null;  // past the double-tap window
+        manager.scene.updateMatrixWorld(true);
+
+        manager.handleBreadcrumbTap(camera, emptyMazeData(), 0, 0, false);
+
+        expect(manager.breadcrumbs).not.toContain(placed);
+        expect(manager.breadcrumbStack).toContain(placed);
+        expect(manager.pickupCount).toBe(1);
+    });
 
     it('places facing away from the player on a single click', () => {
         const { manager, camera } = makeManager();

@@ -134,7 +134,7 @@ export default class BreadcrumbManager {
             onTouchStart: (session, touch) => {
                 // the edges belong to the camera, so yield rather than
                 // tracking a tap we would only discard later
-                if (!this.isWithinTapZone(touch.clientX, touch.clientY))
+                if (!this.isWithinTapMargins(touch.clientX, touch.clientY))
                     return YIELD;
 
                 this.beginTouchCandidate(touch.identifier, touch.clientX, touch.clientY, session.startTime);
@@ -155,16 +155,26 @@ export default class BreadcrumbManager {
         };
     }
 
-    // margin is capped at a quarter of each dimension so the zone always exists
-    isWithinTapZone(clientX, clientY, width = window.innerWidth, height = window.innerHeight) {
-        const dx = clientX - width / 2;
-        const dy = clientY - height / 2;
-
+    // The inset that keeps taps off the screen edges and out from under the
+    // pause button. Capped at a quarter of each dimension so the zone always
+    // exists. Everything the player can tap at all has to clear this.
+    isWithinTapMargins(clientX, clientY, width = window.innerWidth, height = window.innerHeight) {
         const marginX = Math.min(TAP_ZONE_EDGE_MARGIN_PX, width / 4);
         const marginY = Math.min(TAP_ZONE_EDGE_MARGIN_PX, height / 4);
-        if (Math.abs(dx) > width / 2 - marginX || Math.abs(dy) > height / 2 - marginY)
+
+        return Math.abs(clientX - width / 2) <= width / 2 - marginX
+            && Math.abs(clientY - height / 2) <= height / 2 - marginY;
+    }
+
+    // The margins narrowed to an oval, which is where a tap may *place* a
+    // breadcrumb. Picking one up only needs the margins - the tap has a
+    // target under it, so it needs no guard against being a stray.
+    isWithinTapZone(clientX, clientY, width = window.innerWidth, height = window.innerHeight) {
+        if (!this.isWithinTapMargins(clientX, clientY, width, height))
             return false;
 
+        const dx = clientX - width / 2;
+        const dy = clientY - height / 2;
         const radius = height * TAP_ZONE_DIAMETER_SCALE / 2;
         return dx * dx + dy * dy <= radius * radius;
     }
@@ -223,7 +233,8 @@ export default class BreadcrumbManager {
             return false;
 
         const scenePos = this.screenToScene(clientX, clientY);
-        this.handleBreadcrumbTap(camera, mazeData, scenePos.sceneX, scenePos.sceneY);
+        this.handleBreadcrumbTap(camera, mazeData, scenePos.sceneX, scenePos.sceneY,
+                                 this.isWithinTapZone(clientX, clientY));
         return true;
     }
 
@@ -615,7 +626,9 @@ export default class BreadcrumbManager {
 
     // --- Non-VR interaction (touch / mouse) ---
 
-    handleBreadcrumbTap(camera, mazeData, sceneX=0, sceneY=0)
+    // canPlace false still picks up and re-aims, it just won't drop a new
+    // breadcrumb - see isWithinTapZone
+    handleBreadcrumbTap(camera, mazeData, sceneX=0, sceneY=0, canPlace=true)
     {
         const breadcrumb = this.raycastSearchForBreadcrumb(camera, sceneX, sceneY);
 
@@ -627,6 +640,9 @@ export default class BreadcrumbManager {
             this.pickupCount++;
             return;
         }
+
+        if (!canPlace)
+            return;
 
         this._rememberPlacement(this.addBreadcrumb(camera, mazeData, sceneX, sceneY));
     }
