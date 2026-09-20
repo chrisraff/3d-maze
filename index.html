@@ -296,6 +296,38 @@
                 }
             }
 
+            /* mobile only: desktop pauses with Esc/P. Hidden while the menu is up,
+               so it doesn't show through the blocker's wash. No border or fill -
+               the bars alone are enough, and the box stays 44px so the tap
+               target is still a comfortable size. */
+            #pause-button {
+                position: absolute;
+                top: env(safe-area-inset-top);
+                right: env(safe-area-inset-right);
+                margin: 10px;
+
+                box-sizing: border-box;
+                width: 44px;
+                height: 44px;
+
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+
+                -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+                -webkit-user-select: none;
+                user-select: none;
+            }
+
+            #pause-button span {
+                width: 5px;
+                height: 18px;
+                border-radius: 1px;
+                background-color: #ffffff;
+                box-shadow: 2px 2px 4px #000000;
+            }
+
             #options-corner {
                 position: absolute;
                 top: env(safe-area-inset-top);
@@ -554,6 +586,9 @@
             </div>
         </div>
 
+        <div id="pause-button" style="display: none;" class="formfactor-non-desktop xr-non-vr hide"
+             role="button" aria-label="Pause"><span></span><span></span></div>
+
         <div id="breadcrumb-reticle" class="formfactor-desktop xr-non-vr"></div>
 
         <div id="touch-tutorial-move" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
@@ -581,8 +616,6 @@
         </div>
         <div id="computer-tutorial-compass" tutorial-step="2" tutorial-type="intro" style="display: none;" class="tutorial-text tutorial-element">
             <span>The compass points towards the <span class="exit-token">exit<img class="goal-icon" alt="" /></span></span>
-            <br style="display: none;" class='formfactor-non-desktop' />
-            <span style="font-size: 50%; display: none;" class='formfactor-non-desktop'>Tap the compass to pause</span>
         </div>
 
         <div id="overlay">

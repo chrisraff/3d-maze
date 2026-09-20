@@ -317,6 +317,10 @@ function init() {
         }));
     }
     controls = new FlyPointerLockControls(cameraNode, renderer.domElement);
+    // sits outside the canvas, so TouchArbiter never sees this touch
+    document.querySelector('#pause-button').addEventListener('touchstart', (event) => {
+        controls.disableLock(event);
+    }, false);
     // A phone has no cursor to capture, and Chrome on Android answers the
     // request with a banner that sits on screen for seconds. Anything with both
     // input methods - tablets, Surfaces, touchscreen laptops - is not matched by
@@ -329,6 +333,7 @@ function init() {
         session.startTimer();
 
         vrManager.setUiInteraction(false);
+        setPauseButtonVisible(true);
 
         if (introCinematicPending) {
             introCinematicPending = false;
@@ -338,6 +343,7 @@ function init() {
     controls.addEventListener( 'unlock', function() {
         introCinematicPending = false;
         introCinematic.skip();
+        setPauseButtonVisible(false);
         document.querySelector('#blocker').style.display = '';
         touchArbiter?.clear();
 
@@ -781,6 +787,7 @@ function hideCinematicCaption()
 function playIntroCinematic()
 {
     document.querySelector('#hud-container').classList.add('hide');
+    setPauseButtonVisible(false);
 
     introCinematic.play({
         segments,
@@ -797,12 +804,19 @@ function playIntroCinematic()
         onComplete: () => {
             hideCinematicCaption();
             document.querySelector('#hud-container').classList.remove('hide');
+            setPauseButtonVisible(true);
             // the shot is time the player had no control over, so it isn't
             // charged to their run
             session.restartTimer();
             tutorialManager.startTutorial();
         },
     });
+}
+
+// the pause button is only meaningful while the player is actually in the maze
+function setPauseButtonVisible(visible)
+{
+    document.querySelector('#pause-button')?.classList.toggle('hide', !visible);
 }
 
 function menuLockControls()
