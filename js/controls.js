@@ -107,6 +107,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     var mouseSensitivity = 0.002;
 
+    // Chrome/Edge sometimes emit a bogus movementX/Y under pointer lock - seen at
+    // 1058px between real 1-3px events. Drop those; a fast flick stays under 50px.
+    const MAX_MOUSE_DELTA = 200;
+
     var accumulatedMouseRotationY = 0;
     var lastMouseMoveTime = 0;
     // allow the first snap to be easy (0.1), and subsequent snaps intentional (0.5)
@@ -119,6 +123,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
         const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
         const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+        if (Math.abs(movementX) > MAX_MOUSE_DELTA || Math.abs(movementY) > MAX_MOUSE_DELTA) {
+            return;
+        }
 
         const shouldInstantRotate = scope.isXRPresenting && !scope.vrControlOptions.rotationSmoothing;
         // const shouldInstantRotate = true;
