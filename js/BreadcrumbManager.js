@@ -40,6 +40,13 @@ export const HOVER_EMISSIVE = 0.2;
 // arrow; pure hue reads dim. In between keeps both.
 export const HOVER_EMISSIVE_WHITENESS = 0.5;
 
+// Taps only count inside an oval: a circle this many viewport heights across,
+// so the far ends of a wide screen and the corners fall outside it.
+export const TAP_ZONE_DIAMETER_SCALE = 1.25;
+// insets every edge on top of the oval, which is what clears the pause button
+// (44px + 10px margin + safe-area slack) on a near-4:3 screen
+export const TAP_ZONE_EDGE_MARGIN_PX = 72;
+
 const HOVER_EMISSIVE_WHITE = new THREE.Color(1, 1, 1);
 
 export default class BreadcrumbManager {
@@ -103,6 +110,11 @@ export default class BreadcrumbManager {
     createTouchHandler({ camera, getMazeData = () => this.mazedata } = {}) {
         return {
             onTouchStart: (session, touch) => {
+                // the edges belong to the camera, so yield rather than
+                // tracking a tap we would only discard later
+                if (!this.isWithinTapZone(touch.clientX, touch.clientY))
+                    return YIELD;
+
                 this.beginTouchCandidate(touch.identifier, touch.clientX, touch.clientY, session.startTime);
             },
             onTouchMove: (_session, touch) => {
@@ -119,6 +131,20 @@ export default class BreadcrumbManager {
                 this.cancelTouchCandidate(touch.identifier);
             }
         };
+    }
+
+    // margin is capped at a quarter of each dimension so the zone always exists
+    isWithinTapZone(clientX, clientY, width = window.innerWidth, height = window.innerHeight) {
+        const dx = clientX - width / 2;
+        const dy = clientY - height / 2;
+
+        const marginX = Math.min(TAP_ZONE_EDGE_MARGIN_PX, width / 4);
+        const marginY = Math.min(TAP_ZONE_EDGE_MARGIN_PX, height / 4);
+        if (Math.abs(dx) > width / 2 - marginX || Math.abs(dy) > height / 2 - marginY)
+            return false;
+
+        const radius = height * TAP_ZONE_DIAMETER_SCALE / 2;
+        return dx * dx + dy * dy <= radius * radius;
     }
 
     beginTouchCandidate(identifier, clientX, clientY, startTime = Date.now()) {
