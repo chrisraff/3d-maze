@@ -54,7 +54,16 @@ export const DOUBLE_ACTIVATE_MS = 300;
 // reads as an oval on a wide screen
 export const IN_VIEW_NDC_RADIUS = 0.6;
 
+// how far ahead of the camera a click/tap drops a breadcrumb, in cells
+export const PLACEMENT_DISTANCE_SCALE = 0.33;
+
+// how solid the gaze ghost looks while it is still only a preview
+export const GHOST_OPACITY = 0.55;
+
 const HOVER_EMISSIVE_WHITE = new THREE.Color(1, 1, 1);
+
+const isFinitePosition = (v) =>
+    Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
 
 export default class BreadcrumbManager {
     constructor() {
@@ -90,9 +99,15 @@ export default class BreadcrumbManager {
         this._rayDir = new THREE.Vector3();
         this._playerWorldPos = new THREE.Vector3();
         this._tmpProject = new THREE.Vector3();
+        // placement scratch - the gaze ghost recomputes this every frame
+        this._placePos = new THREE.Vector3();
+        this._planeNormal = new THREE.Vector3();
+        this._cameraWorldPos = new THREE.Vector3();
+        this._placePlane = new THREE.Plane();
+        this._placeGhostPos = new THREE.Vector3();
         this._cameraForward = new THREE.Vector3();
 
-        // Spatial interaction state (null | 'reorienting' | 'placing')
+        // Spatial interaction state (null | 'reorienting' | 'placing' | 'gaze-placing')
         this._interactState = null;
         this._interactTarget = null;
         this._interactGripObject = null;
@@ -386,7 +401,10 @@ export default class BreadcrumbManager {
 
     // Per-frame: move and/or rotate the active interaction target to follow the grip.
     updateInteract(camera) {
-        if (this._interactState === null) return;
+        // Only the grip-driven states belong here. Gaze placing has no grip
+        // object to read, and update() drives it instead.
+        if (this._interactState !== 'placing' && this._interactState !== 'reorienting')
+            return;
 
         // deltaQuat = currentGripQuat * startGripQuat^-1
         this._interactGripObject.getWorldQuaternion(this._interactCurrentQuat);
@@ -520,7 +538,8 @@ export default class BreadcrumbManager {
         this.mazedata = mazedata;
 
         // cancel any in-progress spatial interaction
-        if (this._interactState === 'placing' && this._interactTarget !== null) {
+        if ((this._interactState === 'placing' || this._interactState === 'gaze-placing')
+            && this._interactTarget !== null) {
             this.scene.remove(this._interactTarget);
         }
         this._interactState = null;
@@ -622,6 +641,100 @@ export default class BreadcrumbManager {
         this.base.build(mazedata, medallionSites);
 
         this.updateBreadCrumbDisplay();
+    }
+
+    // --- Gaze placement ---
+    //
+    // Gaze has one button, already spoken for by move and by the options menu,
+    // so placing is a mode: the breadcrumb previews where a tap would drop it
+    // and follows the player's look until they commit or cancel.
+
+    get isGazePlacing() { return this._interactState === 'gaze-placing'; }
+
+    // A gaze tap takes whatever the player is looking at. With nothing there it
+    // returns false and the tap stays what it always was - a step forward.
+    tryGazePickup(camera) {
+        if (this._interactState !== null) return false;
+
+        const breadcrumb = this.raycastSearchForBreadcrumb(camera);
+        if (breadcrumb === null) return false;
+
+        this.removeBreadcrumb(breadcrumb);
+        this.pickupCount++;
+        return true;
+    }
+
+    // Take a breadcrumb out of the stack and start previewing it.
+    // Returns false when empty-handed or already mid-interaction.
+    beginGazePlace(camera, mazeData) {
+        if (this._interactState !== null) return false;
+        if (this.breadcrumbStack.length === 0) return false;
+
+        const breadcrumb = this.breadcrumbStack.pop();
+        this.scene.add(breadcrumb);
+
+        this._interactState = 'gaze-placing';
+        this._interactTarget = breadcrumb;
+        this._setGhost(breadcrumb, true);
+
+        this.updateGazePlace(camera, mazeData);
+        this.updateBreadCrumbDisplay();
+        return true;
+    }
+
+    // Per-frame: sit exactly where a tap would drop it, facing the way out.
+    updateGazePlace(camera, mazeData) {
+        if (!this.isGazePlacing) return;
+
+        this.placementPosition(this._placeGhostPos, camera, mazeData);
+
+        // Never hand a bad position to the scene graph: a NaN there silently
+        // breaks matrix updates for everything under it.
+        if (!isFinitePosition(this._placeGhostPos)) return;
+
+        this._interactTarget.position.copy(this._placeGhostPos);
+        this._aimAlongView(this._interactTarget, camera);
+    }
+
+    // Leave it where it stands. Returns the breadcrumb, or null if not placing.
+    commitGazePlace() {
+        if (!this.isGazePlacing) return null;
+
+        const breadcrumb = this._interactTarget;
+        this._setGhost(breadcrumb, false);
+        this.breadcrumbs.push(breadcrumb);
+
+        this._interactState = null;
+        this._interactTarget = null;
+
+        this._rememberPlacement(breadcrumb);
+        this.updateBreadCrumbDisplay();
+        return breadcrumb;
+    }
+
+    // Put it back in the player's hand.
+    cancelGazePlace() {
+        if (!this.isGazePlacing) return;
+
+        const breadcrumb = this._interactTarget;
+        this._setGhost(breadcrumb, false);
+        this.scene.remove(breadcrumb);
+
+        this._interactState = null;
+        this._interactTarget = null;
+
+        this.breadcrumbStack.push(breadcrumb);
+        this.updateBreadCrumbDisplay();
+    }
+
+    _setGhost(breadcrumb, isGhost) {
+        const material = breadcrumb?.userData.mesh?.material;
+        if (!material) return;
+
+        material.transparent = isGhost;
+        material.opacity = isGhost ? GHOST_OPACITY : 1;
+        // a translucent preview shouldn't occlude the maze behind it
+        material.depthWrite = !isGhost;
     }
 
     // --- Non-VR interaction (touch / mouse) ---
@@ -748,8 +861,12 @@ export default class BreadcrumbManager {
      *
      * @param {boolean} [hover=false] - run the mouse/gaze hover pass, which
      *        only applies where there is a cursor or a gaze cursor to aim
+     * @param {Object} [mazeData=null] - needed to keep a gaze ghost out of walls
      */
-    update(delta, camera, { hover = false } = {}) {
+    update(delta, camera, { hover = false, mazeData = null } = {}) {
+        if (mazeData !== null)
+            this.updateGazePlace(camera, mazeData);
+
         if (hover)
             this.updateHoveredBreadcrumb(camera);
 
@@ -843,66 +960,78 @@ export default class BreadcrumbManager {
     }
 
     // returns the breadcrumb placed, or null if the stack was empty
-    addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
+    /**
+     * Where a click/tap at this screen point drops a breadcrumb: onto a plane
+     * PLACEMENT_DISTANCE_SCALE cells ahead, then pushed out of any wall it
+     * would sit inside. The gaze ghost previews this, so what the player lines
+     * up is what actually gets placed.
+     *
+     * @param {THREE.Vector3} target - written in place and returned
+     */
+    placementPosition(target, camera, mazeData, sceneX=0, sceneY=0) {
         const breadcrumbCollisionDistance = maze.minorWidth * 2;
-        if (this.breadcrumbStack.length === 0)
-            return null;
 
-        let breadcrumb = this.breadcrumbStack.pop();
-
-        const tmpVector = new THREE.Vector3();
-
-        // If user tapped on scene, place breadcrumb at tap location,
-        // or the middle of the screen for mouse clicks
         this.mouseVector.set(sceneX, sceneY);
         this.raycaster.setFromCamera(this.mouseVector, camera);
 
-        // Create a plane in front of the camera to raycast against
-        const planeNormal = new THREE.Vector3();
-        camera.getWorldDirection(planeNormal);
-        const cameraWorldPos = new THREE.Vector3();
-        camera.getWorldPosition(cameraWorldPos);
-        const planePoint = new THREE.Vector3();
-        planePoint.copy(cameraWorldPos).addScaledVector(planeNormal, maze.majorWidth * 0.33);
-        const plane = new THREE.Plane(planeNormal, -planeNormal.dot(planePoint));
+        // a plane in front of the camera to raycast against
+        camera.getWorldDirection(this._planeNormal);
+        camera.getWorldPosition(this._cameraWorldPos);
+        this._placePos.copy(this._cameraWorldPos)
+            .addScaledVector(this._planeNormal, maze.majorWidth * PLACEMENT_DISTANCE_SCALE);
+        this._placePlane.setFromNormalAndCoplanarPoint(this._planeNormal, this._placePos);
 
-        const intersection = new THREE.Vector3();
-        this.raycaster.ray.intersectPlane(plane, intersection);
-        breadcrumb.position.copy(intersection);
+        // a ray parallel to the plane leaves target untouched, which would
+        // otherwise be read as a placement at wherever it last pointed
+        if (this.raycaster.ray.intersectPlane(this._placePlane, target) === null)
+            return target;
 
-        tmpVector.copy(breadcrumb.position);
-        tmpVector.addScalar(maze.minorWidth);
-        const breadcrumbMazePosFar = maze.getMazePos(tmpVector);
-        tmpVector.addScalar(-2*maze.minorWidth);
-        const breadcrumbMazePosNear = maze.getMazePos(tmpVector);
-        const cameraMazePos = maze.getMazePos(cameraWorldPos);
+        this._placePos.copy(target);
+        this._placePos.addScalar(maze.minorWidth);
+        const breadcrumbMazePosFar = maze.getMazePos(this._placePos);
+        this._placePos.addScalar(-2*maze.minorWidth);
+        const breadcrumbMazePosNear = maze.getMazePos(this._placePos);
+        const cameraMazePos = maze.getMazePos(this._cameraWorldPos);
 
         if (breadcrumbMazePosNear.x - cameraMazePos.x < 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, target, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosNear.y - cameraMazePos.y < 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, target, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosNear.z - cameraMazePos.z < 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, breadcrumb.position, breadcrumbCollisionDistance);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosNear, cameraMazePos, -1, target, breadcrumbCollisionDistance);
         }
 
         if (breadcrumbMazePosFar.x - cameraMazePos.x > 0) {
-            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
+            checkCollisionOnAxis(mazeData, 'x', 'y', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, target, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosFar.y - cameraMazePos.y > 0) {
-            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
+            checkCollisionOnAxis(mazeData, 'y', 'x', 'z', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, target, breadcrumbCollisionDistance);
         }
         if (breadcrumbMazePosFar.z - cameraMazePos.z > 0) {
-            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, breadcrumb.position, breadcrumbCollisionDistance);
+            checkCollisionOnAxis(mazeData, 'z', 'y', 'x', cameraMazePos, breadcrumbMazePosFar, cameraMazePos, 1, target, breadcrumbCollisionDistance);
         }
 
-        this.scene.add(breadcrumb);
+        return target;
+    }
 
-        // set the breadcrumb to face the same way as the camera
+    // +Z is the facing axis, so this aims the breadcrumb away from the player
+    _aimAlongView(breadcrumb, camera) {
         camera.getWorldQuaternion(breadcrumb.quaternion);
         breadcrumb.rotateY(Math.PI);
+    }
 
+    addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
+        if (this.breadcrumbStack.length === 0)
+            return null;
+
+        const breadcrumb = this.breadcrumbStack.pop();
+
+        this.placementPosition(breadcrumb.position, camera, mazeData, sceneX, sceneY);
+
+        this.scene.add(breadcrumb);
+        this._aimAlongView(breadcrumb, camera);
         this.breadcrumbs.push(breadcrumb);
 
         this.updateBreadCrumbDisplay();

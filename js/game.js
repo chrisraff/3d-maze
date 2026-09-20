@@ -486,7 +486,8 @@ function init() {
     // init VR manager
     vrManager = new VRManager(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls);
 
-    vrManager.setBreadcrumbs(breadcrumbs);
+    vrManager.setBreadcrumbs(breadcrumbs, () => mazeData);
+    vrManager.setupRadialMenu();
 
     vrManager.addEventListener('pause', () => {
         if (controls.isLocked) {
@@ -510,6 +511,10 @@ function init() {
 
     renderer.xr.addEventListener('sessionend', (event) => {
         controls.setXRPresenting(false);
+        // gaze state belongs to the session; a stranded preview would follow
+        // the camera around for the rest of the run
+        vrManager.closeRadialMenu();
+        breadcrumbs.cancelGazePlace();
         controls.disableLock(new Event(''));
         dust._material.size = dustSize;
         goalDots.setVR( false );
@@ -725,7 +730,8 @@ var animate = function () {
 
     // hover needs a cursor to aim: a pointer, or VR's gaze cursor
     breadcrumbs.update(delta, camera, {
-        hover: !isMobile && (!vrManager.isPresenting() || vrManager.isUsingGazeControls)
+        hover: !isMobile && (!vrManager.isPresenting() || vrManager.isUsingGazeControls),
+        mazeData
     });
 
     runHistory.recordPosition(cameraNode.position);
@@ -777,6 +783,7 @@ function buildMazeAndUpdateUI(size)
     updateMenuCentering();
 
     if (tutorialManager) tutorialManager.resetTutorial();
+    vrManager?.closeRadialMenu();
 
     bus.emit('maze:built', { size: mazeSize });
 }

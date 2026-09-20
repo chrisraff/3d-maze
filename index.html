@@ -527,6 +527,111 @@
                 }
             }
 
+            /* Gaze options ring. Sits inside #overlay so HTMLMesh draws it in
+               VR, which means: no transforms (positions come from margins),
+               and it hides with inline display, never a class. Kept well
+               inside the 800x600 panel, which is all a headset shows. */
+            #vr-radial-menu {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                /* a tap on the gap dismisses the ring, so it takes clicks too */
+                pointer-events: auto;
+            }
+
+            .vr-radial-option {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 84px;
+                height: 84px;
+                box-sizing: border-box;
+
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                border-radius: 42px;
+                border: solid 2px rgba(230, 230, 230, 0.75);
+                background-color: rgba(20, 20, 20, 0.85);
+
+                color: #ffffff;
+                font-family: Arial;
+                font-size: 30px;
+                line-height: 1;
+                text-align: center;
+
+                pointer-events: auto;
+                cursor: pointer;
+            }
+
+            /* 120 degrees apart at r=112, primary action on top. Margins place
+               them because transforms would not survive the trip into VR. */
+            #vr-radial-marker {
+                margin-left: -42px;
+                margin-top: -154px;
+            }
+            #vr-radial-cancel {
+                margin-left: -139px;
+                margin-top: 14px;
+            }
+            #vr-radial-pause {
+                margin-left: 55px;
+                margin-top: 14px;
+            }
+
+            #vr-radial-marker .breadcrumb-icon {
+                width: 46px;
+                height: 46px;
+            }
+
+            #vr-radial-marker-count {
+                position: absolute;
+                right: -4px;
+                bottom: -4px;
+                min-width: 26px;
+                height: 26px;
+                box-sizing: border-box;
+                padding-top: 3px;
+
+                border-radius: 13px;
+                background-color: rgba(20, 20, 20, 0.95);
+                border: solid 2px rgba(230, 230, 230, 0.75);
+
+                font-size: 15px;
+                line-height: 1;
+            }
+
+            /* Named only for the option the gaze is on. VRManager toggles this
+               with inline display - CSS :hover never fires in VR, since the
+               only pointer event dispatched there is the click itself. */
+            .vr-radial-label {
+                position: absolute;
+                left: -48px;
+                top: 92px;
+                width: 180px;
+
+                font-size: 19px;
+                line-height: 1.1;
+                color: #ffffff;
+                text-align: center;
+            }
+
+            /* the gaze sits here when the ring opens, so nothing is preselected */
+            #vr-radial-centre {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 14px;
+                height: 14px;
+                margin-left: -7px;
+                margin-top: -7px;
+                border-radius: 7px;
+                background-color: rgba(255, 255, 255, 0.55);
+            }
+
             .hide {
                 display: none !important;
             }
@@ -658,6 +763,27 @@
             </div>
             <div tutorial-type="vr" tutorial-step="3" style="display: none;" class="tutorial-text tutorial-element">
                 <span class="vr-controls-controllers">Press either thumbstick to pause</span>
+            </div>
+
+            <!-- Gaze options. Radial so every choice is one short look from
+                 where the cursor already is, and so it reads as nothing like
+                 the flat panel menus. Labels appear only under the option the
+                 gaze is on - see updateRadialHover. -->
+            <div id="vr-radial-menu" style="display: none;">
+                <div id="vr-radial-centre"></div>
+                <div id="vr-radial-marker" class="vr-radial-option" role="button">
+                    <img class="breadcrumb-icon" alt="" />
+                    <span id="vr-radial-marker-count"></span>
+                    <span class="vr-radial-label" style="display: none;">Place marker</span>
+                </div>
+                <div id="vr-radial-cancel" class="vr-radial-option" role="button">
+                    <span>&#10005;</span>
+                    <span class="vr-radial-label" style="display: none;">Cancel</span>
+                </div>
+                <div id="vr-radial-pause" class="vr-radial-option" role="button">
+                    <span>&#9776;</span>
+                    <span class="vr-radial-label" style="display: none;">Menu</span>
+                </div>
             </div>
 
             <div id="completionMessage" style="display: none;" class="frosted">

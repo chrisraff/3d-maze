@@ -5,6 +5,37 @@ import * as THREE from 'three';
 import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
 import VRButtonManager from './VRButtonManager.js';
 import bus from './EventBus.js';
+import { mountBreadcrumbIcons } from './BreadcrumbIcon.js';
+
+// Below this the gaze is so near vertical that levelling leaves no horizontal
+// direction to normalise, so 'level' falls back to the gaze itself.
+const UI_LEVEL_MIN_XZ = 1e-3;
+
+/**
+ * Direction to place the VR UI along, written into `target` and returned.
+ *
+ * 'level' drops the pitch so the UI sits upright at the horizon, which is what
+ * the long scrolling menus want. 'gaze' keeps the pitch, so a menu opens where
+ * the player is already looking rather than making them look back down.
+ *
+ * @param {THREE.Vector3} target - written in place, no allocation
+ * @param {THREE.Quaternion} cameraQuaternion
+ * @param {'level'|'gaze'} [mode='level']
+ */
+export function uiLookDirection(target, cameraQuaternion, mode = 'level') {
+    target.set(0, 0, -1).applyQuaternion(cameraQuaternion);
+
+    if (mode === 'gaze')
+        return target.normalize();
+
+    // projecting onto the XZ plane is just dropping y
+    const pitched = target.y;
+    target.y = 0;
+    if (target.lengthSq() < UI_LEVEL_MIN_XZ * UI_LEVEL_MIN_XZ)
+        target.y = pitched; // straight up or down: nothing left to level
+
+    return target.normalize();
+}
 
 export default class VRManager extends EventTarget {
     constructor(renderer, cameraNode, cameraCompensationNode, camera, scene, dotSprite, controls) {
@@ -105,6 +136,10 @@ export default class VRManager extends EventTarget {
 
         // UI state
         this.uiInteractionEnabled = true;
+        this.uiPlacementMode = 'level'; // see uiLookDirection
+        this._radialMenuOpen = false;
+        this._radialHovered = null;
+        this.getMazeData = () => null;
         this.uiDom = document.querySelector('#overlay');
 
         this.pointerObject = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
@@ -251,7 +286,7 @@ export default class VRManager extends EventTarget {
                 this.gazeHoldTimeout = setTimeout(() => {
                     this.gazeHoldFired = true;
                     this.isGazeSelectingFromGame = false;
-                    this.dispatchEvent(new CustomEvent('pause'));
+                    this.openRadialMenu();
                 }, 500);
             } else {
                 // non-gaze controller selectstart in game mode
@@ -288,14 +323,11 @@ export default class VRManager extends EventTarget {
                 this.isGazeSelectingFromGame = false;
 
                 if (!this.gazeHoldFired) {
-                    // short press: use as forward motion
-                    this.moveVector.set(0, 0, -1);
-                    this.moveVector.applyQuaternion(this.camera.quaternion);
-                    this.moveVector.applyQuaternion(this.cameraCompensationNode.quaternion);
+                    if (this._handleGazeTap())
+                        return;
 
-                    setTimeout(() => {
-                        this.moveVector.set(0, 0, 0);
-                    }, 50);
+                    // nothing under the gaze, so the tap stays a step forward
+                    this.gazeStepForward();
                 }
             } else {
                 // non-gaze controller selectend in game mode
@@ -375,6 +407,8 @@ export default class VRManager extends EventTarget {
 
         this.uiDom.style.width = '';
         this.uiDom.style.height = '';
+
+        this.closeRadialMenu();
 
         this.uiMesh.dispose();
         this.cameraCompensationNode.remove(this.uiMesh);
@@ -602,6 +636,8 @@ export default class VRManager extends EventTarget {
                     this.pointerObject.visible = false;
                 }
 
+                this.updateRadialHover();
+
                 if (this.uiClickState && this.uiInteractingElement) {
                     // compute slider value
                     let percent = (this.uiUv.x - this.uiInteractingDetails.left) / this.uiInteractingDetails.width;
@@ -636,11 +672,9 @@ export default class VRManager extends EventTarget {
         const distanceToUi2 = cameraToUi.lengthSq();
 
         // if looking away, reposition the ui to be in front of the user
-        const cameraXZLook = this.tmpVector2.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
-        cameraXZLook.projectOnPlane(new THREE.Vector3(0, 1, 0));
-        cameraXZLook.normalize();
+        const uiLook = uiLookDirection(this.tmpVector2, this.camera.quaternion, this.uiPlacementMode);
         cameraToUi.normalize();
-        if (cameraXZLook.dot(cameraToUi) < 0.75 || distanceToUi2 > 9) {
+        if (uiLook.dot(cameraToUi) < 0.75 || distanceToUi2 > 9) {
             this.recenterUI();
         }
 
@@ -683,23 +717,31 @@ export default class VRManager extends EventTarget {
         return this.renderer.xr.isPresenting;
     }
 
+    // 'level' | 'gaze' - see uiLookDirection. Changing it snaps the UI so the
+    // drift check isn't left comparing against the old basis.
+    setUiPlacement(mode) {
+        if (this.uiPlacementMode === mode)
+            return;
+
+        this.uiPlacementMode = mode;
+        this.recenterUI();
+    }
+
     recenterUI() {
         if (!this.renderer.xr.isPresenting || !this.uiMesh || !this.calibrated) {
             return;
         }
 
-        const cameraXZLook = this.tmpVector2.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
-        cameraXZLook.projectOnPlane(new THREE.Vector3(0, 1, 0));
-        cameraXZLook.normalize();
+        const uiLook = uiLookDirection(this.tmpVector2, this.camera.quaternion, this.uiPlacementMode);
 
         // set the ui position to be in front of the camera
-        this.uiMesh.position.copy(cameraXZLook);
+        this.uiMesh.position.copy(uiLook);
         this.uiMesh.position.multiplyScalar(1.5);
         this.uiMesh.position.add(this.camera.position);
 
         // make the ui face the camera
         const cameraToUi = this.tmpVector.copy(this.uiMesh.position);
-        cameraToUi.sub(cameraXZLook);
+        cameraToUi.sub(uiLook);
         cameraToUi.applyQuaternion(this.cameraCompensationNode.quaternion).add(this.cameraCompensationNode.position);
         cameraToUi.applyQuaternion(this.cameraNode.quaternion).add(this.cameraNode.position);
         this.uiMesh.lookAt(cameraToUi);
@@ -730,8 +772,144 @@ export default class VRManager extends EventTarget {
         document.querySelectorAll('.vr-controls-gaze').forEach(el => el.style.display = gaze ? '' : 'none');
     }
 
-    setBreadcrumbs(breadcrumbs) {
+    setBreadcrumbs(breadcrumbs, getMazeData = () => null) {
         this.breadcrumbs = breadcrumbs;
+        this.getMazeData = getMazeData;
+    }
+
+    // --- Gaze options ring ---
+    //
+    // Gaze has one button and it is already the movement control, so the ring
+    // is where everything else lives. It opens on a hold, sits at the gaze so
+    // the player keeps their aim, and is driven by the ordinary VR UI click
+    // path - gaze is registered as a UI interactor like any controller.
+
+    get isRadialMenuOpen() { return this._radialMenuOpen; }
+
+    setupRadialMenu() {
+        this.radialMenuDom = document.querySelector('#vr-radial-menu');
+
+        const onClick = (selector, handler) =>
+            document.querySelector(selector)?.addEventListener('click', handler);
+
+        // already placing: the ring was a detour, so just carry on
+        onClick('#vr-radial-marker', () => {
+            this.closeRadialMenu();
+            if (this.breadcrumbs && !this.breadcrumbs.isGazePlacing)
+                this.breadcrumbs.beginGazePlace(this.camera, this.getMazeData());
+        });
+
+        onClick('#vr-radial-cancel', () => {
+            this.closeRadialMenu();
+            this.breadcrumbs?.cancelGazePlace();
+        });
+
+        onClick('#vr-radial-pause', () => {
+            this.closeRadialMenu();
+            this.breadcrumbs?.cancelGazePlace();
+            this.dispatchEvent(new CustomEvent('pause'));
+        });
+
+        // missing every option means the player wanted to get on with it, so
+        // give them back the tap they meant to make
+        this.radialMenuDom?.addEventListener('click', (event) => {
+            if (event.target?.closest?.('.vr-radial-option')) return;
+
+            this.closeRadialMenu();
+            this.gazeStepForward();
+        });
+    }
+
+    // the short-press movement a gaze tap normally means
+    gazeStepForward() {
+        this.moveVector.set(0, 0, -1);
+        this.moveVector.applyQuaternion(this.camera.quaternion);
+        this.moveVector.applyQuaternion(this.cameraCompensationNode.quaternion);
+
+        setTimeout(() => {
+            this.moveVector.set(0, 0, 0);
+        }, 50);
+    }
+
+    // CSS :hover never fires in VR - the only pointer event dispatched there is
+    // the click - so the label under the gazed-at option is toggled by hand.
+    updateRadialHover() {
+        if (!this._radialMenuOpen) return;
+
+        const at = document.elementFromPoint(this.uiUv.x, this.uiUv.y);
+        const option = at?.closest?.('.vr-radial-option') ?? null;
+        if (option === this._radialHovered) return;
+
+        this._radialHovered = option;
+        document.querySelectorAll('.vr-radial-label').forEach((label) => {
+            // inline display: the only hide HTMLMesh reads
+            label.style.display = label.parentElement === option ? '' : 'none';
+        });
+
+        this._redrawUi();
+    }
+
+    openRadialMenu() {
+        if (this._radialMenuOpen || !this.radialMenuDom) return;
+
+        this._radialMenuOpen = true;
+        this._updateRadialMarkerOption();
+        this.radialMenuDom.style.display = '';
+
+        // follow the pitch, so opening the ring doesn't cost the player their aim
+        this.setUiPlacement('gaze');
+        this.setUiInteraction(true);
+        this._redrawUi();
+    }
+
+    closeRadialMenu() {
+        if (!this._radialMenuOpen) return;
+
+        this._radialMenuOpen = false;
+        this._radialHovered = null;
+        document.querySelectorAll('.vr-radial-label')
+            .forEach((label) => { label.style.display = 'none'; });
+        if (this.radialMenuDom) this.radialMenuDom.style.display = 'none';
+
+        this.setUiInteraction(false);
+        this.setUiPlacement('level');
+        this._redrawUi();
+    }
+
+    // The ring doubles as the inventory readout, since the HUD count lives
+    // outside #overlay and is never drawn in VR.
+    _updateRadialMarkerOption() {
+        const option = document.querySelector('#vr-radial-marker');
+        if (!option) return;
+
+        const held = this.breadcrumbs?.breadcrumbStack.length ?? 0;
+        const placing = this.breadcrumbs?.isGazePlacing ?? false;
+
+        const count = document.querySelector('#vr-radial-marker-count');
+        if (count) count.textContent = held > 0 ? String(held) : '';
+
+        // inline display is the only hide HTMLMesh reads
+        option.style.display = (held > 0 || placing) ? '' : 'none';
+
+        if (this.breadcrumbs)
+            mountBreadcrumbIcons(this.breadcrumbs.nextInStack, option);
+    }
+
+    // a gaze tap commits the marker being positioned, or takes the one being
+    // looked at; false means there was nothing to act on
+    _handleGazeTap() {
+        if (!this.breadcrumbs) return false;
+
+        if (this.breadcrumbs.isGazePlacing) {
+            this.breadcrumbs.commitGazePlace();
+            return true;
+        }
+
+        return this.breadcrumbs.tryGazePickup(this.camera);
+    }
+
+    _redrawUi() {
+        if (this.uiMesh) this.uiMesh.material.map.update();
     }
 
     _collectGripWorldPositions() {
