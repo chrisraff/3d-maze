@@ -672,7 +672,7 @@ export default class BreadcrumbManager {
 
         this.breadcrumbStack.push(breadcrumb);
 
-        this.updateBreadCrumbDisplay();
+        this.updateBreadCrumbDisplay(true);
     }
 
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
@@ -740,7 +740,8 @@ export default class BreadcrumbManager {
         this.updateBreadCrumbDisplay();
     }
 
-    updateBreadCrumbDisplay() {
+    // pickedUp pops the icon; the other callers (placing, a new maze) shouldn't
+    updateBreadCrumbDisplay(pickedUp = false) {
         const count = this.breadcrumbStack.length;
 
         const container = document.getElementById('breadcrumb-container');
@@ -761,6 +762,14 @@ export default class BreadcrumbManager {
             const source = breadcrumbIconSource(this.breadcrumbStack[count - 1]);
             if (source !== null)
                 iconElement.src = source;
+
+            // re-adding the class alone won't replay a running animation, so
+            // clear it and force a reflow first - two quick pickups should pop twice
+            if (pickedUp && iconElement.classList) {
+                iconElement.classList.remove('pickup');
+                void iconElement.offsetWidth;
+                iconElement.classList.add('pickup');
+            }
         }
     }
 }

@@ -203,6 +203,23 @@
                 filter: drop-shadow(2px 2px 4px #000000);
             }
 
+            /* a quick pop when a breadcrumb lands in the inventory - transform
+               only, so the count beside it doesn't shift */
+            @keyframes breadcrumb-pickup-pulse {
+                0% {
+                    transform: scale(1);
+                }
+                35% {
+                    transform: scale(1.35);
+                }
+                100% {
+                    transform: scale(1);
+                }
+            }
+            #breadcrumb-icon.pickup {
+                animation: breadcrumb-pickup-pulse 0.22s ease-out;
+            }
+
             #breadcrumb-count {
                 margin-left: 0.1em;
             }
