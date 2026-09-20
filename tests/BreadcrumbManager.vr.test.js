@@ -472,3 +472,51 @@ describe('initializeMaze', () => {
         expect(manager.breadcrumbStack).toHaveLength(0);
     });
 });
+
+// nearestReachable drives the breadcrumb tutorial's entry gate and its marker
+// glyph, and only ever considers *placed* breadcrumbs - which is easy to
+// forget, because a carried one is invisible to it.
+describe('nearestReachable', () => {
+    it('finds a placed breadcrumb within the player gate', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        placeAt(scene, b, 0, 0, PLAYER_GATE * 0.5);
+
+        manager.updateGlowHighlight(v(0, 0, 0));
+        expect(manager.nearestReachable).toBe(b);
+    });
+
+    it('ignores one beyond the player gate', () => {
+        const { manager, scene } = makeManager(1);
+        placeAt(scene, manager.breadcrumbs[0], 0, 0, PLAYER_GATE * 1.5);
+
+        manager.updateGlowHighlight(v(0, 0, 0));
+        expect(manager.nearestReachable).toBeNull();
+    });
+
+    it('goes null while the breadcrumb is being carried', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        placeAt(scene, b, 0, 0, PLAYER_GATE * 0.5);
+
+        manager.updateGlowHighlight(v(0, 0, 0));
+        expect(manager.nearestReachable).toBe(b);
+
+        // picking it up moves it to the stack, out of `breadcrumbs`
+        manager.removeBreadcrumb(b);
+        manager.updateGlowHighlight(v(0, 0, 0));
+
+        expect(manager.nearestReachable).toBeNull();
+        expect(manager.nextInStack).toBe(b);
+    });
+
+    it('picks the closer of two', () => {
+        const { manager, scene } = makeManager(2);
+        const [near, far] = manager.breadcrumbs;
+        placeAt(scene, near, 0, 0, PLAYER_GATE * 0.3);
+        placeAt(scene, far, 0, 0, PLAYER_GATE * 0.7);
+
+        manager.updateGlowHighlight(v(0, 0, 0));
+        expect(manager.nearestReachable).toBe(near);
+    });
+});

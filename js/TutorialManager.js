@@ -24,6 +24,11 @@
  *           }
  *       }
  *   });
+ *
+ * startNextTutorial() offers the first type in `tutorialOrder` the player
+ * hasn't finished - one per maze, or right after the previous one for a type
+ * marked `chained`. A type supplying `available()` is armed rather than
+ * started: its first step waits for that gate to open.
  */
 
 export default class TutorialManager {
@@ -40,11 +45,23 @@ export default class TutorialManager {
      *     setup[stepNumber](tutorialData): void - Called when entering a step
      *   @param {Function} [callbacks[type].teardown] - Called when tutorial completes
      *     teardown(tutorialData): void
+     *   @param {Function} [callbacks[type].available] - Entry gate for an armed type
+     *     available(): boolean - Step 0 waits until this returns true
+     *   @param {boolean} [callbacks[type].chained] - May follow the previous type
+     *     in the same maze instead of waiting for the next one
+     * @param {string[]} [options.tutorialOrder=[]] - Types to offer in order, one per maze
+     * @param {Function} [options.onTutorialComplete] - Called with the type when one finishes
      */
     constructor(options = {}) {
         this.inTutorial = false;
         this.tutorialType = options.tutorialType || 'intro';
         this.useAnimations = options.useAnimations ?? true;
+
+        // types to offer, in order, one per maze - see startNextTutorial
+        this.tutorialOrder = options.tutorialOrder ?? [];
+        // type waiting on its available() gate, if any
+        this.armedType = null;
+        this.onTutorialComplete = options.onTutorialComplete ?? null;
 
         // External callbacks provided by upstream
         this.callbacks = options.callbacks || {};
@@ -77,7 +94,50 @@ export default class TutorialManager {
         this.tutorialType = type;
     }
 
+    // the first type in tutorialOrder that hasn't been completed, or null
+    nextTutorialType() {
+        return this.tutorialOrder.find(type => this.showTutorials[type] !== false) ?? null;
+    }
+
+    /**
+     * Offer the next uncompleted type, arming it rather than starting it if it
+     * has an available() gate.
+     * @returns {boolean} True if a tutorial was started or armed
+     */
+    startNextTutorial() {
+        // a type outside the order was chosen deliberately (VR) - honour it
+        if (!this.tutorialOrder.includes(this.tutorialType)) {
+            this.startTutorial();
+            return this.inTutorial;
+        }
+
+        const type = this.nextTutorialType();
+        if (type === null) return false;
+
+        this.setTutorialType(type);
+
+        if (this.callbacks[type]?.available) {
+            this.armedType = type;
+            return true;
+        }
+
+        this.startTutorial();
+        return this.inTutorial;
+    }
+
+    // a `chained` type is offered now rather than next maze; it still has to
+    // pass its own available() gate
+    _offerChainedTutorial() {
+        if (!this.tutorialOrder.includes(this.tutorialType)) return;
+
+        const next = this.nextTutorialType();
+        if (next !== null && this.callbacks[next]?.chained)
+            this.startNextTutorial();
+    }
+
     startTutorial() {
+        this.armedType = null;
+
         if (this.showTutorials[this.tutorialType] === false) return;
 
         if (this.inTutorial) {
@@ -142,6 +202,11 @@ export default class TutorialManager {
      * Update tutorial state - check if current step condition is met and advance if so
      */
     update() {
+        if (this.armedType !== null && !this.inTutorial) {
+            if (!this.callbacks[this.armedType]?.available()) return;
+            this.startTutorial();
+        }
+
         if (!this.inTutorial) return;
 
         const typeCallbacks = this.callbacks[this.tutorialType];
@@ -161,6 +226,7 @@ export default class TutorialManager {
                 this.cleanupTutorialStep(this.tutorialData.step - 1);
                 setTimeout(() => {
                     this.resetTutorial(true);
+                    this._offerChainedTutorial();
                 }, 500);
             }
         }
@@ -171,11 +237,13 @@ export default class TutorialManager {
      * @param {boolean} [complete=false] - If true, marks this tutorial type as shown (won't show again)
      */
     resetTutorial(complete = false) {
-        if (complete) {
+        if (complete && this.tutorialType !== this.armedType) {
             this.showTutorials[this.tutorialType] = false;
+            this.onTutorialComplete?.(this.tutorialType);
         }
 
         this.inTutorial = false;
+        this.armedType = null;
 
         // Hide all tutorial elements
         document.querySelectorAll('.tutorial-element').forEach(element => {

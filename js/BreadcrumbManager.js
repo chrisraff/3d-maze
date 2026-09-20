@@ -64,6 +64,12 @@ export default class BreadcrumbManager {
 
         this.breadcrumbStack = [];
 
+        // tutorial signals; counts are monotonic across a maze
+        this.nearestReachable = null;
+        this.pickupCount = 0;
+        this.placeCount = 0;
+        this.reaimCount = 0;
+
         this.touchData = {} // map of touch identifier to touch data
         this.touchTapMaxDurationMs = 350;
         this.touchTapMaxMovePx = 10;
@@ -102,6 +108,11 @@ export default class BreadcrumbManager {
 
     get interactState() { return this._interactState; }
     get interactTarget() { return this._interactTarget; }
+
+    // the breadcrumb addBreadcrumb would place next, or null when empty-handed
+    get nextInStack() {
+        return this.breadcrumbStack[this.breadcrumbStack.length - 1] ?? null;
+    }
 
     addTo(scene) {
         this.scene = scene;
@@ -447,12 +458,22 @@ export default class BreadcrumbManager {
         const FADE_SPEED = 16.0;
         const playerGate = maze.majorWidth * 0.75;
 
+        // closest in-range breadcrumb with line of sight, off the same test
+        // that drives the glow - no second pass needed
+        let nearest = null;
+        let nearestDist = Infinity;
+
         for (const breadcrumb of this.breadcrumbs) {
             if (breadcrumb === this._interactTarget) continue;
 
             const playerDist = playerWorldPos.distanceTo(breadcrumb.position);
             const inRange = playerDist <= playerGate
                 && this._canReachBreadcrumb(playerWorldPos, breadcrumb);
+
+            if (inRange && playerDist < nearestDist) {
+                nearestDist = playerDist;
+                nearest = breadcrumb;
+            }
 
             const target = inRange ? 0.5 * (playerDist / playerGate)**2 : 0.0;
             const alpha = THREE.MathUtils.lerp(
@@ -463,6 +484,8 @@ export default class BreadcrumbManager {
             breadcrumb.userData.glowAlpha = alpha;
             breadcrumb.userData.glowMaterial.uniforms.uAlpha.value = alpha;
         }
+
+        this.nearestReachable = nearest;
     }
 
     // --- Maze lifecycle ---
@@ -486,6 +509,10 @@ export default class BreadcrumbManager {
         this.breadcrumbs = [];
         this.breadcrumbStack = [];
         this.hoveredBreadcrumb = null;
+        this.nearestReachable = null;
+        this.pickupCount = 0;
+        this.placeCount = 0;
+        this.reaimCount = 0;
 
         // pick X% of dead ends at random
         const DEAD_END_FILL = 0.5;
@@ -581,6 +608,7 @@ export default class BreadcrumbManager {
 
         if (breadcrumb !== null) {
             this.removeBreadcrumb(breadcrumb);
+            this.pickupCount++;
             return;
         }
 
@@ -593,6 +621,7 @@ export default class BreadcrumbManager {
 
         if (this.hoveredBreadcrumb) {
             this.removeBreadcrumb(this.hoveredBreadcrumb);
+            this.pickupCount++;
             return;
         }
 
@@ -601,6 +630,7 @@ export default class BreadcrumbManager {
 
     _rememberPlacement(breadcrumb, now = Date.now()) {
         this._lastPlacement = breadcrumb == null ? null : { breadcrumb, time: now };
+        if (breadcrumb != null) this.placeCount++;
     }
 
     // Second half of a double click/tap: turn the breadcrumb the first half
@@ -622,6 +652,7 @@ export default class BreadcrumbManager {
         // along the view direction, so this is placement's facing reversed
         camera.getWorldPosition(this._tmpPos);
         placement.breadcrumb.lookAt(this._tmpPos);
+        this.reaimCount++;
         return true;
     }
 

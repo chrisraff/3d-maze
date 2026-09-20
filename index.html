@@ -231,9 +231,17 @@
                 vertical-align: -0.2em;
             }
 
+            /* inline glyph of a breadcrumb, wherever copy names a marker. Wide
+               for the same reason #breadcrumb-icon is: the dart is short */
+            .breadcrumb-icon {
+                width: 1.3em;
+                height: 1.3em;
+                vertical-align: -0.2em;
+            }
+
             /* binds the word and its glyph into one token, so the dots read as
                a name for the exit rather than as decoration beside it */
-            .exit-token {
+            .exit-token, .marker-token {
                 display: inline-flex;
                 align-items: center;
                 gap: 0.3em;
@@ -247,7 +255,8 @@
             }
 
             /* until an icon has been rendered there is nothing to show */
-            #breadcrumb-icon:not([src]), .goal-icon:not([src]) {
+            #breadcrumb-icon:not([src]), .goal-icon:not([src]),
+            .breadcrumb-icon:not([src]) {
                 display: none;
             }
 
@@ -382,6 +391,9 @@
                 pointer-events: none;
                 color: white;
                 white-space: nowrap;
+                /* walls are bright and vary in hue, so white alone can vanish.
+                   Fades with the text - the shared keyframes animate opacity */
+                text-shadow: 2px 2px 4px #000000;
 
                 font-family: Arial;
                 font-size: min(25pt, 3.2cqi);
@@ -390,32 +402,15 @@
                 animation-iteration-count: 1;
             }
 
+            /* clears the reticle at dead centre; matches the cinematic caption */
+            .tutorial-text-low {
+                top: 72%;
+            }
+
             /* Sits low so it never covers the dots the push-in is closing on. */
             #cinematic-caption {
                 top: 72%;
-                text-shadow: 2px 2px 4px #000000;
                 will-change: opacity;
-            }
-
-            /* The shared tutorial fade animates `color`, which a text-shadow
-               cannot follow - it has its own colour, so fading the glyphs away
-               leaves the shadow sitting there at full strength. Fade the whole
-               element instead. */
-            @keyframes cinematic-caption-fade-in {
-                0% {
-                    opacity: 0;
-                }
-                100% {
-                    opacity: 1;
-                }
-            }
-            @keyframes cinematic-caption-fade-out {
-                0% {
-                    opacity: 1;
-                }
-                100% {
-                    opacity: 0;
-                }
             }
 
             .touch-tutorial {
@@ -620,6 +615,26 @@
         </div>
         <div id="computer-tutorial-compass" tutorial-step="2" tutorial-type="intro" style="display: none;" class="tutorial-text tutorial-element">
             <span>The compass points towards the <span class="exit-token">exit<img class="goal-icon" alt="" /></span></span>
+        </div>
+
+        <!-- Breadcrumbs. Armed at maze start; step 0 waits for a marker to be
+             glowing nearby - see TUTORIAL_ORDER in game.js -->
+        <div tutorial-step="0" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
+            <span class='formfactor-desktop'>Click the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> to pick it up</span>
+            <span style="display: none;" class='formfactor-non-desktop'>Tap the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> to pick it up</span>
+        </div>
+        <div tutorial-step="1" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
+            <span class='formfactor-desktop'>Click anywhere to put it back down</span>
+            <span style="display: none;" class='formfactor-non-desktop'>Tap near the middle to put it down</span>
+        </div>
+        <div tutorial-step="2" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
+            <span><span class="marker-token">Markers<img class="breadcrumb-icon" alt="" /></span> help you remember where you have been</span>
+        </div>
+
+        <!-- Follows the lesson above, once the player is holding a marker -->
+        <div tutorial-step="0" tutorial-type="breadcrumb-reaim" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
+            <span class='formfactor-desktop'>Double click to place a <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> facing you</span>
+            <span style="display: none;" class='formfactor-non-desktop'>Double tap to place a <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> facing you</span>
         </div>
 
         <div id="overlay">

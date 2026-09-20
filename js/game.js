@@ -17,7 +17,7 @@ import BreadcrumbManager from './BreadcrumbManager.js';
 import TouchArbiter from './TouchArbiter.js';
 import GoalDotEffect from './goalDots.js';
 import { mountGoalIcons } from './GoalDotIcon.js';
-import { setBreadcrumbIconGeometry } from './BreadcrumbIcon.js';
+import { setBreadcrumbIconGeometry, mountBreadcrumbIcons } from './BreadcrumbIcon.js';
 import bus from './EventBus.js';
 import initAnalytics from './analytics.js';
 import GameSession, { formatMazeTime } from './GameSession.js';
@@ -89,6 +89,9 @@ var dustSize   = 0.025;
 var dustSizeVR = 0.0075;
 
 var tutorialManager;
+// non-VR tutorials, one per maze in this order. VR is set imperatively on
+// sessionstart, so it is deliberately not listed.
+const TUTORIAL_ORDER = ['intro', 'breadcrumbs', 'breadcrumb-reaim'];
 var playerLight;
 var introCinematic;
 // armed before controls.lock() - on touch devices lock() dispatches its event
@@ -103,6 +106,16 @@ function loadSavedVariables()
 
     // show tutorial if more than 30 days have passed since the last maze completion
     const showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
+
+    // Which of TUTORIAL_ORDER is done; the 30-day lapse that re-arms the intro
+    // wipes it. 'intro' is seeded so players predating this key skip it.
+    const tutorialsSeen = showTutorial
+        ? []
+        : ['intro', ...storageGetItem('tutorialsSeen', '').split(',').filter(Boolean)];
+
+    const showTutorials = {};
+    for (const type of TUTORIAL_ORDER)
+        showTutorials[type] = !tutorialsSeen.includes(type);
 
     const tutorialCallbacks = {
         intro: {
@@ -153,6 +166,52 @@ function loadSavedVariables()
                 document.querySelector('#compass-container').style.animationName = '';
             }
         },
+        breadcrumbs: {
+            // the test that drives the glow, so the prompt only appears with
+            // a marker lit up to point at
+            available: () => breadcrumbs.nearestReachable !== null,
+            conditions: {
+                0: (tutorialData) => breadcrumbs.pickupCount > tutorialData.pickupStart,
+                1: (tutorialData) => breadcrumbs.placeCount > tutorialData.placeStart,
+                2: (tutorialData) => Date.now() - tutorialData.lastLoggedTime > 6000
+            },
+            setup: {
+                0: (tutorialData) => {
+                    tutorialData.pickupStart = breadcrumbs.pickupCount;
+                    // kept for later steps: carrying one takes it out of
+                    // `breadcrumbs`, and placing it empties the stack
+                    tutorialData.marker = breadcrumbs.nearestReachable;
+                    mountBreadcrumbIcons(tutorialData.marker);
+                },
+                1: (tutorialData) => {
+                    tutorialData.placeStart = breadcrumbs.placeCount;
+                },
+                2: (tutorialData) => {
+                    tutorialData.lastLoggedTime = Date.now();
+                    mountBreadcrumbIcons(tutorialData.marker
+                        ?? breadcrumbs.nearestReachable ?? breadcrumbs.nextInStack);
+                }
+            }
+        },
+        'breadcrumb-reaim': {
+            // Follows the lesson above, but only while holding a marker.
+            // Finishing without one leaves it armed for next maze.
+            chained: true,
+            available: () => breadcrumbs.breadcrumbStack.length > 0,
+            conditions: {
+                // no action required: advance once they try it, or on a timer
+                0: (tutorialData) => breadcrumbs.reaimCount > tutorialData.reaimStart
+                    || Date.now() - tutorialData.lastLoggedTime > 10000
+            },
+            setup: {
+                0: (tutorialData) => {
+                    tutorialData.reaimStart = breadcrumbs.reaimCount;
+                    tutorialData.lastLoggedTime = Date.now();
+                    // the gate guarantees they are holding one
+                    mountBreadcrumbIcons(breadcrumbs.nextInStack);
+                }
+            }
+        },
         vr: {
             conditions: {
                 0: (tutorialData) => {
@@ -196,8 +255,14 @@ function loadSavedVariables()
     };
 
     tutorialManager = new TutorialManager({
-        showTutorial,
-        callbacks: tutorialCallbacks
+        showTutorials,
+        tutorialOrder: TUTORIAL_ORDER,
+        callbacks: tutorialCallbacks,
+        onTutorialComplete: (type) => {
+            if (tutorialsSeen.includes(type)) return;
+            tutorialsSeen.push(type);
+            storageSetItem('tutorialsSeen', tutorialsSeen.join(','));
+        }
     });
 
     document.querySelectorAll('.menu-experienced').forEach((el) => {
@@ -754,8 +819,7 @@ function shouldPlayIntroCinematic()
 {
     return mazeData !== null
         && !renderer.xr.isPresenting
-        && tutorialManager.tutorialType === 'intro'
-        && tutorialManager.showTutorials['intro'] !== false;
+        && tutorialManager.nextTutorialType() === 'intro';
 }
 
 // the caption comes up on the settle beat and stays through the push-in and the
@@ -765,13 +829,11 @@ function showCinematicCaption(visible)
     const caption = document.querySelector('#cinematic-caption');
     if (!caption) return;
 
-    // its own keyframes, not the shared tutorial ones: those fade `color`,
-    // which leaves the caption's text-shadow behind
     if (visible) {
         caption.style.display = '';
-        caption.style.animationName = 'cinematic-caption-fade-in';
+        caption.style.animationName = 'tutorial-text-fade-in';
     } else {
-        caption.style.animationName = 'cinematic-caption-fade-out';
+        caption.style.animationName = 'tutorial-text-fade-out';
     }
     caption.style.animationFillMode = 'forwards';
 }
@@ -808,7 +870,7 @@ function playIntroCinematic()
             // the shot is time the player had no control over, so it isn't
             // charged to their run
             session.restartTimer();
-            tutorialManager.startTutorial();
+            tutorialManager.startNextTutorial();
         },
     });
 }
@@ -821,7 +883,8 @@ function setPauseButtonVisible(visible)
 
 function menuLockControls()
 {
-    const startingTutorial = tutorialManager && !tutorialManager.inTutorial;
+    const startingTutorial = tutorialManager
+        && !tutorialManager.inTutorial && tutorialManager.armedType === null;
     const playingCinematic = startingTutorial && shouldPlayIntroCinematic();
     introCinematicPending = playingCinematic;
 
@@ -833,7 +896,7 @@ function menuLockControls()
     // synchronously, so the handler has already consumed the flag by now and
     // the prompts would start on top of the cinematic
     if (startingTutorial && !playingCinematic) {
-        tutorialManager.startTutorial();
+        tutorialManager.startNextTutorial();
     }
 
     if (session.finishedMaze) {

@@ -99,3 +99,19 @@ export function breadcrumbIconSource(breadcrumb) {
         return { scene: _scene, camera: _camera };
     });
 }
+
+/**
+ * Point every `.breadcrumb-icon` glyph at a breadcrumb, so copy naming a marker
+ * shows the one it means. An unrenderable one leaves the src off, which hides it.
+ *
+ * @param {THREE.Object3D|null} breadcrumb - the breadcrumb to depict
+ * @param {ParentNode} [root=document] - where to look for glyphs
+ */
+export function mountBreadcrumbIcons(breadcrumb, root = document) {
+    const source = breadcrumbIconSource(breadcrumb);
+
+    root.querySelectorAll('.breadcrumb-icon').forEach((element) => {
+        if (source === null) element.removeAttribute('src');
+        else element.src = source;
+    });
+}
