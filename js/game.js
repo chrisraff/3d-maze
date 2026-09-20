@@ -723,12 +723,10 @@ var animate = function () {
 
     collisionUpdate();
 
-    // Update breadcrumb hover highlighting on non-mobile, non-VR devices (or VR gaze mode)
-    if (!isMobile && (!vrManager.isPresenting() || vrManager.isUsingGazeControls)) {
-        breadcrumbs.updateHoveredBreadcrumb(camera);
-    }
-    breadcrumbs.updateGlowForCamera(camera);
-    breadcrumbs.updateBases(delta);
+    // hover needs a cursor to aim: a pointer, or VR's gaze cursor
+    breadcrumbs.update(delta, camera, {
+        hover: !isMobile && (!vrManager.isPresenting() || vrManager.isUsingGazeControls)
+    });
 
     runHistory.recordPosition(cameraNode.position);
 

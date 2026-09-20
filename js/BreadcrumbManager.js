@@ -441,13 +441,14 @@ export default class BreadcrumbManager {
     // --- Per-frame proximity highlight (called by VRManager) ---
 
     // positions: array of Vector3 world positions (one per connected controller).
+    // The glow is not touched here; update() drives it once a frame for both
+    // VR and non-VR, and VRManager.update() always runs before it.
     updateProximityHighlight(positions, camera) {
         camera.getWorldPosition(this._playerWorldPos);
 
         if (this._interactState !== null) {
             // keep the reoriented breadcrumb highlighted during a hold; clear otherwise
             this._setHoveredBreadcrumb(this._interactState === 'reorienting' ? this._interactTarget : null);
-            this.updateGlowHighlight(this._playerWorldPos);
             return;
         }
 
@@ -464,7 +465,6 @@ export default class BreadcrumbManager {
             }
         }
         this._setHoveredBreadcrumb(best);
-        this.updateGlowHighlight(this._playerWorldPos);
     }
 
     updateGlowHighlight(playerWorldPos, camera = null) {
@@ -740,6 +740,21 @@ export default class BreadcrumbManager {
         if (!reticle) return;
         reticle.classList.toggle('visible', visible);
         reticle.classList.toggle('hovered', hovered);
+    }
+
+    /**
+     * The per-frame camera-driven work: hover, proximity glow and base decor.
+     * The grip-driven half stays in VRManager, which owns the controllers.
+     *
+     * @param {boolean} [hover=false] - run the mouse/gaze hover pass, which
+     *        only applies where there is a cursor or a gaze cursor to aim
+     */
+    update(delta, camera, { hover = false } = {}) {
+        if (hover)
+            this.updateHoveredBreadcrumb(camera);
+
+        this.updateGlowForCamera(camera);
+        this.updateBases(delta);
     }
 
     updateGlowForCamera(camera) {

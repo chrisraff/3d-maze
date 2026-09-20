@@ -594,3 +594,63 @@ describe('nearestInView', () => {
         expect(manager.nearestInView).toBeNull();
     });
 });
+
+// One camera-driven entry point per frame. The grip-driven half stays in
+// VRManager, so updateProximityHighlight must not drive the glow itself -
+// in VR it runs before update() in the same frame, and used to redo the
+// whole line-of-sight pass.
+describe('update', () => {
+    const camera = () => {
+        const c = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 100);
+        c.position.set(0, 0, 0);
+        c.lookAt(v(0, 0, -1));
+        c.updateMatrixWorld(true);
+        return c;
+    };
+
+    function withBreadcrumbAhead() {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        placeAt(scene, b, 0, 0, -PLAYER_GATE * 0.5);
+        return { manager, breadcrumb: b };
+    }
+
+    it('drives the proximity glow', () => {
+        const { manager, breadcrumb } = withBreadcrumbAhead();
+
+        manager.update(0.016, camera());
+
+        expect(manager.nearestReachable).toBe(breadcrumb);
+        expect(manager.nearestInView).toBe(breadcrumb);
+    });
+
+    it('drives the base decor', () => {
+        const { manager } = withBreadcrumbAhead();
+        const bases = vi.spyOn(manager.base, 'update');
+
+        manager.update(0.016, camera());
+
+        expect(bases).toHaveBeenCalledWith(0.016);
+    });
+
+    it('runs the hover pass only when asked', () => {
+        const { manager } = withBreadcrumbAhead();
+        const hover = vi.spyOn(manager, 'updateHoveredBreadcrumb').mockImplementation(() => {});
+
+        manager.update(0.016, camera());
+        expect(hover).not.toHaveBeenCalled();
+
+        manager.update(0.016, camera(), { hover: true });
+        expect(hover).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the glow to update(), not updateProximityHighlight', () => {
+        const { manager } = withBreadcrumbAhead();
+
+        manager.updateProximityHighlight([], camera());
+
+        // the glow pass sets these; the grip pass must not have run it
+        expect(manager.nearestReachable).toBeNull();
+        expect(manager.nearestInView).toBeNull();
+    });
+});
