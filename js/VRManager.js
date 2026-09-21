@@ -11,6 +11,14 @@ import { mountBreadcrumbIcons } from './BreadcrumbIcon.js';
 // direction to normalise, so 'level' falls back to the gaze itself.
 const UI_LEVEL_MIN_XZ = 1e-3;
 
+// gaze reticle: the ui blue while a marker is merely in reach, white once the
+// aim is actually on it and a tap would take it
+const GAZE_RETICLE_IN_RANGE = 0x0088cc;
+const GAZE_RETICLE_ON_TARGET = 0xffffff;
+// How far ahead the reticle floats. depthTest is off so it draws over the maze
+// whatever this is; it only sets the apparent size and focal depth.
+const GAZE_RETICLE_DISTANCE = 1.5;
+
 /**
  * Direction to place the VR UI along, written into `target` and returned.
  *
@@ -140,6 +148,7 @@ export default class VRManager extends EventTarget {
         this._radialMenuOpen = false;
         this._radialHovered = null;
         this.getMazeData = () => null;
+        this.canOpenRadialMenu = () => true;
         this.uiDom = document.querySelector('#overlay');
 
         this.pointerObject = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
@@ -154,6 +163,21 @@ export default class VRManager extends EventTarget {
         this.pointerObject.renderOrder = 1000;
         this.pointerObject.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
         this.pointerObject.visible = false;
+
+        // #breadcrumb-reticle lives outside #overlay and is never drawn in VR,
+        // so gaze gets a world-space one instead. It sits on the marker being
+        // aimed at rather than floating at a fixed depth.
+        this.gazeReticle = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({
+            map: this.dotSprite,
+            size: 0.02,
+            color: GAZE_RETICLE_IN_RANGE,
+            opacity: 0.9,
+            transparent: true,
+            depthTest: false,
+        }));
+        this.gazeReticle.renderOrder = 1000;
+        this.gazeReticle.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+        this.gazeReticle.visible = false;
 
         // hand position sprites: show where each hand is in space (grip-space, not ray-space)
         this.leftHandSprite = this._createHandSprite();
@@ -286,7 +310,9 @@ export default class VRManager extends EventTarget {
                 this.gazeHoldTimeout = setTimeout(() => {
                     this.gazeHoldFired = true;
                     this.isGazeSelectingFromGame = false;
-                    this.openRadialMenu();
+
+                    if (this.canOpenRadialMenu()) this.openRadialMenu();
+                    else this.dispatchEvent(new CustomEvent('pause'));
                 }, 500);
             } else {
                 // non-gaze controller selectstart in game mode
@@ -386,6 +412,7 @@ export default class VRManager extends EventTarget {
         this.uiMesh.scale.set(meshScale, meshScale, 1);
         this.cameraCompensationNode.add(this.uiMesh);
         this.scene.add(this.pointerObject);
+        this.scene.add(this.gazeReticle);
         this.scene.add(this.leftHandSprite);
         this.scene.add(this.rightHandSprite);
         this.uiClickState = false;
@@ -414,6 +441,7 @@ export default class VRManager extends EventTarget {
         this.cameraCompensationNode.remove(this.uiMesh);
         this.uiMesh = null;
         this.scene.remove(this.pointerObject);
+        this.scene.remove(this.gazeReticle);
         this.scene.remove(this.leftHandSprite);
         this.scene.remove(this.rightHandSprite);
         this.blackoutPlane.visible = false;
@@ -543,6 +571,7 @@ export default class VRManager extends EventTarget {
             this.breadcrumbs.updateInteract(this.camera);
             this.breadcrumbs.updateProximityHighlight(this._collectGripWorldPositions(), this.camera);
         }
+        this._updateGazeReticle();
 
         // in vr, compensate for user movement by updating the compensation node to put the head at the camera node position
         this.lastVrCameraPosition.copy(this.newVrCameraPosition);
@@ -818,6 +847,28 @@ export default class VRManager extends EventTarget {
             this.closeRadialMenu();
             this.gazeStepForward();
         });
+    }
+
+    // Mirrors the desktop reticle in world space. It sits dead centre of the
+    // view, never on the marker: the player steers by watching the gap between
+    // the two close, which a dot already parked on the target cannot show.
+    // One frame behind, since the raycast feeding it runs later in the loop.
+    _updateGazeReticle() {
+        const show = this.isUsingGazeControls
+            && !this.uiInteractionEnabled
+            && (this.breadcrumbs?.reticleVisible ?? false);
+
+        this.gazeReticle.visible = show;
+        if (!show) return;
+
+        this.camera.getWorldPosition(this.tmpVector);
+        this.camera.getWorldDirection(this.tmpVector2);
+        this.gazeReticle.position.copy(this.tmpVector)
+            .addScaledVector(this.tmpVector2, GAZE_RETICLE_DISTANCE);
+
+        // the colour is the "you are on it" half of the feedback
+        this.gazeReticle.material.color.setHex(this.breadcrumbs.reticleHovered
+            ? GAZE_RETICLE_ON_TARGET : GAZE_RETICLE_IN_RANGE);
     }
 
     // the short-press movement a gaze tap normally means

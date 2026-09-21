@@ -488,6 +488,9 @@ function init() {
 
     vrManager.setBreadcrumbs(breadcrumbs, () => mazeData);
     vrManager.setupRadialMenu();
+    // a finished maze has nothing left to mark, so hold goes straight to the
+    // menu there - which is what the completion message tells gaze players
+    vrManager.canOpenRadialMenu = () => !session.finishedMaze;
 
     vrManager.addEventListener('pause', () => {
         if (controls.isLocked) {
@@ -730,7 +733,8 @@ var animate = function () {
 
     // hover needs a cursor to aim: a pointer, or VR's gaze cursor
     breadcrumbs.update(delta, camera, {
-        hover: !isMobile && (!vrManager.isPresenting() || vrManager.isUsingGazeControls),
+        // gaze aims with the head, so it needs the raycast even on a phone
+        hover: vrManager.isUsingGazeControls || (!isMobile && !vrManager.isPresenting()),
         mazeData
     });
 

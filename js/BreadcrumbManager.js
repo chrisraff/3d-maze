@@ -83,6 +83,9 @@ export default class BreadcrumbManager {
         this.pickupCount = 0;
         this.placeCount = 0;
         this.reaimCount = 0;
+        // what the desktop reticle is doing, so VR can mirror it in world space
+        this.reticleVisible = false;
+        this.reticleHovered = false;
 
         this.touchData = {} // map of touch identifier to touch data
         this.touchTapMaxDurationMs = 350;
@@ -462,6 +465,9 @@ export default class BreadcrumbManager {
     // The glow is not touched here; update() drives it once a frame for both
     // VR and non-VR, and VRManager.update() always runs before it.
     updateProximityHighlight(positions, camera) {
+        // gaze placing is not grip-driven; update()'s raycast owns hover there
+        if (this.isGazePlacing) return;
+
         camera.getWorldPosition(this._playerWorldPos);
 
         if (this._interactState !== null) {
@@ -469,6 +475,11 @@ export default class BreadcrumbManager {
             this._setHoveredBreadcrumb(this._interactState === 'reorienting' ? this._interactTarget : null);
             return;
         }
+
+        // No grips means gaze, and this pass has no opinion on what is hovered
+        // there - update()'s raycast owns it. Answering anyway would fight it
+        // every frame, since VRManager.update() runs first.
+        if (positions.length === 0) return;
 
         let best = null;
         let bestDist = Infinity;
@@ -849,6 +860,9 @@ export default class BreadcrumbManager {
     }
 
     _updateReticle(visible, hovered=false) {
+        this.reticleVisible = visible;
+        this.reticleHovered = hovered;
+
         const reticle = document.getElementById('breadcrumb-reticle');
         if (!reticle) return;
         reticle.classList.toggle('visible', visible);

@@ -88,6 +88,34 @@ describe('tryGazePickup', () => {
     });
 });
 
+// VRManager.update() runs before breadcrumbs.update(), so if the grip pass
+// answered for gaze it would clear the hover every frame and the raycast would
+// set it back - the highlight would churn instead of holding.
+describe('updateProximityHighlight with no grips', () => {
+    it('leaves the hover alone', () => {
+        const { manager, camera, scene } = makeManager();
+        const placed = manager.addBreadcrumb(camera, emptyMazeData());
+        scene.updateMatrixWorld(true);
+        manager._setHoveredBreadcrumb(placed);
+
+        manager.updateProximityHighlight([], camera);
+
+        expect(manager.hoveredBreadcrumb).toBe(placed);
+    });
+
+    it('leaves it alone mid gaze-placement too', () => {
+        const { manager, camera, scene } = makeManager();
+        const placed = manager.addBreadcrumb(camera, emptyMazeData());
+        scene.updateMatrixWorld(true);
+        manager.beginGazePlace(camera, emptyMazeData());
+        manager._setHoveredBreadcrumb(placed);
+
+        manager.updateProximityHighlight([], camera);
+
+        expect(manager.hoveredBreadcrumb).toBe(placed);
+    });
+});
+
 describe('gaze placement', () => {
     it('takes a breadcrumb out of the stack and shows it', () => {
         const { manager, camera, scene } = makeManager();
