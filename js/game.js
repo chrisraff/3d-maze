@@ -15,6 +15,7 @@ import TutorialManager from './TutorialManager.js';
 import MenuManager from './MenuManager.js';
 import BreadcrumbManager from './BreadcrumbManager.js';
 import TouchArbiter from './TouchArbiter.js';
+import TouchJoystick from './TouchJoystick.js';
 import GoalDotEffect from './goalDots.js';
 import { mountGoalIcons } from './GoalDotIcon.js';
 import { setBreadcrumbIconGeometry, mountBreadcrumbIcons } from './BreadcrumbIcon.js';
@@ -81,6 +82,7 @@ var runHistory;
 // breadcrumbs
 var breadcrumbs;
 var touchArbiter;
+var touchJoystick;
 
 var dust;
 var trail;
@@ -276,6 +278,10 @@ function loadSavedVariables()
 
 function setupInputBindings() {
     const canvas = renderer.domElement;
+
+    touchJoystick = new TouchJoystick(
+        document.querySelector('#touch-joystick'),
+        document.querySelector('#touch-joystick-knob'));
 
     touchArbiter = new TouchArbiter(canvas, {
         isEnabled: () => controls.isLocked
@@ -720,11 +726,15 @@ var animate = function () {
         introCinematic.update(delta);
         dust.update(delta);
         goalDots.update(delta);
+        // controls.update() is sitting the shot out, so a drag started under
+        // it moves nothing - don't draw a stick that isn't driving anything
+        touchJoystick.hide();
         renderer.render( scene, introCinematic.camera );
         return;
     }
 
     controls.update(delta);
+    touchJoystick.update(controls.getMoveTouchState());
     dust.update(delta);
     trail.update(delta);
     vrManager.update(delta);

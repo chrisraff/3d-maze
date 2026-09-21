@@ -40,12 +40,17 @@ export default class TouchArbiter {
         this.element.removeEventListener('touchcancel', this.boundTouchCancel);
     }
 
+    // Cancels every live touch. There is no touch or event to hand over - a
+    // handler that needs the id reads session.id. Sessions are dropped before
+    // the callbacks so a throwing handler can't leave one stuck here.
     clear() {
-        this.sessions.forEach((session) => {
+        const sessions = [...this.sessions.values()];
+        this.sessions.clear();
+
+        for (const session of sessions) {
             const handler = this.handlers.get(session.owner);
             this.invokeHandler(handler, 'onTouchCancel', session, null, null);
-        });
-        this.sessions.clear();
+        }
     }
 
     onTouchStart(event) {

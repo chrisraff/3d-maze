@@ -24,6 +24,7 @@ const FILES_TO_CACHE = [
     '/js/VRManager.js',
     '/js/BreadcrumbManager.js',
     '/js/TouchArbiter.js',
+    '/js/TouchJoystick.js',
     '/js/checkCollisionOnAxis.js',
     '/js/PlayerCollider.js',
     '/js/EventBus.js',

@@ -284,6 +284,44 @@
                 transform: translate(-50%, -50%) scale(1.8);
             }
 
+            /* Floating movement stick, shown once a drag on the left half
+               commits to moving. The ring sits at the distance where the drag
+               reaches full speed, so a knob touching it reads as flat out;
+               TouchJoystick.js sizes and places both. */
+            #touch-joystick {
+                position: fixed;
+                left: 0;
+                top: 0;
+                box-sizing: border-box;
+
+                border: 2px solid rgba(230, 230, 230, 0.35);
+                border-radius: 50%;
+                background-color: rgba(0, 0, 0, 0.18);
+
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.18s ease;
+            }
+            #touch-joystick.visible {
+                opacity: 1;
+            }
+
+            /* same 40px dot the touch tutorial animates, so the stick looks
+               like the finger the lesson drew */
+            #touch-joystick-knob {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 40px;
+                height: 40px;
+                margin: -20px 0 0 -20px;
+                box-sizing: border-box;
+
+                border: 1px solid rgba(230, 230, 230, 0.5);
+                border-radius: 50%;
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+
             #rotation-hint-frame {
                 display: flex;
                 justify-content: center;
@@ -694,6 +732,8 @@
              role="button" aria-label="Pause"><span></span><span></span></div>
 
         <div id="breadcrumb-reticle" class="formfactor-desktop xr-non-vr"></div>
+
+        <div id="touch-joystick"><div id="touch-joystick-knob"></div></div>
 
         <div id="touch-tutorial-move" style="display: none;" class="touch-tutorial tutorial-element formfactor-non-desktop">
         </div>

@@ -164,8 +164,10 @@ export default class BreadcrumbManager {
             onTouchEnd: (_session, touch) => {
                 this.finalizeTouchCandidate(touch.identifier, touch.clientX, touch.clientY, camera, getMazeData());
             },
-            onTouchCancel: (_session, touch) => {
-                this.cancelTouchCandidate(touch.identifier);
+            // clear() cancels with no touch to read, so take the id off the
+            // session - it is the same number either way
+            onTouchCancel: (session) => {
+                this.cancelTouchCandidate(session.id);
             },
             onTouchYield: (_session, touch) => {
                 this.cancelTouchCandidate(touch.identifier);

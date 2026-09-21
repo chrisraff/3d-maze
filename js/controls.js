@@ -105,6 +105,16 @@ var FlyPointerLockControls = function ( object, domElement ) {
     var moveLastY = 0;
     var moveTouchIdentifier = 0;
 
+    // A drag of clientHeight / this reaches full speed - see update(), where
+    // the same scaling turns the drag into the movement vector. The joystick
+    // ring is drawn at exactly that distance.
+    const MOVE_TOUCH_FULL_SPEED_SCALE = 4;
+
+    // reused, so the per-frame read in the animate loop allocates nothing
+    var moveTouchState = {
+        active: false, centerX: 0, centerY: 0, offsetX: 0, offsetY: 0, radius: 0
+    };
+
     var mouseSensitivity = 0.002;
 
     // Chrome/Edge sometimes emit a bogus movementX/Y under pointer lock - seen at
@@ -222,6 +232,22 @@ var FlyPointerLockControls = function ( object, domElement ) {
         }
     }
 
+    /**
+     * Where the move drag started, how far it has come, and the distance at
+     * which it saturates - everything the joystick viz needs.
+     */
+    this.getMoveTouchState = function() {
+        moveTouchState.active = moveTouchDragging && touchDOM !== null;
+        if (moveTouchState.active) {
+            moveTouchState.centerX = moveStartX;
+            moveTouchState.centerY = moveStartY;
+            moveTouchState.offsetX = moveLastX - moveStartX;
+            moveTouchState.offsetY = moveLastY - moveStartY;
+            moveTouchState.radius = touchDOM.clientHeight / MOVE_TOUCH_FULL_SPEED_SCALE;
+        }
+        return moveTouchState;
+    }
+
     this.endTouch = function(identifier) {
         if (identifier === panTouchIdentifier && panTouchDragging) {
             panTouchDragging = false;
@@ -250,8 +276,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
             onTouchEnd: (_session, touch) => {
                 scope.endTouch(touch.identifier);
             },
-            onTouchCancel: (_session, touch) => {
-                scope.endTouch(touch.identifier);
+            // clear() cancels with no touch to read, so take the id off the
+            // session - it is the same number either way
+            onTouchCancel: (session) => {
+                scope.endTouch(session.id);
             }
         };
         return handler;
@@ -289,10 +317,13 @@ var FlyPointerLockControls = function ( object, domElement ) {
         }
         catch {} // do nothing
 
+        // Clear the flag before notifying: lock() is a no-op while isLocked
+        // is true, so a listener that throws part way through would otherwise
+        // leave the menu up with no way back into the maze.
         if (scope.isLocked) {
-            scope.dispatchEvent( unlockEvent );
-
             scope.isLocked = false;
+
+            scope.dispatchEvent( unlockEvent );
         }
 
         event.preventDefault();
@@ -337,8 +368,8 @@ var FlyPointerLockControls = function ( object, domElement ) {
         this.tmpVector.copy(this.moveVector);
 
         if (moveTouchDragging) {
-            this.tmpVector.x += (moveLastX - moveStartX) * 4 / touchDOM.clientHeight;
-            this.tmpVector.z += (moveLastY - moveStartY) * 4 / touchDOM.clientHeight;
+            this.tmpVector.x += (moveLastX - moveStartX) * MOVE_TOUCH_FULL_SPEED_SCALE / touchDOM.clientHeight;
+            this.tmpVector.z += (moveLastY - moveStartY) * MOVE_TOUCH_FULL_SPEED_SCALE / touchDOM.clientHeight;
         }
         this.tmpVector.x = clamp (this.tmpVector.x, -1, 1);
         this.tmpVector.z = clamp (this.tmpVector.z, -1, 1);
