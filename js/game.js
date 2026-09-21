@@ -98,11 +98,15 @@ var introCinematic;
 // synchronously - and consumed by the lock handler, so the shot only starts
 // once the player is actually in the maze and the menu is gone
 var introCinematicPending = false;
+// a first-time player has no idea what the shot is about to show them, so it
+// plays through; everyone else can cut it short
+var hasCompletedMaze = false;
 
 
 function loadSavedVariables()
 {
     const lastMazeCompletionDate = Number(storageGetItem('lastMazeCompletionDate', '0'));
+    hasCompletedMaze = lastMazeCompletionDate > 0;
 
     // show tutorial if more than 30 days have passed since the last maze completion
     const showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
@@ -662,6 +666,7 @@ function onMazeCompleted({ mazeData: completedMazeData, elapsedMillis })
     if (tutorialManager) {
         tutorialManager.resetTutorial(true);
         storageSetItem('lastMazeCompletionDate', Date.now());
+        hasCompletedMaze = true;
     }
 }
 
@@ -868,6 +873,7 @@ function playIntroCinematic()
         // them back at the end
         light: playerLight,
         followers: [ dust ],
+        skippable: hasCompletedMaze,
         onPhase: (phase) => {
             if (phase === 'settle') showCinematicCaption(true);
             else if (phase === 'return') showCinematicCaption(false);

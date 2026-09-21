@@ -143,10 +143,11 @@ export default class MazeIntroCinematic {
      *        the shot camera for the duration (the dust field)
      * @param {function} [onPhase] - called with 'pullOut' | 'orbit' | 'settle' |
      *        'pushIn' | 'hold' | 'return' as the shot moves between them
+     * @param {boolean} [skippable] - whether player input cuts the shot short
      * @param {function} [onComplete]
      */
     play({ segments, endPos, fromCamera, light = null, followers = [],
-           onPhase = null, onComplete = null }) {
+           skippable = true, onPhase = null, onComplete = null }) {
         if (this.isActive) this._stop();
 
         this.camera.fov = fromCamera.fov;
@@ -217,11 +218,16 @@ export default class MazeIntroCinematic {
         this._onComplete = onComplete;
         this.isActive = true;
 
-        for (const name of SKIP_EVENTS)
-            document.addEventListener(name, this._onSkip, { passive: true });
+        if (skippable) {
+            for (const name of SKIP_EVENTS)
+                document.addEventListener(name, this._onSkip, { passive: true });
+        }
     }
 
-    /** Cut straight back to the player's view. */
+    /**
+     * Cut straight back to the player's view. Still available to the caller
+     * when the shot is unskippable - that only takes away the input listeners.
+     */
     skip() {
         if (!this.isActive) return;
         const done = this._onComplete;
