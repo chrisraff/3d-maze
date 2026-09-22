@@ -13,11 +13,11 @@
  * fixed-width rectangles meeting at a right angle necessarily share a
  * corner), so a pad sits there to cleanly cover that overlap with one
  * unambiguous, slightly-proud color rather than leaving two different
- * random colors to z-fight over the same coplanar patch. Same
- * "continue"/"turn" moves Splotches uses - a trace can carry on across a
- * room boundary into whichever neighboring room continues the same
- * surface, or wrap around onto a perpendicular panel of the same room -
- * just walked one 9x9 grid cell at a time instead of Splotches' flood fill.
+ * random colors to z-fight over the same coplanar patch. A trace can carry
+ * on through a doorway into whichever neighboring room continues the same
+ * surface, or wrap into the room's inside corner onto a perpendicular panel
+ * of the same room - walked one 9x9 grid cell at a time, like Splotches'
+ * flood fill.
  * A turn edge renders as two half-segments meeting at the panels' shared
  * physical corner (see the isTurn branch in _growCircuit), since - unlike
  * every other edge - its two cells don't lie on the same flat plane.
@@ -111,12 +111,10 @@ function stepCandidates(mazeData, cell, axis, sign) {
     const out = [];
 
     // continue: same surface, into the neighboring room across this edge -
-    // the connector cell between room and the next room (the same cell the
-    // turn case below checks) has to be solid too, not just the next room's
-    // own panel, or a trace crosses through a genuine hole between the two
-    // rooms rather than solid material
+    // only through an open connector (a doorway), since a trace is etched
+    // onto the surface and never passes through a wall
     const continueRoom = { ...room, [axis]: room[axis] + 2 * sign };
-    if (roomInBounds(mazeData, continueRoom) && panelSolid(mazeData, continueRoom, surface.axis, surface.dir) && panelSolid(mazeData, room, axis, sign)) {
+    if (roomInBounds(mazeData, continueRoom) && panelSolid(mazeData, continueRoom, surface.axis, surface.dir) && !panelSolid(mazeData, room, axis, sign)) {
         const wrapped = sign > 0 ? 0 : GRID_SIZE - 1;
         const nextCell = onA
             ? { room: continueRoom, surface, i: wrapped, j: keepIdx }

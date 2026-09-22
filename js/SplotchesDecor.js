@@ -15,7 +15,8 @@
  * At each grid step off the edge of the current panel, there are two ways
  * to keep going, and either, both, or neither may be available:
  *   - continue: the same surface (same axis/dir) carries on into whichever
- *     neighboring room shares that edge.
+ *     neighboring room shares that edge, hopping through the wall between
+ *     them.
  *   - turn: wrap into the room's own inside corner onto a perpendicular
  *     panel of the SAME room (wall to ceiling, wall to floor, wall to the
  *     adjacent wall) - this is what lets a splotch climb onto ceilings and
@@ -77,10 +78,10 @@ function neighborsOf(mazeData, cell) {
         const keepIdx = crossedA ? j : i;
 
         // continue: same surface, into the neighboring room across this edge
-        // - the connector cell between room and continueRoom (the same cell
-        // the turn case below checks) has to be solid too, not just
-        // continueRoom's own panel, or growth crosses through a genuine
-        // hole between the two rooms rather than solid material
+        // - only where the connector between the two rooms is solid, so
+        // growth hops through the wall rather than across a doorway. A
+        // splotch is patchy and discontiguous anyway, so that jump reads
+        // fine.
         const continueRoom = { ...room, [axis]: room[axis] + 2 * dir };
         if (roomInBounds(mazeData, continueRoom) && panelSolid(mazeData, continueRoom, surface.axis, surface.dir) && panelSolid(mazeData, room, axis, dir)) {
             const wrapped = dir > 0 ? 0 : GRID_SIZE - 1;

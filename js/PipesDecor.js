@@ -5,7 +5,8 @@
  * wall/ceiling/floor panel's surface, on the room side. Every segment is
  * axis-aligned. A run may bend a single right angle at an arbitrary point
  * within any one room (see BEND_CHANCE), carry on along the same surface
- * through an open doorway into the next room, or wrap into the room's
+ * into the next room (through a doorway, or straight through the wall
+ * between them), or wrap into the room's
  * inside corner onto the perpendicular panel ahead, and always finishes by
  * plunging into whichever solid panel it's against when it ends, stopping
  * exactly at that panel's own mid-plane (the middle of its
@@ -264,17 +265,15 @@ export default class PipesDecor {
             path.push({ start: point.clone(), end: edgePoint.clone(), room, surface, lateralAxis });
             point.copy(edgePoint);
 
-            // a continue passes straight through the doorway into the next
-            // room, so the connector ahead has to be OPEN, with the next
-            // room's own panel (and the edge strip joining the two panels)
-            // solid to keep running along. A turn wraps up onto the connector
-            // itself, so that one needs it solid.
+            // a continue carries straight on into the next room - through
+            // the doorway if the connector ahead is open, or straight
+            // through the wall if it's solid - as long as the next room's
+            // own panel is there to keep running along. A turn wraps up onto
+            // the connector itself, so that one needs it solid.
             const continueRoom = { ...room, [travelAxis]: room[travelAxis] + 2 * travelDir };
             const connectorSolid = panelSolid(mazeData, room, travelAxis, travelDir);
-            const edgeStrip = { ...room, [travelAxis]: room[travelAxis] + travelDir };
-            const canContinue = !connectorSolid && roomInBounds(mazeData, continueRoom)
-                && panelSolid(mazeData, continueRoom, surface.axis, surface.dir)
-                && panelSolid(mazeData, edgeStrip, surface.axis, surface.dir);
+            const canContinue = roomInBounds(mazeData, continueRoom)
+                && panelSolid(mazeData, continueRoom, surface.axis, surface.dir);
             const canTurn = connectorSolid;
 
             let choice = null;
