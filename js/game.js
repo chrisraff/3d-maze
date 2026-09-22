@@ -25,6 +25,7 @@ import GameSession, { formatMazeTime } from './GameSession.js';
 import RunHistory from './RunHistory.js';
 import MazeWorld from './MazeWorld.js';
 import MazeIntroCinematic from './MazeIntroCinematic.js';
+import SCENERY_DECORS from './scenery.js';
 import Settings from './Settings.js';
 
 initAnalytics();
@@ -69,6 +70,9 @@ var tmpVector;
 var mazeSize;
 var mazeData;
 var mazeWorld;
+// scenery (drips, pipes, etc.) grown across maze walls/ceilings - one
+// instance of every kind in scenery.js, rebuilt for each new maze
+var scenery = [];
 // run state (timer + checkpoints)
 var session;
 // save the positions of the entrance and exit of the maze
@@ -338,6 +342,9 @@ function init() {
     // maze world (owns maze geometry, materials and the maze scene group)
     mazeWorld = new MazeWorld();
     mazeWorld.addTo(scene);
+
+    scenery = SCENERY_DECORS.map(Decor => new Decor());
+    for (const decor of scenery) decor.addTo(scene);
 
     // load models
     let loader = new GLTFLoader();
@@ -641,6 +648,7 @@ function buildMaze(size=mazeSize) {
     trail.reset();
 
     mazeData = mazeWorld.build(mazeSize);
+    for (const decor of scenery) decor.build(mazeData);
 
     breadcrumbs.initializeMaze(mazeData);
 
@@ -737,6 +745,7 @@ var animate = function () {
     touchJoystick.update(controls.getMoveTouchState());
     dust.update(delta);
     trail.update(delta);
+    for (const decor of scenery) decor.update?.(delta);
     vrManager.update(delta);
     compassManager.update();
     tutorialManager.update();
