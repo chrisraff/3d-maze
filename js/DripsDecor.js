@@ -21,12 +21,16 @@
  * Falling dots are drawn as short streaks rather than dots: a thin quad,
  * cubic (roughly as long as it is wide) at rest and stretching longer the
  * faster it falls, capturing the same motion-blur look real rain gets.
- * Since every drip falls straight down (a fixed world axis, never an
- * arbitrary direction), the streak doesn't need general camera billboarding
- * - only a "cylindrical" billboard that rotates around world Y to face the
- * camera while its length stays pinned to world Y. That rotation is done
- * per-vertex in the shader (using three's built-in `cameraPosition`
- * uniform) rather than on the CPU, since update(dt) has no camera
+ * The quad is a view-aligned stretched billboard: it always faces the
+ * camera squarely, laid out along the drip's own fall axis projected into
+ * the view plane and stretched to that projected length. Pinning the
+ * length to world Y instead would be cheaper, but such a quad turns
+ * edge-on - an invisible sliver - exactly when the camera looks along the
+ * fall axis, which is what standing under a drip does. Projecting the axis
+ * foreshortens it to nothing there instead, and the shape below collapses
+ * to a round dot, so a drip reads as a volume from every angle without a
+ * second crossed quad to pay for. The whole thing is done per-vertex in
+ * the shader rather than on the CPU, since update(dt) has no camera
  * reference to work with. Each instance's position/width/length ride along
  * on its own InstancedMesh transform (see _writeInstanceMatrix); a custom
  * `instanceGrowth` attribute carries the same grow-in ramp described above.
@@ -112,7 +116,7 @@ attribute vec3 color;
 attribute float instanceGrowth;
 varying vec3 vColor;
 varying float vGrowth;
-varying vec2 vLocal; // (localX, localY) in world units, head at y=0
+varying vec2 vLocal; // (localX, localY) in view-plane world units, head cap at y=0
 varying float vCapRadius; // width / 2 - the resting circle's radius
 varying float vExtraLength; // how far past a resting circle this streak has stretched
 void main() {
@@ -127,21 +131,54 @@ void main() {
     float width = instanceMatrix[0][0];
     float streakLength = instanceMatrix[1][1];
 
+    // the streak's own axis, head to tail, in view space - the quad is
+    // built along that axis PROJECTED into the view plane (its xy), so the
+    // streak always faces the camera squarely however it's viewed. Seen
+    // from the side the projection is the full length and this reads as the
+    // old vertical streak; seen from directly below or above it shrinks to
+    // nothing and the pill SDF collapses to a round dot - the honest
+    // foreshortening of a streak viewed down its own axis, instead of the
+    // edge-on sliver a world-Y-aligned quad degenerates into.
+    vec4 headView = viewMatrix * modelMatrix * vec4(instancePos, 1.0);
+    vec4 tailView = viewMatrix * modelMatrix * vec4(instancePos + vec3(0.0, streakLength, 0.0), 1.0);
+    vec2 axisView = tailView.xy - headView.xy;
+    float projectedLength = length(axisView);
+
     vCapRadius = width * 0.5;
-    vExtraLength = max(0.0, streakLength - width);
-    vLocal = vec2(position.x * width, position.y * streakLength);
+    vExtraLength = max(0.0, projectedLength - width);
+    // the pill never shrinks below its own resting circle, so a fully
+    // foreshortened drip stays a full-width dot rather than vanishing
+    float pillLength = width + vExtraLength;
 
-    vec3 worldInstancePos = (modelMatrix * vec4(instancePos, 1.0)).xyz;
-    vec3 toCamera = cameraPosition - worldInstancePos;
-    // cylindrical billboard: face the camera by rotating only around world
-    // Y, so the streak's length axis always stays vertical regardless of
-    // view angle
-    vec3 normal = normalize(vec3(toCamera.x, 0.0, toCamera.z));
-    vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), normal));
+    // where the pill sits along that axis relative to the head. Side-on,
+    // the head cap's near edge sits on the anchor (the drip's own position,
+    // which is what lands on the floor); as the streak foreshortens, the
+    // pill eases into being centered on the anchor instead - by then it's a
+    // plain dot, and centering it keeps the axis direction (which goes
+    // unstable as the projection vanishes) from wobbling the dot around.
+    float lengthwise = clamp(projectedLength / max(width, 1e-6), 0.0, 1.0);
+    float alongStart = -vCapRadius * (1.0 - lengthwise);
+    float along = alongStart + position.y * pillLength;
 
-    vec3 worldOffset = right * vLocal.x + vec3(0.0, vLocal.y, 0.0);
-    vec4 worldPosition = modelMatrix * vec4(instancePos, 1.0) + vec4(worldOffset, 0.0);
-    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    vec2 axis = projectedLength < 1e-6 ? vec2(0.0, 1.0) : axisView / projectedLength;
+
+    vLocal = vec2(position.x * width, position.y * pillLength);
+
+    // the quad is laid out in the view plane directly - depth is the only
+    // thing taken from the 3D segment, on a parameter clamped to the
+    // segment's own span (an unclamped one blows up as the projection, its
+    // denominator, vanishes head-on)
+    float depthFraction = clamp(along / max(projectedLength, 1e-6), 0.0, 1.0);
+    // the quad's local x maps to this perpendicular: it has to be the axis
+    // turned this way round, not the other, or the triangles wind backwards
+    // and the material's own face culling drops every drip. The handedness
+    // is the same whichever way the axis points, so this one sign holds for
+    // every view.
+    vec2 perpendicular = vec2(axis.y, -axis.x);
+    vec3 viewPosition = vec3(
+        headView.xy + axis * along + perpendicular * vLocal.x,
+        mix(headView.z, tailView.z, depthFraction));
+    gl_Position = projectionMatrix * vec4(viewPosition, 1.0);
 }
 `;
 
