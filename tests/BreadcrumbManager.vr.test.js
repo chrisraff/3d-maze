@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS } from '../js/BreadcrumbManager.js';
+import BreadcrumbManager, { HITBOX_RADIUS, HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS } from '../js/BreadcrumbManager.js';
 import * as maze from '../js/maze.js';
 
 // Gates from findNearby / updateGlowHighlight
@@ -47,7 +47,22 @@ function placeAt(scene, breadcrumb, x, y, z) {
     scene.updateMatrixWorld(true);
 }
 
+// Reachability is answered by the collision map, so a manager that needs walls
+// gets one: every segment open but the panels named here. Indices follow
+// maze.js - odd is a room, even the panel between two.
+function giveMaze(manager, ...solidPanels) {
+    const size = 9;
+    const collision_map = Array.from({ length: size }, () =>
+        Array.from({ length: size }, () => new Array(size).fill(false)));
+    for (const [i, j, k] of solidPanels) collision_map[i][j][k] = true;
+    manager.mazedata = { ...manager.mazedata, collision_map };
+}
+
+// the world position of a segment's centre
+const segmentAt = (i, j, k) => v(maze.getOffset(i), maze.getOffset(j), maze.getOffset(k));
+
 // A wall collision hitbox as MazeWorld sets them up: layer 3 + isMazeWallHitBox.
+// Only _wallClampPosition still raycasts these; line of sight reads the map.
 function addWall(scene, x, y, z, { width = 4, height = 4, depth = 0.05 } = {}) {
     const wall = new THREE.Mesh(
         new THREE.BoxGeometry(width, height, depth),
@@ -110,10 +125,15 @@ describe('findNearby', () => {
 
     it('returns null when a wall blocks line of sight from the player', () => {
         const { manager, scene } = makeManager(1);
-        placeAt(scene, manager.breadcrumbs[0], 0, 0, 0);
-        addWall(scene, 0, 0, 0.5);
+        giveMaze(manager, [1, 1, 2]); // the panel between rooms z=1 and z=3
 
-        expect(manager.findNearby(v(0, 0, 0.1), v(0, 0, 1))).toBeNull();
+        // breadcrumb just past the panel, player just short of it - well inside
+        // both gates, so only the wall can rule it out
+        const behind = segmentAt(1, 1, 2).setZ(maze.getOffset(2) + 0.2);
+        placeAt(scene, manager.breadcrumbs[0], behind.x, behind.y, behind.z);
+        const eye = segmentAt(1, 1, 2).setZ(maze.getOffset(2) - 0.28125);
+
+        expect(manager.findNearby(behind, eye)).toBeNull();
     });
 
     it('returns the candidate closest to the grip', () => {
@@ -126,16 +146,33 @@ describe('findNearby', () => {
         expect(manager.findNearby(v(-0.02, 0, 0), v(0, 0, 1))).toBe(b1);
     });
 
-    it('still reaches a breadcrumb resting exactly on a wall surface', () => {
-        // Regression guard: pickup must target the hitbox sphere, not the center
-        // point — wall-clamped breadcrumbs sit exactly on the wall geometry.
+    it('reaches a breadcrumb sitting as close to a panel as the clamp leaves it', () => {
+        // Regression guard: _wallClampPosition stops HITBOX_RADIUS short of the
+        // surface, which leaves the breadcrumb on the player's own side.
         const { manager, scene } = makeManager(1);
-        const [b] = manager.breadcrumbs;
-        const wall = addWall(scene, 0, 0, 0);
-        placeAt(scene, b, 0, 0, 0.025); // on the wall's front face
+        giveMaze(manager, [1, 1, 2]);
 
-        expect(manager.findNearby(v(0, 0, 0.1), v(0, 0, 1))).toBe(b);
-        expect(wall).toBeDefined();
+        const face = maze.getOffset(2) - maze.minorWidth / 2;
+        const clamped = segmentAt(1, 1, 2).setZ(face - HITBOX_RADIUS);
+        placeAt(scene, manager.breadcrumbs[0], clamped.x, clamped.y, clamped.z);
+        const eye = segmentAt(1, 1, 2).setZ(face - 0.25);
+
+        expect(manager.findNearby(clamped, eye)).toBe(manager.breadcrumbs[0]);
+    });
+
+    it('does not reach through a panel a breadcrumb is only just behind', () => {
+        // Its hitbox overhangs into the room the player is standing in, which
+        // must not count as reaching it.
+        const { manager, scene } = makeManager(1);
+        giveMaze(manager, [1, 1, 2]);
+
+        const farFace = maze.getOffset(2) + maze.minorWidth / 2;
+        const behind = segmentAt(1, 1, 2).setZ(farFace + 0.05);
+        placeAt(scene, manager.breadcrumbs[0], behind.x, behind.y, behind.z);
+        const eye = segmentAt(1, 1, 2).setZ(maze.getOffset(2) - 0.28125);
+
+        expect(behind.z - farFace).toBeLessThan(HITBOX_RADIUS); // it really does overhang
+        expect(manager.findNearby(behind, eye)).toBeNull();
     });
 });
 
@@ -201,7 +238,7 @@ describe('updateInteract while placing', () => {
         expect(b.position.distanceTo(v(0.2, 0.1, -0.3))).toBeLessThan(1e-9);
     });
 
-    it('clamps the breadcrumb to the wall surface when the grip passes through a wall', () => {
+    it('stops the breadcrumb a hitbox short of a wall the grip passes through', () => {
         const { manager, scene } = makeManager(1);
         addWall(scene, 0, 0, -0.5); // faces at z = -0.475 and -0.525
         const grip = makeGrip(0, 0, 0.5);
@@ -210,7 +247,8 @@ describe('updateInteract while placing', () => {
         grip.position.set(0, 0, -1); // beyond the wall
         manager.updateInteract(makeCamera(0, 0, 1));
 
-        expect(b.position.z).toBeCloseTo(-0.475, 6);
+        // flush on the surface would leave the hitbox poking out the far side
+        expect(b.position.z).toBeCloseTo(-0.475 + HITBOX_RADIUS, 6);
         expect(b.position.x).toBeCloseTo(0, 6);
         expect(b.position.y).toBeCloseTo(0, 6);
     });
@@ -383,11 +421,13 @@ describe('proximity glow', () => {
     it('fades to zero when a wall blocks line of sight', () => {
         const { manager, scene } = makeManager(1);
         const [b] = manager.breadcrumbs;
-        placeAt(scene, b, 0, 0, 0);
-        addWall(scene, 0, 0, 0.5);
+        giveMaze(manager, [1, 1, 2]);
+
+        const behind = segmentAt(1, 1, 2).setZ(maze.getOffset(2) + 0.2);
+        placeAt(scene, b, behind.x, behind.y, behind.z);
         b.userData.glowAlpha = 0.4;
 
-        twoFrames(manager, v(0, 0, 1));
+        twoFrames(manager, segmentAt(1, 1, 2).setZ(maze.getOffset(2) - 0.28125));
 
         expect(b.userData.glowAlpha).toBeCloseTo(0, 4);
     });

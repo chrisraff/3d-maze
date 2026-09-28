@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos } from '../js/maze.js';
+import { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos, isPathClear } from '../js/maze.js';
 
 // Maze indexing convention: even indices are thin wall segments (minorWidth),
 // odd indices are open cells (majorWidth). A maze of size s has segments
@@ -132,5 +132,93 @@ describe.each([2, 3, 4, 5])('generateMaze(%i)', (size) => {
             expect(m.analytics.branches_total).toBeGreaterThanOrEqual(0);
             expect(Array.isArray(m.analytics.dead_ends_data)).toBe(true);
         }
+    });
+});
+
+describe('isPathClear', () => {
+    // a 9x9x9 grid of open segments; close the panels a test cares about
+    const openMaze = (...solid) => {
+        const collision_map = Array.from({ length: 9 },
+            () => Array.from({ length: 9 }, () => Array(9).fill(false)));
+        for (const [i, j, k] of solid) collision_map[i][j][k] = true;
+        return { collision_map };
+    };
+    const at = (i, j, k) => ({ x: getOffset(i), y: getOffset(j), z: getOffset(k) });
+
+    it('is clear between two rooms with the panel between them open', () => {
+        expect(isPathClear(openMaze(), at(1, 1, 1), at(1, 1, 3))).toBe(true);
+    });
+
+    it('is blocked when that panel is solid', () => {
+        expect(isPathClear(openMaze([1, 1, 2]), at(1, 1, 1), at(1, 1, 3))).toBe(false);
+    });
+
+    it('does not step over a panel thinner than the rooms either side of it', () => {
+        // a sampler coarser than minorWidth would walk straight through this
+        const from = { x: getOffset(1), y: getOffset(1), z: getOffset(2) - 0.2 };
+        const to = { x: getOffset(1), y: getOffset(1), z: getOffset(2) + 0.2 };
+        expect(isPathClear(openMaze([1, 1, 2]), from, to)).toBe(false);
+    });
+
+    it('is blocked by a panel crossed at a shallow angle', () => {
+        const from = { x: getOffset(1) - 0.9, y: getOffset(1) - 0.9, z: getOffset(2) - 0.05 };
+        const to = { x: getOffset(1) + 0.9, y: getOffset(1) + 0.9, z: getOffset(2) + 0.05 };
+        expect(isPathClear(openMaze([1, 1, 2]), from, to)).toBe(false);
+    });
+
+    it('stops short of a panel that lies just beyond the far end', () => {
+        const from = at(1, 1, 1);
+        const to = { x: getOffset(1), y: getOffset(1), z: getOffset(2) - minorWidth };
+        expect(isPathClear(openMaze([1, 1, 2]), from, to)).toBe(true);
+    });
+
+    it('rejects both endpoints being inside solid maze', () => {
+        const inPanel = at(1, 1, 2);
+        expect(isPathClear(openMaze([1, 1, 2]), inPanel, at(1, 1, 1))).toBe(false);
+        expect(isPathClear(openMaze([1, 1, 2]), at(1, 1, 1), inPanel)).toBe(false);
+    });
+
+    it('treats a zero-length line as clear when it is in open space', () => {
+        expect(isPathClear(openMaze([1, 1, 2]), at(1, 1, 1), at(1, 1, 1))).toBe(true);
+    });
+
+    it('agrees with dense sampling of a real maze', () => {
+        const m = generateMaze(4);
+        // Ground truth by brute force. Segment lookup is by the walls' real
+        // edges rather than getMazePos, whose tolerance around a panel reaches
+        // half a panel past it - see exactSegment in maze.js.
+        const pitch = majorWidth + minorWidth;
+        const segment = (x) => {
+            const cell = Math.floor(x / pitch);
+            const within = x - cell * pitch;
+            if (within < minorWidth / 2) return 2 * cell;
+            if (within > pitch - minorWidth / 2) return 2 * (cell + 1);
+            return 2 * cell + 1;
+        };
+        const sample = (from, to) => {
+            const steps = 20000;
+            for (let s = 0; s <= steps; s++) {
+                const t = s / steps;
+                const i = segment(from.x + (to.x - from.x) * t);
+                const j = segment(from.y + (to.y - from.y) * t);
+                const k = segment(from.z + (to.z - from.z) * t);
+                if (m.collision_map[i]?.[j]?.[k] === true) return false;
+            }
+            return true;
+        };
+
+        // fixed lines rather than random ones, so a failure is reproducible
+        const span = m.bounds[0] * 2 * pitch / 2;
+        let checked = 0;
+        for (let n = 0; n < 400; n++) {
+            const h = (a) => ((Math.sin(n * a) + 1) / 2); // deterministic spread
+            const from = { x: h(12.9898) * span, y: h(78.233) * span, z: h(37.719) * span };
+            const to = { x: from.x + h(4.898) * 3 - 1.5,
+                         y: from.y + h(23.14) * 3 - 1.5,
+                         z: from.z + h(91.17) * 3 - 1.5 };
+            expect(isPathClear(m, from, to)).toBe(sample(from, to));
+            checked++;
+        }
+        expect(checked).toBe(400);
     });
 });

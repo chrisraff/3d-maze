@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { GHOST_OPACITY } from '../js/BreadcrumbManager.js';
+import BreadcrumbManager, { GHOST_OPACITY, HITBOX_RADIUS } from '../js/BreadcrumbManager.js';
+import * as maze from '../js/maze.js';
 
 // A wall-free maze, so the collision passes leave placement alone.
 const emptyMazeData = () => ({
@@ -53,6 +54,73 @@ const facingTowardCamera = (breadcrumb, camera) => {
     const toCamera = camera.position.clone().sub(breadcrumb.position).normalize();
     return facing.dot(toCamera);
 };
+
+// The grab hitbox is wider than a panel is thick, so a breadcrumb close to a
+// wall puts part of it in the room next door. Aiming at that overhang used to
+// hover and pick the breadcrumb up through solid maze.
+describe('aiming at a breadcrumb through a panel', () => {
+    // one panel closed, between the rooms at z index 1 and 3
+    const dividedMazeData = () => {
+        const data = emptyMazeData();
+        data.collision_map = Array.from({ length: 9 },
+            () => Array.from({ length: 9 }, () => Array(9).fill(false)));
+        data.collision_map[1][1][2] = true;
+        return data;
+    };
+
+    // camera in the near room, breadcrumb `gap` past the panel's far face
+    function lookThrough(gap) {
+        const { manager, camera, scene } = makeManager();
+        manager.mazedata = dividedMazeData();
+
+        const x = maze.getOffset(1), y = maze.getOffset(1);
+        const farFace = maze.getOffset(2) + maze.minorWidth / 2;
+        const breadcrumb = manager.breadcrumbStack.pop();
+        breadcrumb.position.set(x, y, farFace + gap);
+        manager.breadcrumbs.push(breadcrumb);
+        scene.add(breadcrumb);
+
+        camera.position.set(x, y, maze.getOffset(2) - 0.28125);
+        camera.lookAt(breadcrumb.position);
+        camera.updateMatrixWorld(true);
+        scene.updateMatrixWorld(true);
+        return { manager, camera, breadcrumb };
+    }
+
+    it('does not hover one whose hitbox overhangs into the next room', () => {
+        const gap = 0.05;
+        const { manager, camera } = lookThrough(gap);
+
+        expect(gap).toBeLessThan(HITBOX_RADIUS); // the overhang is real
+        expect(manager.raycastSearchForBreadcrumb(camera)).toBeNull();
+    });
+
+    it('does not pick one up on a gaze tap', () => {
+        const { manager, camera, breadcrumb } = lookThrough(0.05);
+
+        expect(manager.tryGazePickup(camera)).toBe(false);
+        expect(manager.breadcrumbs).toContain(breadcrumb);
+        expect(manager.pickupCount).toBe(0);
+    });
+
+    it('still hovers one on the near side of the panel', () => {
+        const { manager, camera, scene } = makeManager();
+        manager.mazedata = dividedMazeData();
+
+        const x = maze.getOffset(1), y = maze.getOffset(1);
+        const breadcrumb = manager.breadcrumbStack.pop();
+        breadcrumb.position.set(x, y, maze.getOffset(2) - 0.5);
+        manager.breadcrumbs.push(breadcrumb);
+        scene.add(breadcrumb);
+
+        camera.position.set(x, y, maze.getOffset(2) - 1.0);
+        camera.lookAt(breadcrumb.position);
+        camera.updateMatrixWorld(true);
+        scene.updateMatrixWorld(true);
+
+        expect(manager.raycastSearchForBreadcrumb(camera)).toBe(breadcrumb);
+    });
+});
 
 describe('tryGazePickup', () => {
     it('takes the breadcrumb the player is looking at', () => {

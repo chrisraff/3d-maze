@@ -33,6 +33,70 @@ function getMazePos(pos) {
     return { x: getSegment(pos.x), y: getSegment(pos.y), z: getSegment(pos.z) };
 }
 
+// Which segment a coordinate falls in, by the walls' actual edges. getSegment
+// answers the same question with a tolerance that reaches half a panel past
+// one - fine for nudging the player out of a wall, wrong for a sight line.
+function exactSegment(x) {
+    const pitch = majorWidth + minorWidth;
+    const cell = Math.floor(x / pitch);
+    const within = x - cell * pitch;
+    if (within < minorWidth / 2) return 2 * cell;               // the panel at the low edge
+    if (within > pitch - minorWidth / 2) return 2 * (cell + 1); // the one at the high edge
+    return 2 * cell + 1;                                        // the room between them
+}
+
+/**
+ * True if the straight line from `from` to `to` never enters a solid segment,
+ * endpoints included - the maze's own answer to "can that be reached from here".
+ * It walks the grid cell by cell rather than sampling, since a step fine enough
+ * to never skip a minorWidth panel is wasted on the rooms either side of it.
+ *
+ * Accepts anything with x/y/z.
+ */
+function isPathClear(mazeData, from, to) {
+    const map = mazeData.collision_map;
+    // outside the map reads as open - a line leaving it has already crossed one
+    // of the maze's own boundary panels
+    const solid = (s) => map[s[0]]?.[s[1]]?.[s[2]] === true;
+
+    const origin = [from.x, from.y, from.z];
+    const delta = [to.x - from.x, to.y - from.y, to.z - from.z];
+    const segment = [exactSegment(origin[0]), exactSegment(origin[1]), exactSegment(origin[2])];
+
+    if (solid(segment))
+        return false;
+
+    // how far along the line, as a fraction of it, each axis' next boundary is
+    const step = [0, 0, 0];
+    const nextCrossing = [Infinity, Infinity, Infinity];
+    const crossingAt = (a) =>
+        (getOffset(segment[a]) + step[a] * getWidth(segment[a]) / 2 - origin[a]) / delta[a];
+
+    for (let a = 0; a < 3; a++) {
+        if (delta[a] === 0)
+            continue;
+        step[a] = Math.sign(delta[a]);
+        nextCrossing[a] = crossingAt(a);
+    }
+
+    for (;;) {
+        // whichever boundary the line reaches first
+        let a = 0;
+        if (nextCrossing[1] < nextCrossing[a]) a = 1;
+        if (nextCrossing[2] < nextCrossing[a]) a = 2;
+
+        // the far end arrives before any further boundary does
+        if (!(nextCrossing[a] <= 1))
+            return true;
+
+        segment[a] += step[a];
+        if (solid(segment))
+            return false;
+
+        nextCrossing[a] = crossingAt(a);
+    }
+}
+
 function generateMaze(size) {
     let mazeData = {
         bounds: [size, size, size],
@@ -356,4 +420,4 @@ function generateMaze(size) {
     return mazeData;
 }
 
-export { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos };
+export { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos, isPathClear };

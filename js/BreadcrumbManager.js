@@ -10,7 +10,15 @@ import { breadcrumbIconSource } from './BreadcrumbIcon.js';
  * @author Chris Raff / http://www.ChrisRaff.com/
  */
 
-const hitBoxGeometry = new THREE.SphereGeometry(0.5, 6, 6);
+// The grab target is a sphere grown a little past the breadcrumb, so aiming
+// near one is enough. Anything parking a breadcrumb against a wall has to
+// leave its world radius clear, or the sphere sticks out the far side.
+const HITBOX_GEOMETRY_RADIUS = 0.5;
+const HITBOX_GROWTH = 1.2;
+const BREADCRUMB_SCALE = maze.minorWidth * 4;
+export const HITBOX_RADIUS = HITBOX_GEOMETRY_RADIUS * HITBOX_GROWTH * BREADCRUMB_SCALE;
+
+const hitBoxGeometry = new THREE.SphereGeometry(HITBOX_GEOMETRY_RADIUS, 6, 6);
 const hitBoxMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 const glowSphereGeometry = new THREE.SphereGeometry(0.6, 16, 12);
 
@@ -317,23 +325,12 @@ export default class BreadcrumbManager {
         return best;
     }
 
-    // Returns true if a raycast from fromPos to breadcrumb's hitbox hits the hitbox before any wall.
+    // True if the maze leaves a straight line open from fromPos to the breadcrumb.
+    // Reach is decided by where the breadcrumb is rather than by what its hitbox
+    // touches: the sphere is wider than a panel is thick, so it can overhang one.
     _canReachBreadcrumb(fromPos, breadcrumb) {
-        this._rayDir.subVectors(breadcrumb.position, fromPos);
-        const dist = this._rayDir.length();
-        if (dist === 0) return true;
-        this._rayDir.divideScalar(dist);
-        this._wallRaycaster.set(fromPos, this._rayDir);
-        this._wallRaycaster.far = dist;
-        const hits = this._wallRaycaster.intersectObjects(this.scene.children, true);
-        this._wallRaycaster.far = Infinity;
-        for (const hit of hits) {
-            if (hit.object.userData.isBreadCrumbHitBox && hit.object.userData.parentBreadcrumb === breadcrumb)
-                return true;
-            if (hit.object.userData.isMazeWallHitBox)
-                return false;
-        }
-        return false;
+        if (this.mazedata?.collision_map == null) return true;
+        return maze.isPathClear(this.mazedata, fromPos, breadcrumb.position);
     }
 
     // Begin translating + rotating a placed breadcrumb with the grip.
@@ -454,7 +451,11 @@ export default class BreadcrumbManager {
 
         for (const hit of hits) {
             if (hit.object.userData.isMazeWallHitBox) {
-                targetPos.copy(hit.point);
+                // Stop a hitbox radius short of the surface: flush against a
+                // panel leaves the sphere poking through, and a breadcrumb
+                // centred in one is unreachable from either side.
+                const stop = Math.max(0, hit.distance - HITBOX_RADIUS);
+                targetPos.copy(playerPos).addScaledVector(this._rayDir, stop);
                 break;
             }
         }
@@ -627,7 +628,7 @@ export default class BreadcrumbManager {
                 this.updateBreadcrumbMesh(breadcrumb);
 
                 const hitBox = new THREE.Mesh(hitBoxGeometry, hitBoxMaterial);
-                hitBox.scale.multiplyScalar(1.2);
+                hitBox.scale.multiplyScalar(HITBOX_GROWTH);
                 hitBox.userData.isBreadCrumbHitBox = true;
                 hitBox.userData.parentBreadcrumb = breadcrumb;
                 hitBox.layers.set(3);
@@ -644,7 +645,7 @@ export default class BreadcrumbManager {
 
                 breadcrumb.position.addScaledVector(directionVector, maze.majorWidth * 0.2);
 
-                breadcrumb.scale.multiplyScalar(maze.minorWidth * 4);
+                breadcrumb.scale.multiplyScalar(BREADCRUMB_SCALE);
 
                 this.scene.add(breadcrumb);
                 this.breadcrumbs.push(breadcrumb);
@@ -941,6 +942,9 @@ export default class BreadcrumbManager {
                 if (intersects[i].object.userData.isBreadCrumbHitBox) {
                     const breadcrumb = intersects[i].object.userData.parentBreadcrumb;
                     if (breadcrumb === this._interactTarget)
+                        continue;
+                    // the hitbox can overhang a panel the breadcrumb is behind
+                    if (!this._canReachBreadcrumb(this.raycaster.ray.origin, breadcrumb))
                         continue;
                     return breadcrumb;
                 }
