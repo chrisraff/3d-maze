@@ -41,8 +41,9 @@
  * the bundle crosses itself. Each joint is squared off by running the
  * incoming segment one radius past the corner and starting the outgoing one
  * right where that ends, so the two abut face to face without overlapping.
- * A joint block is only occasionally dropped on top (JOINT_BLOCK_CHANCE) as
- * a chunkier elbow-fitting flourish, not because the geometry needs one.
+ * Only the start of a run is capped; every other joint already meets
+ * exactly, and a proud fitting on top of one would reach far enough off the
+ * wall for the camera's near plane to cut into it (see MAX_PROTRUSION).
  */
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from './maze.js';
@@ -51,6 +52,9 @@ import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 // see SkylineDecor's file comment for the derivation of this same constant
 const CAMERA_COLLISION_DISTANCE = 0.25;
+// game.js's own camera near plane - geometry closer to the camera than this
+// is clipped away, which is what the player sees as looking "into" a pipe
+const CAMERA_NEAR = 0.1;
 const EXTRA_MARGIN = 0.05;
 
 const PIPE_RADIUS = 0.028;
@@ -58,11 +62,16 @@ const PIPE_DIAMETER = PIPE_RADIUS * 2;
 // "spaced one pipe width apart": the GAP between adjacent pipes' own
 // surfaces equals one diameter, so center-to-center spacing is two diameters
 const PIPE_SPACING = PIPE_DIAMETER * 2;
-// how far the pipe's centerline stands off the panel's face - derived (not
-// just picked to look safe) so the pipe's own outer edge, STANDOFF +
-// PIPE_RADIUS, always stays short of CAMERA_COLLISION_DISTANCE, with the
-// same extra pull-back Skyline uses for the wall's own thickness
-const STANDOFF = CAMERA_COLLISION_DISTANCE - EXTRA_MARGIN - PIPE_RADIUS - minorWidth * 0.75;
+// The player's collision volume stops the camera closer than
+// CAMERA_COLLISION_DISTANCE to a solid panel's face, so the smallest gap
+// there can ever be between the camera and a pipe's outer surface is that
+// distance minus the pipe's own protrusion. Keeping that gap wider than
+// CAMERA_NEAR is what stops the near plane cutting into the pipe when the
+// player backs against the wall and looks along it.
+const MAX_PROTRUSION = CAMERA_COLLISION_DISTANCE - CAMERA_NEAR - EXTRA_MARGIN;
+// how far the pipe's centerline stands off the panel's face, so that its
+// outer edge - STANDOFF + PIPE_RADIUS - lands exactly on MAX_PROTRUSION
+const STANDOFF = MAX_PROTRUSION - PIPE_RADIUS;
 
 const BEND_CHANCE = 0.55; // at most one bend per room
 const BEND_MARGIN = 0.2; // bend point stays within [BEND_MARGIN, 1-BEND_MARGIN] of the available span
@@ -72,12 +81,6 @@ const MAX_SEGMENTS = 9;
 // lateral coordinate - this far off the panel's own edge, comfortably more
 // than a full bundle's half-width, so no pipe ever grazes a side wall
 const START_MARGIN = majorWidth * 0.15;
-
-// every interior joint is already an exact zero-gap miter (see _renderRun) -
-// this only decides whether to drop a chunky elbow-fitting block on top for
-// visual variety - rare enough that it doesn't happen on every turn
-const JOINT_BLOCK_CHANCE = 0.15;
-const JOINT_BLOCK_RADIUS = PIPE_RADIUS * 2.4;
 
 function inPlaneAxes(axis) {
     return AXES.filter(a => a !== axis);
@@ -123,20 +126,20 @@ function pushSegment(matrices, colors, dummy, start, end, color) {
 
 // an axis-aligned block spanning the box `box`, grown by `halfWidth` on
 // every side - so a single point gives a cube of +/-halfWidth around it
-function pushJoint(blockMatrices, blockColors, dummy, box, halfWidth, color) {
+function pushCap(capMatrices, capColors, dummy, box, halfWidth, color) {
     const size = new THREE.Vector3();
     box.getCenter(dummy.position);
     box.getSize(size).addScalar(halfWidth * 2);
     dummy.quaternion.identity();
     dummy.scale.copy(size);
     dummy.updateMatrix();
-    blockMatrices.push(dummy.matrix.clone());
-    blockColors.push(color.r, color.g, color.b);
+    capMatrices.push(dummy.matrix.clone());
+    capColors.push(color.r, color.g, color.b);
 }
 
 export default class PipesDecor {
-    // the band is the pipe itself, not a joint block's wider envelope: a
-    // fitting appears at a minority of bends and shouldn't drive placement
+    // the run's full reach off the panel, capped so the camera can never get
+    // near-plane close to it - which also decides what it may share a panel with
     static PROFILE = {
         band: [STANDOFF - PIPE_RADIUS, STANDOFF + PIPE_RADIUS], role: ROLE.ACCENT,
     };
@@ -149,10 +152,10 @@ export default class PipesDecor {
         this.pipeMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
         this.pipeMesh = null;
 
-        this.jointGeometry = new THREE.InstancedBufferGeometry();
-        THREE.BufferGeometry.prototype.copy.call(this.jointGeometry, new THREE.BoxGeometry());
-        this.jointMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
-        this.jointMesh = null;
+        this.capGeometry = new THREE.InstancedBufferGeometry();
+        THREE.BufferGeometry.prototype.copy.call(this.capGeometry, new THREE.BoxGeometry());
+        this.capMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+        this.capMesh = null;
     }
 
     addTo(scene) {
@@ -162,13 +165,13 @@ export default class PipesDecor {
     build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
         this.group.remove(...this.group.children);
         this.pipeMesh = null;
-        this.jointMesh = null;
+        this.capMesh = null;
 
         const count = Math.max(1, mazeData.bounds[0] - 1);
 
         const dummy = new THREE.Object3D();
         const pipeMatrices = [], pipeColors = [];
-        const jointMatrices = [], jointColors = [];
+        const capMatrices = [], capColors = [];
 
         // every block placed so far, to reject a run that would cross an
         // earlier one - runs on the same surface share one standoff plane,
@@ -182,17 +185,16 @@ export default class PipesDecor {
         for (let i = 0; i < count * 3 && runCount < count; i++) {
             const path = this._buildRun(mazeData, rng, claims);
             if (!path) continue;
-            const runPipes = [], runPipeColors = [], runJoints = [], runJointColors = [];
-            this._renderRun(mazeData, path, rng, dummy, runPipes, runPipeColors, runJoints, runJointColors);
+            const runPipes = [], runPipeColors = [], runCaps = [], runCapColors = [];
+            this._renderRun(mazeData, path, rng, dummy, runPipes, runPipeColors, runCaps, runCapColors);
 
             // also reject a run that loops back across itself (pipes and
-            // joint blocks checked separately - a joint block wraps its own
-            // pipes by design; consecutive segments only abut, which the
-            // tolerance already allows)
-            const pipeBoxes = boxesOf(runPipes), jointBoxes = boxesOf(runJoints);
+            // caps checked separately - a cap wraps its own pipe by design;
+            // consecutive segments only abut, which the tolerance allows)
+            const pipeBoxes = boxesOf(runPipes), capBoxes = boxesOf(runCaps);
             const selfOverlap = list => list.some((a, j) => list.some((b, k) => k > j && a.intersectsBox(b)));
-            const boxes = [...pipeBoxes, ...jointBoxes];
-            if (selfOverlap(pipeBoxes) || selfOverlap(jointBoxes)
+            const boxes = [...pipeBoxes, ...capBoxes];
+            if (selfOverlap(pipeBoxes) || selfOverlap(capBoxes)
                 || boxes.some(box => placed.some(other => box.intersectsBox(other)))) continue;
             placed.push(...boxes);
             // claimed once the run survives both overlap checks, so a
@@ -201,8 +203,8 @@ export default class PipesDecor {
 
             pipeMatrices.push(...runPipes);
             pipeColors.push(...runPipeColors);
-            jointMatrices.push(...runJoints);
-            jointColors.push(...runJointColors);
+            capMatrices.push(...runCaps);
+            capColors.push(...runCapColors);
             runCount++;
         }
 
@@ -213,12 +215,12 @@ export default class PipesDecor {
             this.pipeMesh.instanceMatrix.needsUpdate = true;
             this.group.add(this.pipeMesh);
         }
-        if (jointMatrices.length > 0) {
-            this.jointGeometry.setAttribute('color', new THREE.InstancedBufferAttribute(new Float32Array(jointColors), 3));
-            this.jointMesh = new THREE.InstancedMesh(this.jointGeometry, this.jointMaterial, jointMatrices.length);
-            jointMatrices.forEach((m, i) => this.jointMesh.setMatrixAt(i, m));
-            this.jointMesh.instanceMatrix.needsUpdate = true;
-            this.group.add(this.jointMesh);
+        if (capMatrices.length > 0) {
+            this.capGeometry.setAttribute('color', new THREE.InstancedBufferAttribute(new Float32Array(capColors), 3));
+            this.capMesh = new THREE.InstancedMesh(this.capGeometry, this.capMaterial, capMatrices.length);
+            capMatrices.forEach((m, i) => this.capMesh.setMatrixAt(i, m));
+            this.capMesh.instanceMatrix.needsUpdate = true;
+            this.group.add(this.capMesh);
         }
 
         return runCount;
@@ -327,14 +329,11 @@ export default class PipesDecor {
         return path;
     }
 
-    _renderRun(mazeData, path, rng, dummy, pipeMatrices, pipeColors, jointMatrices, jointColors) {
+    _renderRun(mazeData, path, rng, dummy, pipeMatrices, pipeColors, capMatrices, capColors) {
         const hueJitter = (rng() * 2 - 1) * 0.04;
         const colors = path.map(seg => pipeColorFor(mazeData, seg.room, seg.surface, hueJitter));
 
         const clusterSize = 1 + randomInt(rng, 3);
-        // every pipe's corner at each interior joint (index i), so a fitting
-        // block can wrap the whole bundle at once
-        const jointBoxes = path.map(() => new THREE.Box3());
 
         // which way each segment runs along its own travel axis, and the sign
         // its lateral offset takes - flipped at a bend when needed so the
@@ -369,7 +368,6 @@ export default class PipesDecor {
                 starts[i] = corner.clone();
             }
 
-            for (let i = 1; i < path.length; i++) jointBoxes[i].expandByPoint(starts[i]);
 
             // square off every interior joint: a box running centerline to
             // centerline stops at the corner's center, leaving the outer
@@ -389,17 +387,7 @@ export default class PipesDecor {
                 pushSegment(pipeMatrices, pipeColors, dummy, starts[i], ends[i], colors[i]);
 
             // start cap
-            pushJoint(jointMatrices, jointColors, dummy, new THREE.Box3(starts[0], starts[0]), PIPE_RADIUS * 1.1, colors[0]);
-        }
-
-        // every interior joint above already meets exactly - this is purely
-        // an occasional stylistic flourish, not a structural need. Rolled
-        // once per joint and drawn as one block around the whole bundle:
-        // per-pipe blocks this size would overlap their neighbors (they're
-        // wider than PIPE_SPACING) and z-fight on their shared faces
-        for (let i = 1; i < path.length; i++) {
-            if (rng() < JOINT_BLOCK_CHANCE)
-                pushJoint(jointMatrices, jointColors, dummy, jointBoxes[i], JOINT_BLOCK_RADIUS, colors[i]);
+            pushCap(capMatrices, capColors, dummy, new THREE.Box3(starts[0], starts[0]), PIPE_RADIUS * 1.1, colors[0]);
         }
     }
 }

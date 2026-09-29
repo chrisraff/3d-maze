@@ -40,9 +40,9 @@ describe('conflict verdicts', () => {
         Base:     'X    X    X    X    X    X    .    X    X',
         Sky:      'X    X    X    X    X    X    X    X    X',
         Mos:      'X    X    X    X    X    .    .    X    .',
-        Lat:      'X    X    X    X    X    .    .    X    X',
+        Lat:      'X    X    X    X    X    X    .    X    X',
         Cir:      'X    X    X    X    X    .    .    X    .',
-        Pipe:     'X    X    .    .    .    X    .    .    X',
+        Pipe:     'X    X    .    X    .    X    .    .    X',
         Splo:     '.    X    .    .    .    .    .    .    .',
         'Drip-w': 'X    X    X    X    X    .    .    X    .',
         'Drip-c': 'X    X    .    X    .    X    .    .    X',
@@ -136,8 +136,19 @@ describe('the ledger', () => {
         const claims = new SceneryClaims();
         expect(claims.claim(room(1, 1, 1), surf('x', 1), PROFILES.Lat)).toBe(true);
         expect(claims.canClaim(room(3, 1, 1), surf('x', -1), PROFILES.Mos)).toBe(false);
-        // the mirrored band still stands clear of what it stood clear of
-        expect(claims.canClaim(room(3, 1, 1), surf('x', -1), PROFILES.Pipe)).toBe(true);
+    });
+
+    it('mirrors a through claim rather than copying it onto the far face', () => {
+        const claims = new SceneryClaims();
+        const asymmetric = { band: [-0.09, 0.01], role: ROLE.FEATURE, through: true };
+        claims.claim(room(1, 1, 1), surf('x', 1), asymmetric);
+        // seen from the far face the band is [-0.01, 0.09], so a decor
+        // reaching 0.05 out of THAT side is blocked, while one 0.05 into
+        // the slab from it - where the claim no longer reaches - is not
+        const outward = { band: [0.04, 0.06], role: ROLE.ACCENT };
+        const inward = { band: [-0.06, -0.04], role: ROLE.ACCENT };
+        expect(claims.canClaim(room(3, 1, 1), surf('x', -1), outward)).toBe(false);
+        expect(claims.canClaim(room(3, 1, 1), surf('x', -1), inward)).toBe(true);
     });
 
     it('never leaves a partial claim behind when one face is refused', () => {
