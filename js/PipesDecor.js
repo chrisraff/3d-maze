@@ -47,6 +47,7 @@
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from './maze.js';
 import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 // see SkylineDecor's file comment for the derivation of this same constant
 const CAMERA_COLLISION_DISTANCE = 0.25;
@@ -134,6 +135,12 @@ function pushJoint(blockMatrices, blockColors, dummy, box, halfWidth, color) {
 }
 
 export default class PipesDecor {
+    // the band is the pipe itself, not a joint block's wider envelope: a
+    // fitting appears at a minority of bends and shouldn't drive placement
+    static PROFILE = {
+        band: [STANDOFF - PIPE_RADIUS, STANDOFF + PIPE_RADIUS], role: ROLE.ACCENT,
+    };
+
     constructor() {
         this.group = new THREE.Group();
 
@@ -152,7 +159,7 @@ export default class PipesDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
         this.group.remove(...this.group.children);
         this.pipeMesh = null;
         this.jointMesh = null;
@@ -173,7 +180,7 @@ export default class PipesDecor {
 
         let runCount = 0;
         for (let i = 0; i < count * 3 && runCount < count; i++) {
-            const path = this._buildRun(mazeData, rng);
+            const path = this._buildRun(mazeData, rng, claims);
             if (!path) continue;
             const runPipes = [], runPipeColors = [], runJoints = [], runJointColors = [];
             this._renderRun(mazeData, path, rng, dummy, runPipes, runPipeColors, runJoints, runJointColors);
@@ -188,6 +195,9 @@ export default class PipesDecor {
             if (selfOverlap(pipeBoxes) || selfOverlap(jointBoxes)
                 || boxes.some(box => placed.some(other => box.intersectsBox(other)))) continue;
             placed.push(...boxes);
+            // claimed once the run survives both overlap checks, so a
+            // discarded run leaves no panel blocked behind it
+            for (const seg of path) claims.claim(seg.room, seg.surface, PipesDecor.PROFILE);
 
             pipeMatrices.push(...runPipes);
             pipeColors.push(...runPipeColors);
@@ -218,12 +228,13 @@ export default class PipesDecor {
     // segments: { start, end, room, surface, lateralAxis } - lateralAxis is
     // the in-plane axis NOT being traveled along for that segment, i.e. the
     // axis a parallel pipe bundle offsets along (see the file comment)
-    _buildRun(mazeData, rng, maxAttempts = 30) {
+    _buildRun(mazeData, rng, claims, maxAttempts = 30) {
         let room, surface;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             room = randomRoom(mazeData, rng);
             surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (panelSolid(mazeData, room, surface.axis, surface.dir)) break;
+            if (panelSolid(mazeData, room, surface.axis, surface.dir)
+                && claims.canClaim(room, surface, PipesDecor.PROFILE)) break;
             room = null;
         }
         if (!room) return null;
@@ -273,8 +284,10 @@ export default class PipesDecor {
             const continueRoom = { ...room, [travelAxis]: room[travelAxis] + 2 * travelDir };
             const connectorSolid = panelSolid(mazeData, room, travelAxis, travelDir);
             const canContinue = roomInBounds(mazeData, continueRoom)
-                && panelSolid(mazeData, continueRoom, surface.axis, surface.dir);
-            const canTurn = connectorSolid;
+                && panelSolid(mazeData, continueRoom, surface.axis, surface.dir)
+                && claims.canClaim(continueRoom, surface, PipesDecor.PROFILE);
+            const canTurn = connectorSolid
+                && claims.canClaim(room, { axis: travelAxis, dir: travelDir }, PipesDecor.PROFILE);
 
             let choice = null;
             if (path.length < MAX_SEGMENTS && roomsVisited < maxRooms && rng() >= TERMINATE_CHANCE) {

@@ -28,6 +28,7 @@
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from './maze.js';
 import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -131,6 +132,10 @@ function pushCube(matrices, colors, dummy, tmpColor, position, hue, saturation, 
 }
 
 export default class SplotchesDecor {
+    // a stain is sparse enough to settle over whatever a panel already
+    // carries, so it's hosted everywhere except by an exclusive claim
+    static PROFILE = { band: [0, CUBE_SIZE], role: ROLE.FILL, unobtrusive: true };
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -143,7 +148,7 @@ export default class SplotchesDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
@@ -158,7 +163,7 @@ export default class SplotchesDecor {
 
         let splotchCount = 0;
         for (let i = 0; i < splotchTarget; i++) {
-            if (this._growSplotch(mazeData, claimed, rng, dummy, tmpColor, matrices, colors))
+            if (this._growSplotch(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors))
                 splotchCount++;
         }
 
@@ -176,18 +181,26 @@ export default class SplotchesDecor {
 
     // picks a seed panel + flood-fills outward from its center cell,
     // rendering cubes for the filled cells directly
-    _growSplotch(mazeData, claimed, rng, dummy, tmpColor, matrices, colors) {
+    _growSplotch(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors) {
         for (let attempt = 0; attempt < MAX_SEED_ATTEMPTS; attempt++) {
             const room = randomRoom(mazeData, rng);
             const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
             if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
+            if (!claims.canClaim(room, surface, SplotchesDecor.PROFILE)) continue;
 
             const seed = { room, surface, i: Math.floor((GRID_SIZE - 1) / 2), j: Math.floor((GRID_SIZE - 1) / 2) };
             const seedKey = cellKey(seed.room, seed.surface, seed.i, seed.j);
             if (claimed.has(seedKey)) continue;
 
-            const filled = this._flood(mazeData, seed, claimed, rng);
+            const filled = this._flood(mazeData, seed, claimed, claims, rng);
             if (filled.length < MIN_CELLS) continue;
+
+            // claimed on commit rather than during growth, so a splotch that
+            // comes out too small to keep doesn't block cells it never filled
+            for (const cell of filled) {
+                claimed.add(cellKey(cell.room, cell.surface, cell.i, cell.j));
+                claims.claim(cell.room, cell.surface, SplotchesDecor.PROFILE);
+            }
 
             const hue = rng(); // full hue range per splotch - a mixed mineral palette
             const saturation = 0.1 + rng() * 0.15; // pale, crystalline
@@ -202,7 +215,7 @@ export default class SplotchesDecor {
         return false;
     }
 
-    _flood(mazeData, seed, claimed, rng) {
+    _flood(mazeData, seed, claimed, claims, rng) {
         const targetCells = 20 + randomInt(rng, 40);
         const maxVisited = targetCells * 6;
 
@@ -222,13 +235,13 @@ export default class SplotchesDecor {
             for (const next of neighborsOf(mazeData, cell)) {
                 const key = cellKey(next.room, next.surface, next.i, next.j);
                 if (visited.has(key) || claimed.has(key)) continue;
+                if (!claims.canClaim(next.room, next.surface, SplotchesDecor.PROFILE)) continue;
                 if (rng() >= PROPAGATE_CHANCE) continue;
                 visited.add(key);
                 frontier.push(next);
             }
         }
 
-        for (const cell of filled) claimed.add(cellKey(cell.room, cell.surface, cell.i, cell.j));
         return filled;
     }
 }

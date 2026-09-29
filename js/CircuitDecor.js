@@ -25,6 +25,7 @@
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from './maze.js';
 import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { ROLE, SceneryClaims, panelKey } from './sceneryClaims.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -180,6 +181,10 @@ function pushPad(matrices, colors, dummy, tmpColor, position, size, depth, norma
 }
 
 export default class CircuitDecor {
+    // pads are the deepest part of a trace and still lie close to the face,
+    // so a circuit shares a panel with anything standing clear of them
+    static PROFILE = { band: [0, PAD_DEPTH], role: ROLE.ACCENT };
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -192,7 +197,7 @@ export default class CircuitDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
@@ -207,7 +212,7 @@ export default class CircuitDecor {
 
         let circuitCount = 0;
         for (let i = 0; i < count; i++) {
-            if (this._growCircuit(mazeData, claimed, rng, dummy, tmpColor, matrices, colors))
+            if (this._growCircuit(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors))
                 circuitCount++;
         }
 
@@ -223,11 +228,12 @@ export default class CircuitDecor {
         return circuitCount;
     }
 
-    _growCircuit(mazeData, claimed, rng, dummy, tmpColor, matrices, colors) {
+    _growCircuit(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors) {
         for (let attempt = 0; attempt < 10; attempt++) {
             const room = randomRoom(mazeData, rng);
             const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
             if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
+            if (!claims.canClaim(room, surface, CircuitDecor.PROFILE)) continue;
 
             const [axisA, axisB] = inPlaneAxes(surface.axis);
             // one cell off dead-center, not dead-center itself - the
@@ -262,6 +268,7 @@ export default class CircuitDecor {
                     for (const { cell: next, dir: nextDir } of stepCandidates(mazeData, walker.cell, dir[0], dir[1])) {
                         const key = cellKey(next.room, next.surface, next.i, next.j);
                         if (visited.has(key) || claimed.has(key)) continue;
+                        if (!claims.canClaim(next.room, next.surface, CircuitDecor.PROFILE)) continue;
                         candidates.push({ dir, nextDir, next, key });
                     }
                 }
@@ -358,6 +365,14 @@ export default class CircuitDecor {
             }
 
             for (const key of visited) claimed.add(key);
+            // claimed on commit, once the trace is known to be worth keeping -
+            // panel-level against other decor, while `claimed` keeps circuits
+            // apart at the finer cell level they can actually share a panel at
+            const touched = new Map();
+            const touch = c => touched.set(panelKey(c.room, c.surface), c);
+            for (const edge of edges) { touch(edge.from); touch(edge.to); }
+            for (const node of nodes) touch(node);
+            for (const cell of touched.values()) claims.claim(cell.room, cell.surface, CircuitDecor.PROFILE);
 
             for (const node of nodes) {
                 const pos = cellWorldPos(node);

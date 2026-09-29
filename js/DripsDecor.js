@@ -51,6 +51,7 @@
 import * as THREE from 'three';
 import { majorWidth, getOffset } from './maze.js';
 import { WALL_SURFACES, CEILING_SURFACE, panelSolid, roomInBounds, randomRoom, randomInt } from './mazeQuery.js';
+import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 const DOT_SIZE = 0.035; // streak width, and its length at zero speed (cubic at rest)
 const STREAK_LENGTH_PER_SPEED = 0.06; // extra length per world-unit/sec of fall speed
@@ -66,6 +67,9 @@ const GROW_DURATION_VARIANCE = 1.0;
 // through it. Anchors on those upward-facing surfaces need to clear the
 // surface by DOT_SIZE plus a small epsilon, not just the epsilon alone.
 const CEILING_ANCHOR_DROP = DOT_SIZE + 0.02;
+// how far a wall source sits off its panel's face; its fall stays pinned
+// there, so this is the whole reach a wall drip has along that normal
+const WALL_INSET = 0.02;
 
 // --- particle-density derivation ---
 // Each dot repeats a grow -> fall -> land -> respawn cycle forever, so one
@@ -242,6 +246,30 @@ function buildStreakGeometry() {
 }
 
 export default class DripsDecor {
+    // A source's band is the stretch of its host panel's normal the water
+    // sweeps, which is why the three kinds differ so sharply: a wall drip
+    // is pinned just off the face and falls parallel to it, a ceiling drip
+    // falls straight out along it, and an opening targets a non-solid panel
+    // nothing else can be mounted on.
+    //
+    // Deliberately not `unobtrusive`: water sweeps a volume rather than
+    // nestling into one, so anything its band reaches is something it would
+    // visibly fall through - including a pipe it never touches laterally.
+    static PROFILE = {
+        role: ROLE.FILL,
+        variants: {
+            wall: { band: [WALL_INSET, WALL_INSET] },
+            ceiling: { band: [CEILING_ANCHOR_DROP, Infinity] },
+            opening: null,
+        },
+    };
+
+    // the profile for one source kind, or null where there's nothing to claim
+    static profileFor(type) {
+        const variant = DripsDecor.PROFILE.variants[type];
+        return variant ? { ...DripsDecor.PROFILE, ...variant } : null;
+    }
+
     constructor() {
         this.group = new THREE.Group();
         this.streakGeometry = buildStreakGeometry();
@@ -286,17 +314,21 @@ export default class DripsDecor {
         this._dummy.updateMatrix();
     }
 
-    build(mazeData, rng = Math.random) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
         const sourceCount = Math.max(1, mazeData.bounds[0] - 1);
 
         const xs = [], zs = [], startYs = [], floorYs = [], terminalSpeeds = [], colorComponents = [];
 
         let liveSourceCount = 0;
         for (let i = 0; i < sourceCount; i++) {
-            const source = this._pickSource(mazeData, rng);
+            const source = this._pickSource(mazeData, rng, claims);
             if (!source) continue;
             const added = this._addSourceDots(mazeData, source, rng, xs, zs, startYs, floorYs, terminalSpeeds, colorComponents);
-            if (added > 0) liveSourceCount++;
+            if (added === 0) continue;
+            // claimed once the source actually produced water - it yields
+            // nothing when there's no solid floor anywhere below it
+            claims.claim(source.room, source.surface ?? CEILING_SURFACE, DripsDecor.profileFor(source.type));
+            liveSourceCount++;
         }
 
         const n = xs.length;
@@ -385,18 +417,20 @@ export default class DripsDecor {
     }
 
     // a solid wall, an open doorway, or a solid ceiling - see the file comment
-    _pickSource(mazeData, rng, maxAttempts = 30) {
+    _pickSource(mazeData, rng, claims, maxAttempts = 30) {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             const room = randomRoom(mazeData, rng);
             const roll = rng();
 
             if (roll < 0.4) {
-                if (panelSolid(mazeData, room, CEILING_SURFACE.axis, CEILING_SURFACE.dir)) {
+                if (panelSolid(mazeData, room, CEILING_SURFACE.axis, CEILING_SURFACE.dir)
+                    && claims.canClaim(room, CEILING_SURFACE, DripsDecor.profileFor('ceiling'))) {
                     return { type: 'ceiling', room };
                 }
             } else if (roll < 0.75) {
                 const surface = WALL_SURFACES[randomInt(rng, WALL_SURFACES.length)];
-                if (panelSolid(mazeData, room, surface.axis, surface.dir)) {
+                if (panelSolid(mazeData, room, surface.axis, surface.dir)
+                    && claims.canClaim(room, surface, DripsDecor.profileFor('wall'))) {
                     return { type: 'wall', room, surface };
                 }
             } else {
@@ -492,7 +526,7 @@ export default class DripsDecor {
         // wall: a small cluster near one point on a solid panel
         const point = { x: getOffset(room.x), z: getOffset(room.z) };
         point[horizAxis] = getOffset(room[horizAxis]) + (rng() * 2 - 1) * majorWidth * 0.35;
-        point[surface.axis] = getOffset(room[surface.axis]) + surface.dir * (majorWidth / 2 - 0.02);
+        point[surface.axis] = getOffset(room[surface.axis]) + surface.dir * (majorWidth / 2 - WALL_INSET);
         const startY = getOffset(room.y) + (rng() * 2 - 1) * majorWidth * 0.3;
 
         const count = 2 + randomInt(rng, 4);

@@ -36,6 +36,7 @@
  */
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from './maze.js';
+import { ROLE } from './sceneryClaims.js';
 
 const MAX_RADIUS = majorWidth * 0.4;
 const HEIGHT_MIN = 0.0075;
@@ -166,6 +167,12 @@ function pushStud(matrices, colors, dummy, position, size, depth, normalAxis, co
 }
 
 export default class BreadcrumbBaseDecor {
+    // reaches from the studs' embedded backs out to where a radiating dot
+    // finally fades - a wayfinding marker, so nothing shares its panel
+    static PROFILE = {
+        band: [-EMBED_DEPTH, DOT_SPAWN_OFFSET + NORMAL_DRIFT_MAX], role: ROLE.RESERVED,
+    };
+
     constructor() {
         this.group = new THREE.Group();
         this.studGeometry = new THREE.InstancedBufferGeometry();

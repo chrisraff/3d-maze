@@ -26,6 +26,7 @@ import RunHistory from './RunHistory.js';
 import MazeWorld from './MazeWorld.js';
 import MazeIntroCinematic from './MazeIntroCinematic.js';
 import SCENERY_DECORS from './scenery.js';
+import { SceneryClaims, orderForBuild } from './sceneryClaims.js';
 import Settings from './Settings.js';
 
 initAnalytics();
@@ -648,9 +649,13 @@ function buildMaze(size=mazeSize) {
     trail.reset();
 
     mazeData = mazeWorld.build(mazeSize);
-    for (const decor of scenery) decor.build(mazeData);
 
-    breadcrumbs.initializeMaze(mazeData);
+    // breadcrumb bases are placed before any scenery and claim their panels
+    // outright, so decor grows around the wayfinding markers rather than over
+    // them; the rest follows by role (see sceneryClaims.js)
+    const claims = new SceneryClaims();
+    breadcrumbs.initializeMaze(mazeData, claims);
+    for (const decor of orderForBuild(scenery)) decor.build(mazeData, undefined, claims);
 
     session.newMaze(mazeData);
 };

@@ -15,6 +15,10 @@ const DRIFT_SPEED = 0.15;
 const BOB_AMPLITUDE = 0.12;
 
 export default class MotesDecor {
+    // motes drift in open air rather than on a panel, so they claim nothing,
+    // conflict with nothing, and take no claims ledger to build
+    static PROFILE = null;
+
     constructor() {
         this.geometry = new THREE.BufferGeometry();
         this.material = new THREE.PointsMaterial({

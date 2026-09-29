@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from './maze.js';
 import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 const GRID_SIZE = 27;
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -146,6 +147,10 @@ function makePatternFn(rng) {
 }
 
 export default class SkylineDecor {
+    // towers stand entirely off the face, up to the cap derived above -
+    // exclusive because a silhouette shared with anything else isn't one
+    static PROFILE = { band: [0, MAX_HEIGHT], role: ROLE.FEATURE, exclusive: true };
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -158,7 +163,7 @@ export default class SkylineDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
@@ -172,7 +177,7 @@ export default class SkylineDecor {
 
         let wallCount = 0;
         for (let i = 0; i < count; i++) {
-            const site = this._pickSite(mazeData, rng);
+            const site = this._pickSite(mazeData, rng, claims);
             if (!site) continue;
             this._buildWall(mazeData, site, dummy, tmpColor, matrices, colors, rng);
             wallCount++;
@@ -190,13 +195,12 @@ export default class SkylineDecor {
         return wallCount;
     }
 
-    _pickSite(mazeData, rng, maxAttempts = 30) {
+    _pickSite(mazeData, rng, claims, maxAttempts = 30) {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             const room = randomRoom(mazeData, rng);
             const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (panelSolid(mazeData, room, surface.axis, surface.dir)) {
-                return { room, surface };
-            }
+            if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
+            if (claims.claim(room, surface, SkylineDecor.PROFILE)) return { room, surface };
         }
         return null;
     }

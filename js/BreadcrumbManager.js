@@ -3,6 +3,7 @@ import * as maze from './maze.js';
 import checkCollisionOnAxis from './checkCollisionOnAxis.js';
 import { YIELD } from './TouchArbiter.js';
 import BreadcrumbBaseDecor from './BreadcrumbBaseDecor.js';
+import { SceneryClaims } from './sceneryClaims.js';
 import createGlowMaterial from './glowMaterial.js';
 import { breadcrumbIconSource } from './BreadcrumbIcon.js';
 import { pickBreadcrumbHue, BREADCRUMB_SATURATION, BREADCRUMB_LIGHTNESS } from './breadcrumbHue.js';
@@ -549,7 +550,10 @@ export default class BreadcrumbManager {
 
     // --- Maze lifecycle ---
 
-    initializeMaze(mazedata) {
+    // `claims` is the scenery ledger this maze's decor will be built
+    // against - bases are placed first and only ever record a claim, since
+    // nothing else has been placed yet for them to check against
+    initializeMaze(mazedata, claims = new SceneryClaims()) {
         this.mazedata = mazedata;
 
         // cancel any in-progress spatial interaction
@@ -625,6 +629,7 @@ export default class BreadcrumbManager {
                     // remembered so grabbing this exact breadcrumb later can
                     // de-energize its own base - see removeBreadcrumb/beginReorient
                     breadcrumb.userData.medallionIndex = medallionSites.length;
+                    claims.claim(room, surface, BreadcrumbBaseDecor.PROFILE);
                     medallionSites.push({
                         room,
                         surface,

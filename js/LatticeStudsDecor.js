@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from './maze.js';
 import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 // deep enough to clear minorWidth (the wall's own thickness) on both sides
 // with room to spare, so each stud visibly pokes through rather than
@@ -32,6 +33,9 @@ const STUD_DEPTH = 0.18;
 // the center of each third of the panel - see the file comment above
 const HOLE_OFFSETS = [-majorWidth / 3, 0, majorWidth / 3];
 const STUD_SIZE = (majorWidth / 3) * 0.4;
+// how far a stud reaches past each face, being centered on a slab thinner
+// than it is deep
+const STUD_PROTRUSION = (STUD_DEPTH - minorWidth) / 2;
 
 // mirrors MazeWorld.js's own wall-coloring formula (see BreadcrumbBaseDecor's
 // panelRenderedColor for the same derivation) - not imported, to keep this
@@ -55,6 +59,12 @@ function pushStud(matrices, colors, dummy, tmpColor, position, size, depth, norm
 }
 
 export default class LatticeStudsDecor {
+    // studs are centered on the slab's mid-plane, so they poke out of both
+    // its faces and claim the neighboring room's side of the panel too
+    static PROFILE = {
+        band: [-STUD_PROTRUSION, STUD_PROTRUSION], role: ROLE.FEATURE, through: true,
+    };
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -67,7 +77,7 @@ export default class LatticeStudsDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
@@ -81,7 +91,7 @@ export default class LatticeStudsDecor {
 
         let panelCount = 0;
         for (let i = 0; i < count; i++) {
-            const site = this._pickSite(mazeData, rng);
+            const site = this._pickSite(mazeData, rng, claims);
             if (!site) continue;
             this._buildPanel(mazeData, site, dummy, tmpColor, matrices, colors, rng);
             panelCount++;
@@ -99,13 +109,12 @@ export default class LatticeStudsDecor {
         return panelCount;
     }
 
-    _pickSite(mazeData, rng, maxAttempts = 30) {
+    _pickSite(mazeData, rng, claims, maxAttempts = 30) {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             const room = randomRoom(mazeData, rng);
             const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (panelSolid(mazeData, room, surface.axis, surface.dir)) {
-                return { room, surface };
-            }
+            if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
+            if (claims.claim(room, surface, LatticeStudsDecor.PROFILE)) return { room, surface };
         }
         return null;
     }
