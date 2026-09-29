@@ -5,6 +5,7 @@ import { YIELD } from './TouchArbiter.js';
 import BreadcrumbBaseDecor from './BreadcrumbBaseDecor.js';
 import createGlowMaterial from './glowMaterial.js';
 import { breadcrumbIconSource } from './BreadcrumbIcon.js';
+import { pickBreadcrumbHue, BREADCRUMB_SATURATION, BREADCRUMB_LIGHTNESS } from './breadcrumbHue.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -597,10 +598,20 @@ export default class BreadcrumbManager {
 
                 const breadcrumb = new THREE.Object3D();
 
-                const newMaterial = new THREE.MeshLambertMaterial({color: `hsl(${Math.random() * 360}, 100%, 50%)`, vertexColors: true});
+                // surface first: it names the panel breadcrumbHue.js measures
+                // the hue against, so a breadcrumb can't match its own wall
+                const surface = surfaceFromDirection(deadEnd.direction);
+                const room = { x: deadEnd.position[0], y: deadEnd.position[1], z: deadEnd.position[2] };
+                const hue = surface
+                    ? pickBreadcrumbHue(mazedata, { ...room, [surface.axis]: room[surface.axis] + surface.dir })
+                    : Math.random() * 360;
+
+                const newMaterial = new THREE.MeshLambertMaterial({
+                    color: `hsl(${hue}, ${BREADCRUMB_SATURATION * 100}%, ${BREADCRUMB_LIGHTNESS * 100}%)`,
+                    vertexColors: true,
+                });
                 breadcrumb.userData.originalMaterial = newMaterial;
 
-                const surface = surfaceFromDirection(deadEnd.direction);
                 if (surface) {
                     // read the hue back out of the material's actual color
                     // rather than reusing the value passed into the CSS hsl()
@@ -615,7 +626,7 @@ export default class BreadcrumbManager {
                     // de-energize its own base - see removeBreadcrumb/beginReorient
                     breadcrumb.userData.medallionIndex = medallionSites.length;
                     medallionSites.push({
-                        room: { x: deadEnd.position[0], y: deadEnd.position[1], z: deadEnd.position[2] },
+                        room,
                         surface,
                         hue: hsl.h,
                         saturation: hsl.s,
