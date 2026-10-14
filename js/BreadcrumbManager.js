@@ -650,6 +650,9 @@ export default class BreadcrumbManager {
                 hitBox.layers.set(3);
                 breadcrumb.add(hitBox);
 
+                // `direction` led *into* the dead end, so reversing it faces
+                // the marker back up the corridor - visible on approach. This
+                // is the convention _aimAtPlayer follows for placed markers.
                 breadcrumb.lookAt(directionVector);
                 breadcrumb.rotateY(Math.PI);
 
@@ -712,7 +715,7 @@ export default class BreadcrumbManager {
         return true;
     }
 
-    // Per-frame: sit exactly where a tap would drop it, facing the way out.
+    // Per-frame: sit exactly where a tap would drop it, facing the player.
     updateGazePlace(camera, mazeData) {
         if (!this.isGazePlacing) return;
 
@@ -723,7 +726,7 @@ export default class BreadcrumbManager {
         if (!isFinitePosition(this._placeGhostPos)) return;
 
         this._interactTarget.position.copy(this._placeGhostPos);
-        this._aimAlongView(this._interactTarget, camera);
+        this._aimAtPlayer(this._interactTarget, camera);
     }
 
     // Leave it where it stands. Returns the breadcrumb, or null if not placing.
@@ -775,7 +778,7 @@ export default class BreadcrumbManager {
     {
         const breadcrumb = this.raycastSearchForBreadcrumb(camera, sceneX, sceneY);
 
-        if (this._tryPointPlacementAtPlayer(camera, breadcrumb))
+        if (this._tryPointPlacementAwayFromPlayer(camera, breadcrumb))
             return;
 
         if (breadcrumb !== null) {
@@ -791,7 +794,7 @@ export default class BreadcrumbManager {
     }
 
     handleBreadcrumbClick(camera, mazeData) {
-        if (this._tryPointPlacementAtPlayer(camera, this.hoveredBreadcrumb))
+        if (this._tryPointPlacementAwayFromPlayer(camera, this.hoveredBreadcrumb))
             return;
 
         if (this.hoveredBreadcrumb) {
@@ -809,10 +812,10 @@ export default class BreadcrumbManager {
     }
 
     // Second half of a double click/tap: turn the breadcrumb the first half
-    // placed around to point at the player instead of away. `target` is what
-    // this click/tap actually hit - aiming somewhere else places a second
-    // breadcrumb as usual rather than spinning the first one.
-    _tryPointPlacementAtPlayer(camera, target, now = Date.now()) {
+    // placed around to face the way the player is heading instead of back at
+    // them. `target` is what this click/tap actually hit - aiming somewhere
+    // else places a second breadcrumb as usual rather than spinning the first.
+    _tryPointPlacementAwayFromPlayer(camera, target, now = Date.now()) {
         const placement = this._lastPlacement;
         this._lastPlacement = null;
 
@@ -823,10 +826,9 @@ export default class BreadcrumbManager {
         if (!this.breadcrumbs.includes(placement.breadcrumb))
             return false;
 
-        // lookAt points +Z at the target - the same axis addBreadcrumb aims
-        // along the view direction, so this is placement's facing reversed
-        camera.getWorldPosition(this._tmpPos);
-        placement.breadcrumb.lookAt(this._tmpPos);
+        // the exact inverse of what addBreadcrumb did, off the same helper,
+        // so the two gestures can never drift into being non-opposites
+        this._aimAwayFromPlayer(placement.breadcrumb, camera);
         this.reaimCount++;
         return true;
     }
@@ -1052,9 +1054,18 @@ export default class BreadcrumbManager {
         return target;
     }
 
-    // +Z is the facing axis, so this aims the breadcrumb away from the player
-    _aimAlongView(breadcrumb, camera) {
+    // +Z is the facing axis. A marker faces whoever placed it, so coming back
+    // up a corridor shows its face - the same way the markers seeded into dead
+    // ends are turned (see initializeMaze). Copying the camera's quaternion
+    // points +Z back along the view, since a camera looks down its own -Z.
+    _aimAtPlayer(breadcrumb, camera) {
         camera.getWorldQuaternion(breadcrumb.quaternion);
+    }
+
+    // The exact opposite: facing the way the player was heading, which marks a
+    // direction rather than the spot the marker stands on.
+    _aimAwayFromPlayer(breadcrumb, camera) {
+        this._aimAtPlayer(breadcrumb, camera);
         breadcrumb.rotateY(Math.PI);
     }
 
@@ -1067,7 +1078,7 @@ export default class BreadcrumbManager {
         this.placementPosition(breadcrumb.position, camera, mazeData, sceneX, sceneY);
 
         this.scene.add(breadcrumb);
-        this._aimAlongView(breadcrumb, camera);
+        this._aimAtPlayer(breadcrumb, camera);
         this.breadcrumbs.push(breadcrumb);
 
         this.updateBreadCrumbDisplay();

@@ -232,32 +232,32 @@ describe('double click / tap placement facing', () => {
         expect(manager.pickupCount).toBe(1);
     });
 
-    it('places facing away from the player on a single click', () => {
+    it('places facing the player on a single click', () => {
         const { manager, camera } = makeManager();
 
         manager.handleBreadcrumbClick(camera, emptyMazeData());
 
         const [placed] = manager.breadcrumbs;
-        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(1, 6);
     });
 
     it('turns that breadcrumb around on a second click that hits it', () => {
         const { manager, camera } = makeManager();
         const placed = place(manager, camera);
 
-        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1100)).toBe(true);
+        expect(manager._tryPointPlacementAwayFromPlayer(camera, placed, 1100)).toBe(true);
 
         expect(manager.breadcrumbs).toContain(placed);
         expect(manager.breadcrumbStack).not.toContain(placed);
-        expect(facingTowardCamera(placed, camera)).toBeCloseTo(1, 6);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
     });
 
     it('leaves it alone when the second click hits nothing, so a second can be placed', () => {
         const { manager, camera } = makeManager();
         const placed = place(manager, camera);
 
-        expect(manager._tryPointPlacementAtPlayer(camera, null, 1100)).toBe(false);
-        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+        expect(manager._tryPointPlacementAwayFromPlayer(camera, null, 1100)).toBe(false);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(1, 6);
     });
 
     it('leaves it alone when the second click hits a different breadcrumb', () => {
@@ -265,24 +265,24 @@ describe('double click / tap placement facing', () => {
         const placed = place(manager, camera);
         const other = manager.breadcrumbStack[0];
 
-        expect(manager._tryPointPlacementAtPlayer(camera, other, 1100)).toBe(false);
-        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+        expect(manager._tryPointPlacementAwayFromPlayer(camera, other, 1100)).toBe(false);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(1, 6);
     });
 
     it('does nothing when the second click comes too late', () => {
         const { manager, camera } = makeManager();
         const placed = place(manager, camera);
 
-        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1000 + DOUBLE_ACTIVATE_MS + 1)).toBe(false);
-        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+        expect(manager._tryPointPlacementAwayFromPlayer(camera, placed, 1000 + DOUBLE_ACTIVATE_MS + 1)).toBe(false);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(1, 6);
     });
 
     it('is consumed by a single attempt, so a third click behaves normally', () => {
         const { manager, camera } = makeManager();
         const placed = place(manager, camera);
 
-        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1100)).toBe(true);
-        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1150)).toBe(false);
+        expect(manager._tryPointPlacementAwayFromPlayer(camera, placed, 1100)).toBe(true);
+        expect(manager._tryPointPlacementAwayFromPlayer(camera, placed, 1150)).toBe(false);
     });
 
     it('does not arm the gesture when the stack was empty', () => {
@@ -298,6 +298,6 @@ describe('double click / tap placement facing', () => {
         const placed = place(manager, camera);
         manager.removeBreadcrumb(placed);
 
-        expect(manager._tryPointPlacementAtPlayer(camera, placed, 1100)).toBe(false);
+        expect(manager._tryPointPlacementAwayFromPlayer(camera, placed, 1100)).toBe(false);
     });
 });

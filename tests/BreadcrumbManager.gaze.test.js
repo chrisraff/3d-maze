@@ -233,12 +233,12 @@ describe('gaze placement', () => {
         expect(manager.interactTarget.position.distanceTo(before)).toBeGreaterThan(0.1);
     });
 
-    it('aims away from the player, like a tap placement', () => {
+    it('aims at the player, like a tap placement', () => {
         const { manager, camera } = makeManager();
 
         manager.beginGazePlace(camera, emptyMazeData());
 
-        expect(facingTowardCamera(manager.interactTarget, camera)).toBeCloseTo(-1, 6);
+        expect(facingTowardCamera(manager.interactTarget, camera)).toBeCloseTo(1, 6);
     });
 
     it('commits where it stands', () => {
