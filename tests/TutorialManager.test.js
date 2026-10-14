@@ -186,7 +186,7 @@ describe('chained types', () => {
         finish(manager, intro);
 
         // the player finishes the maze still holding nothing
-        manager.resetTutorial(true);
+        manager.endOnGoalReached();
 
         expect(manager.showTutorials.hint).not.toBe(false);
         expect(manager.nextTutorialType()).toBe('hint');
@@ -221,7 +221,113 @@ describe('completion reporting', () => {
         manager.startNextTutorial();
 
         // what maze completion does while the player never met a breadcrumb
-        manager.resetTutorial(true);
+        manager.endOnGoalReached();
+
+        expect(completed).toEqual([]);
+        expect(manager.showTutorials.breadcrumbs).not.toBe(false);
+        expect(manager.nextTutorialType()).toBe('breadcrumbs');
+    });
+});
+
+describe('abandoning an unfinished tutorial', () => {
+    it('does not report a lesson the player started but never finished', () => {
+        const { manager, completed } = build();
+        manager.startNextTutorial();
+        expect(manager.inTutorial).toBe(true);
+        expect(visible(elements, 'intro', 0)).toBe(true);
+
+        manager.abandonTutorial();
+
+        expect(completed).toEqual([]);
+        expect(manager.showTutorials.intro).not.toBe(false);
+    });
+
+    it('offers that same lesson again afterwards', () => {
+        const { manager } = build();
+        manager.startNextTutorial();
+        manager.abandonTutorial();
+
+        expect(manager.nextTutorialType()).toBe('intro');
+        expect(manager.startNextTutorial()).toBe(true);
+        expect(manager.inTutorial).toBe(true);
+        expect(visible(elements, 'intro', 0)).toBe(true);
+    });
+
+    it('abandons a lesson stopped part way through its steps', () => {
+        const { manager, intro, completed } = build();
+        manager.startNextTutorial();
+
+        // clear step 0 only, so step 1 is showing and the lesson is unfinished
+        intro.done = true;
+        manager.update();
+        intro.done = false;
+        expect(manager.tutorialData.step).toBe(1);
+
+        manager.abandonTutorial();
+
+        expect(completed).toEqual([]);
+        expect(manager.showTutorials.intro).not.toBe(false);
+    });
+
+    it('clears the in-flight and armed state', () => {
+        const { manager, breadcrumbs } = build({ showTutorials: { intro: false } });
+        manager.startNextTutorial();
+        breadcrumbs.ready = true;
+        manager.update();
+        expect(manager.inTutorial).toBe(true);
+
+        manager.abandonTutorial();
+
+        expect(manager.inTutorial).toBe(false);
+        expect(manager.armedType).toBe(null);
+    });
+
+    it('still reports a lesson that genuinely ran out of steps', () => {
+        const { manager, intro, completed } = build();
+        manager.startNextTutorial();
+        finish(manager, intro);
+
+        expect(completed).toEqual(['intro']);
+        expect(manager.showTutorials.intro).toBe(false);
+    });
+});
+
+describe('reaching the goal', () => {
+    // a lesson reaching the goal proves, like the controls
+    const proven = (state) => ({ ...type(state), satisfiedByGoal: true });
+
+    it('counts a lesson the goal demonstrates as learned', () => {
+        const completed = [];
+        const manager = new TutorialManager({
+            tutorialOrder: ['intro', 'breadcrumbs'],
+            onTutorialComplete: (t) => completed.push(t),
+            callbacks: {
+                intro: proven({ done: false }),
+                breadcrumbs: type({ done: false, ready: false }, true)
+            }
+        });
+        manager.startNextTutorial();
+        expect(manager.inTutorial).toBe(true);
+
+        // the maze ends with intro step 0 still on screen
+        manager.endOnGoalReached();
+
+        expect(completed).toEqual(['intro']);
+        expect(manager.showTutorials.intro).toBe(false);
+        expect(manager.nextTutorialType()).toBe('breadcrumbs');
+    });
+
+    it('does not count a lesson the goal says nothing about', () => {
+        const { manager, breadcrumbs, completed } = build({
+            showTutorials: { intro: false }
+        });
+        manager.startNextTutorial();
+        breadcrumbs.ready = true;
+        manager.update();
+        expect(manager.inTutorial).toBe(true);
+
+        // they reached the exit without ever picking a marker up
+        manager.endOnGoalReached();
 
         expect(completed).toEqual([]);
         expect(manager.showTutorials.breadcrumbs).not.toBe(false);

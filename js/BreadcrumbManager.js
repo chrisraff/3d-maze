@@ -650,9 +650,7 @@ export default class BreadcrumbManager {
                 hitBox.layers.set(3);
                 breadcrumb.add(hitBox);
 
-                // `direction` led *into* the dead end, so reversing it faces
-                // the marker back up the corridor - visible on approach. This
-                // is the convention _aimAtPlayer follows for placed markers.
+                // `direction` led into the dead end, so reverse it to face up the corridor
                 breadcrumb.lookAt(directionVector);
                 breadcrumb.rotateY(Math.PI);
 
@@ -826,8 +824,7 @@ export default class BreadcrumbManager {
         if (!this.breadcrumbs.includes(placement.breadcrumb))
             return false;
 
-        // the exact inverse of what addBreadcrumb did, off the same helper,
-        // so the two gestures can never drift into being non-opposites
+        // same helper as placement, so the two gestures stay exact opposites
         this._aimAwayFromPlayer(placement.breadcrumb, camera);
         this.reaimCount++;
         return true;
@@ -1054,16 +1051,12 @@ export default class BreadcrumbManager {
         return target;
     }
 
-    // +Z is the facing axis. A marker faces whoever placed it, so coming back
-    // up a corridor shows its face - the same way the markers seeded into dead
-    // ends are turned (see initializeMaze). Copying the camera's quaternion
-    // points +Z back along the view, since a camera looks down its own -Z.
+    // +Z is the facing axis, and a camera looks down its own -Z, so this faces the player
     _aimAtPlayer(breadcrumb, camera) {
         camera.getWorldQuaternion(breadcrumb.quaternion);
     }
 
-    // The exact opposite: facing the way the player was heading, which marks a
-    // direction rather than the spot the marker stands on.
+    // facing where the player was heading, rather than back at them
     _aimAwayFromPlayer(breadcrumb, camera) {
         this._aimAtPlayer(breadcrumb, camera);
         breadcrumb.rotateY(Math.PI);

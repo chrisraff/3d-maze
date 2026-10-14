@@ -26,7 +26,7 @@
  *   });
  *
  * startNextTutorial() offers the first type in `tutorialOrder` the player
- * hasn't finished - one per maze, or right after the previous one for a type
+ * hasn't finished - one per call, or right after the previous one for a type
  * marked `chained`. A type supplying `available()` is armed rather than
  * started: its first step waits for that gate to open.
  */
@@ -48,8 +48,10 @@ export default class TutorialManager {
      *   @param {Function} [callbacks[type].available] - Entry gate for an armed type
      *     available(): boolean - Step 0 waits until this returns true
      *   @param {boolean} [callbacks[type].chained] - May follow the previous type
-     *     in the same maze instead of waiting for the next one
-     * @param {string[]} [options.tutorialOrder=[]] - Types to offer in order, one per maze
+     *     right away instead of waiting for the next call
+     *   @param {boolean} [callbacks[type].satisfiedByGoal] - Reaching the goal proves
+     *     this one was learned, even if its steps never finished
+     * @param {string[]} [options.tutorialOrder=[]] - Types to offer in order, one per call
      * @param {Function} [options.onTutorialComplete] - Called with the type when one finishes
      */
     constructor(options = {}) {
@@ -57,7 +59,7 @@ export default class TutorialManager {
         this.tutorialType = options.tutorialType || 'intro';
         this.useAnimations = options.useAnimations ?? true;
 
-        // types to offer, in order, one per maze - see startNextTutorial
+        // types to offer, in order, one per call - see startNextTutorial
         this.tutorialOrder = options.tutorialOrder ?? [];
         // type waiting on its available() gate, if any
         this.armedType = null;
@@ -125,8 +127,8 @@ export default class TutorialManager {
         return this.inTutorial;
     }
 
-    // a `chained` type is offered now rather than next maze; it still has to
-    // pass its own available() gate
+    // a `chained` type is offered right away rather than on the next call;
+    // it still has to pass its own available() gate
     _offerChainedTutorial() {
         if (!this.tutorialOrder.includes(this.tutorialType)) return;
 
@@ -230,6 +232,26 @@ export default class TutorialManager {
                 }, 500);
             }
         }
+    }
+
+    /**
+     * End the current tutorial because the player reached the goal. A type
+     * declaring `satisfiedByGoal` counts as learned - getting there is proof
+     * enough - while the rest are offered again.
+     */
+    endOnGoalReached() {
+        const satisfied =
+            this.callbacks[this.tutorialType]?.satisfiedByGoal === true;
+        this.resetTutorial(satisfied);
+    }
+
+    /**
+     * End a tutorial without marking it seen, so it is offered again. For
+     * interruptions that prove nothing: a step timing out, or the player
+     * wandering off mid-lesson.
+     */
+    abandonTutorial() {
+        this.resetTutorial(false);
     }
 
     /**

@@ -130,6 +130,8 @@ function loadSavedVariables()
 
     const tutorialCallbacks = {
         intro: {
+            // they reached the exit, so they know the controls
+            satisfiedByGoal: true,
             conditions: {
                 0: (tutorialData) => {
                     return cameraNode && cameraNode.getWorldDirection(tmpVector).z > -0.975;
@@ -681,9 +683,9 @@ function onMazeCompleted({ mazeData: completedMazeData, elapsedMillis })
 
     runHistory.showCompletedTrail();
 
-    // complete tutorial
+    // reaching the exit only completes the lessons it actually demonstrates
     if (tutorialManager) {
-        tutorialManager.resetTutorial(true);
+        tutorialManager.endOnGoalReached();
         storageSetItem('lastMazeCompletionDate', Date.now());
         hasCompletedMaze = true;
     }
