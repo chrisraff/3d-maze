@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { HITBOX_RADIUS, HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS } from '../js/BreadcrumbManager.js';
+import BreadcrumbManager, { HITBOX_RADIUS, HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS, SIGHT_CELLS, ABANDON_CELLS } from '../js/BreadcrumbManager.js';
 import * as maze from '../js/maze.js';
 
 // Gates from findNearby / updateGlowHighlight
 const PLAYER_GATE = maze.majorWidth * 0.75; // 1.5
 const GRIP_GATE = maze.majorWidth / 12;     // ~0.1667
+const CELL_PITCH = maze.getOffset(3) - maze.getOffset(1);
+const SIGHT_GATE = SIGHT_CELLS * CELL_PITCH; // ~6.19, four times the player gate
 
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
 const rotY = (angle) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
@@ -49,13 +51,13 @@ function placeAt(scene, breadcrumb, x, y, z) {
 
 // Reachability is answered by the collision map, so a manager that needs walls
 // gets one: every segment open but the panels named here. Indices follow
-// maze.js - odd is a room, even the panel between two.
+// maze.js - odd is a cell, even the panel between two.
 function giveMaze(manager, ...solidPanels) {
     const size = 9;
     const collision_map = Array.from({ length: size }, () =>
         Array.from({ length: size }, () => new Array(size).fill(false)));
     for (const [i, j, k] of solidPanels) collision_map[i][j][k] = true;
-    manager.mazedata = { ...manager.mazedata, collision_map };
+    manager.mazedata = { ...manager.mazedata, collision_map, bounds: [4, 4, 4] };
 }
 
 // the world position of a segment's centre
@@ -125,7 +127,7 @@ describe('findNearby', () => {
 
     it('returns null when a wall blocks line of sight from the player', () => {
         const { manager, scene } = makeManager(1);
-        giveMaze(manager, [1, 1, 2]); // the panel between rooms z=1 and z=3
+        giveMaze(manager, [1, 1, 2]); // the panel between cells z=1 and z=3
 
         // breadcrumb just past the panel, player just short of it - well inside
         // both gates, so only the wall can rule it out
@@ -161,7 +163,7 @@ describe('findNearby', () => {
     });
 
     it('does not reach through a panel a breadcrumb is only just behind', () => {
-        // Its hitbox overhangs into the room the player is standing in, which
+        // Its hitbox overhangs into the cell the player is standing in, which
         // must not count as reaching it.
         const { manager, scene } = makeManager(1);
         giveMaze(manager, [1, 1, 2]);
@@ -692,5 +694,319 @@ describe('update', () => {
         // the glow pass sets these; the grip pass must not have run it
         expect(manager.nearestReachable).toBeNull();
         expect(manager.nearestInView).toBeNull();
+    });
+});
+
+// nearestInSight reaches past arm's length so the lesson can point out a
+// marker the player would otherwise turn around in front of. Same line of
+// sight and same view oval as nearestInView - only the distance differs.
+describe('nearestInSight', () => {
+    function makeCamera(lookAt = v(0, 0, -1)) {
+        const camera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 100);
+        camera.position.set(0, 0, 0);
+        camera.lookAt(lookAt);
+        camera.updateMatrixWorld(true);
+        return camera;
+    }
+
+    it('finds one too far to reach but close enough to walk to', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        placeAt(scene, b, 0, 0, -SIGHT_GATE * 0.5); // well past PLAYER_GATE
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+
+        expect(manager.nearestInSight).toBe(b);
+        expect(manager.nearestInView).toBeNull();
+        expect(manager.nearestReachable).toBeNull();
+    });
+
+    it('ignores one beyond the sight gate', () => {
+        const { manager, scene } = makeManager(1);
+        placeAt(scene, manager.breadcrumbs[0], 0, 0, -SIGHT_GATE - 1);
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+        expect(manager.nearestInSight).toBeNull();
+    });
+
+    it('ignores one behind the player', () => {
+        const { manager, scene } = makeManager(1);
+        placeAt(scene, manager.breadcrumbs[0], 0, 0, SIGHT_GATE * 0.5);
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+        expect(manager.nearestInSight).toBeNull();
+    });
+
+    it('ignores one the maze has no straight line to', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        // cells sit at odd indices; [1][1][4] is the panel two cells along z
+        giveMaze(manager, [1, 1, 4]);
+        placeAt(scene, b, maze.getOffset(1), maze.getOffset(1), maze.getOffset(5));
+
+        const camera = makeCamera(segmentAt(1, 1, 5));
+        camera.position.copy(segmentAt(1, 1, 1));
+        camera.updateMatrixWorld(true);
+
+        manager.updateGlowHighlight(segmentAt(1, 1, 1), camera);
+        expect(manager.nearestInSight).toBeNull();
+    });
+
+    it('sees it once that wall is gone', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        giveMaze(manager); // every panel open
+        placeAt(scene, b, maze.getOffset(1), maze.getOffset(1), maze.getOffset(5));
+
+        const camera = makeCamera(segmentAt(1, 1, 5));
+        camera.position.copy(segmentAt(1, 1, 1));
+        camera.updateMatrixWorld(true);
+
+        manager.updateGlowHighlight(segmentAt(1, 1, 1), camera);
+        expect(manager.nearestInSight).toBe(b);
+    });
+
+    it('still reports the near ones through nearestInView', () => {
+        const { manager, scene } = makeManager(2);
+        const [near, far] = manager.breadcrumbs;
+        placeAt(scene, near, 0, 0, -PLAYER_GATE * 0.5);
+        placeAt(scene, far, 0, 0, -SIGHT_GATE * 0.5);
+
+        manager.updateGlowHighlight(v(0, 0, 0), makeCamera());
+
+        expect(manager.nearestInView).toBe(near);
+        expect(manager.nearestInSight).toBe(near); // the closer of the two
+    });
+});
+
+// The flash is the one time anything but proximity drives the glow, and only
+// while the lesson is asking the player to walk over.
+describe('setTutorialFlash', () => {
+    // the blink is read off the clock, so the test picks the moment: on for
+    // the first 0.3s of every 0.8s, hard off the rest
+    const FLASH_PERIOD_MS = 800;
+    const ON = 100;
+    const OFF = 500;
+
+    function frameAt(manager, millis, playerPos = v(0, 0, 0)) {
+        vi.spyOn(performance, 'now').mockReturnValue(millis);
+        manager.updateGlowHighlight(playerPos);
+        return manager;
+    }
+
+    const lit = (b) => b.userData.glowMaterial.uniforms.uAlpha.value;
+
+    // one well outside the proximity glow, so anything lit is the flash
+    function darkBreadcrumb(count = 1) {
+        const { manager, scene } = makeManager(count);
+        manager.breadcrumbs.forEach((b, i) => placeAt(scene, b, i, 0, -SIGHT_GATE * 0.5));
+        frameAt(manager, 0); // seed the fade's clock
+        return { manager, scene };
+    }
+
+    it('lights a breadcrumb that proximity alone would leave dark', () => {
+        const { manager } = darkBreadcrumb();
+        const b = manager.breadcrumbs[0];
+
+        manager.setTutorialFlash(b);
+        frameAt(manager, ON);
+
+        expect(lit(b)).toBeGreaterThan(0.5);
+    });
+
+    it('drops away once the blink ends', () => {
+        const { manager } = darkBreadcrumb();
+        const b = manager.breadcrumbs[0];
+        manager.setTutorialFlash(b);
+
+        frameAt(manager, ON);
+        expect(lit(b)).toBeGreaterThan(0.5);
+
+        frameAt(manager, 300); // 200ms on, the blink is over
+        expect(lit(b)).toBeLessThan(0.1);
+    });
+
+    it('comes back on the next period', () => {
+        const { manager } = darkBreadcrumb();
+        const b = manager.breadcrumbs[0];
+        manager.setTutorialFlash(b);
+
+        frameAt(manager, OFF);
+        expect(lit(b)).toBeCloseTo(0, 4);
+
+        frameAt(manager, FLASH_PERIOD_MS + ON);
+        expect(lit(b)).toBeGreaterThan(0.5);
+    });
+
+    it('leaves that breadcrumb dark without it', () => {
+        const { manager } = darkBreadcrumb();
+        const b = manager.breadcrumbs[0];
+
+        frameAt(manager, ON);
+
+        expect(lit(b)).toBeCloseTo(0, 4);
+    });
+
+    it('stops blinking once it is cleared', () => {
+        const { manager } = darkBreadcrumb();
+        const b = manager.breadcrumbs[0];
+
+        manager.setTutorialFlash(b);
+        frameAt(manager, ON);
+        expect(lit(b)).toBeGreaterThan(0.5);
+
+        manager.setTutorialFlash(null);
+        frameAt(manager, FLASH_PERIOD_MS + ON); // when it would blink again
+
+        expect(lit(b)).toBeLessThan(0.1);
+    });
+
+    it("reaches the material through the glow's own fade", () => {
+        const { manager } = darkBreadcrumb();
+        const b = manager.breadcrumbs[0];
+
+        manager.setTutorialFlash(b);
+        frameAt(manager, ON);
+
+        expect(lit(b)).toBe(b.userData.glowAlpha);
+    });
+
+    it('touches only the one it was given', () => {
+        const { manager } = darkBreadcrumb(2);
+        const [flashed, other] = manager.breadcrumbs;
+
+        manager.setTutorialFlash(flashed);
+        frameAt(manager, ON);
+
+        expect(lit(flashed)).toBeGreaterThan(0.5);
+        expect(lit(other)).toBeCloseTo(0, 4);
+    });
+
+    it('refuses a breadcrumb that is not placed in the maze', () => {
+        const { manager } = darkBreadcrumb();
+        const b = manager.breadcrumbs[0];
+        manager.removeBreadcrumb(b); // into the player's hand
+
+        manager.setTutorialFlash(b);
+        frameAt(manager, ON);
+
+        expect(lit(b)).toBeCloseTo(0, 4);
+    });
+});
+
+describe('playerLeft', () => {
+    // A maze solid but for `cells` and the doorways between consecutive ones:
+    // one corridor, so the number of cells walked is unambiguous.
+    function giveCorridor(manager, cells) {
+        const size = 15; // segments, so cells run 1..13
+        const map = Array.from({ length: size }, () =>
+            Array.from({ length: size }, () => new Array(size).fill(true)));
+        cells.forEach((cell, i) => {
+            map[cell[0]][cell[1]][cell[2]] = false;
+            if (i === 0) return;
+            const door = cell.map((c, a) => (cells[i - 1][a] + c) / 2);
+            map[door[0]][door[1]][door[2]] = false;
+        });
+        manager.mazedata = { ...manager.mazedata, collision_map: map,
+                             segments: [size, size, size], bounds: [7, 7, 7] };
+    }
+
+    // a straight run of 7 cells along z, the marker in the first
+    function straightRun(manager, scene) {
+        const cells = [1, 3, 5, 7, 9, 11, 13].map(z => [1, 1, z]);
+        giveCorridor(manager, cells);
+        placeAt(scene, manager.breadcrumbs[0], ...segmentAt(1, 1, 1).toArray());
+        return cells;
+    }
+
+    it('is false while the player is inside the abandon band', () => {
+        const { manager, scene } = makeManager(1);
+        straightRun(manager, scene);
+
+        // ABANDON_CELLS cells along the corridor - the last one that counts
+        manager.updateGlowHighlight(segmentAt(1, 1, 1 + 2 * ABANDON_CELLS));
+        expect(manager.playerLeft(manager.breadcrumbs[0])).toBe(false);
+    });
+
+    it('is true one cell further on', () => {
+        const { manager, scene } = makeManager(1);
+        straightRun(manager, scene);
+
+        manager.updateGlowHighlight(segmentAt(1, 1, 1 + 2 * (ABANDON_CELLS + 1)));
+        expect(manager.playerLeft(manager.breadcrumbs[0])).toBe(true);
+    });
+
+    it('counts a player standing in a doorway as still there', () => {
+        const { manager, scene } = makeManager(1);
+        straightRun(manager, scene);
+
+        // the panel between two cells, which getMazePos reports as itself
+        manager.updateGlowHighlight(segmentAt(1, 1, 4));
+        expect(manager.playerLeft(manager.breadcrumbs[0])).toBe(false);
+    });
+
+    it('is true for a cell that is close but a long way round', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        // the corridor loops away and comes back alongside the marker: [3,1,1]
+        // is one cell from it in space and seven of walking
+        giveCorridor(manager, [[1, 1, 1], [1, 1, 3], [1, 1, 5], [3, 1, 5],
+                               [5, 1, 5], [5, 1, 3], [5, 1, 1], [3, 1, 1]]);
+        placeAt(scene, b, ...segmentAt(1, 1, 1).toArray());
+
+        manager.updateGlowHighlight(segmentAt(3, 1, 1));
+
+        expect(manager.playerLeft(b)).toBe(true);
+    });
+
+    it('is false for the same cell once a door opens into it', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        giveCorridor(manager, [[1, 1, 1], [3, 1, 1]]);
+        placeAt(scene, b, ...segmentAt(1, 1, 1).toArray());
+
+        manager.updateGlowHighlight(segmentAt(3, 1, 1));
+
+        expect(manager.playerLeft(b)).toBe(false);
+    });
+
+    it('ignores line of sight - losing sight of it is not leaving', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        // around a corner: two cells of walking, no straight line
+        giveCorridor(manager, [[1, 1, 1], [1, 1, 3], [3, 1, 3]]);
+        placeAt(scene, b, ...segmentAt(1, 1, 1).toArray());
+
+        const camera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 100);
+        camera.position.copy(segmentAt(3, 1, 3));
+        camera.lookAt(segmentAt(1, 1, 1));
+        camera.updateMatrixWorld(true);
+
+        manager.updateGlowHighlight(segmentAt(3, 1, 3), camera);
+
+        expect(manager.nearestInSight).toBeNull(); // the corner hides it
+        expect(manager.playerLeft(b)).toBe(false); // but they are still next door
+    });
+
+    it('is false for one the player is carrying', () => {
+        const { manager, scene } = makeManager(1);
+        const b = manager.breadcrumbs[0];
+        straightRun(manager, scene);
+        manager.updateGlowHighlight(segmentAt(1, 1, 13));
+        expect(manager.playerLeft(b)).toBe(true);
+
+        manager.removeBreadcrumb(b); // into the player's hand
+        expect(manager.playerLeft(b)).toBe(false);
+    });
+
+    it('is false for nothing at all, and without a maze to walk', () => {
+        const { manager, scene } = makeManager(1);
+        placeAt(scene, manager.breadcrumbs[0], 0, 0, -SIGHT_GATE * 4);
+
+        manager.updateGlowHighlight(v(0, 0, 0));
+
+        expect(manager.playerLeft(manager.breadcrumbs[0])).toBe(false);
+        expect(manager.playerLeft(null)).toBe(false);
+        expect(manager.playerLeft(undefined)).toBe(false);
     });
 });

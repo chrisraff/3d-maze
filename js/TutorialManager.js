@@ -47,6 +47,9 @@ export default class TutorialManager {
      *     teardown(tutorialData): void
      *   @param {Function} [callbacks[type].available] - Entry gate for an armed type
      *     available(): boolean - Step 0 waits until this returns true
+     *   @param {Object} [callbacks[type].abandoned] - Give-up tests, indexed by step
+     *     abandoned[stepNumber](tutorialData): boolean - True drops the tutorial
+     *     unseen; a gated type goes back to waiting for available()
      *   @param {boolean} [callbacks[type].chained] - May follow the previous type
      *     right away instead of waiting for the next call
      *   @param {boolean} [callbacks[type].satisfiedByGoal] - Reaching the goal proves
@@ -214,6 +217,13 @@ export default class TutorialManager {
         const typeCallbacks = this.callbacks[this.tutorialType];
         if (!typeCallbacks) return;
 
+        // the step has lost whatever it was asking about - drop it rather than
+        // leave it on screen
+        if (typeCallbacks.abandoned?.[this.tutorialData.step]?.(this.tutorialData)) {
+            this.abandonTutorial();
+            return;
+        }
+
         // Check if current step's condition is met
         const condition = typeCallbacks.conditions?.[this.tutorialData.step];
         if (condition && condition(this.tutorialData)) {
@@ -252,6 +262,10 @@ export default class TutorialManager {
      */
     abandonTutorial() {
         this.resetTutorial(false);
+        // a gated type waits for available() again, so it can have another go
+        if (this.callbacks[this.tutorialType]?.available
+            && this.tutorialOrder.includes(this.tutorialType))
+            this.armedType = this.tutorialType;
     }
 
     /**

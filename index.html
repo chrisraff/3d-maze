@@ -762,17 +762,20 @@
             <span>The compass points towards the <span class="exit-token">exit<img class="goal-icon" alt="" /></span></span>
         </div>
 
-        <!-- Breadcrumbs. Armed at maze start; step 0 waits for a marker to be
-             glowing nearby - see TUTORIAL_ORDER in game.js -->
+        <!-- Breadcrumbs. Armed at maze start; step 0 waits for a marker to come
+             into view a few cells off - see TUTORIAL_ORDER in game.js -->
         <div tutorial-step="0" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
+            <span>Approach the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span></span>
+        </div>
+        <div tutorial-step="1" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
             <span class='formfactor-desktop'>Click the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> to pick it up</span>
             <span style="display: none;" class='formfactor-non-desktop'>Tap the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> to pick it up</span>
         </div>
-        <div tutorial-step="1" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
+        <div tutorial-step="2" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
             <span class='formfactor-desktop'>Click anywhere to put it back down</span>
             <span style="display: none;" class='formfactor-non-desktop'>Tap near the middle to put it down</span>
         </div>
-        <div tutorial-step="2" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
+        <div tutorial-step="3" tutorial-type="breadcrumbs" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
             <span>Place <span class="marker-token">markers<img class="breadcrumb-icon" alt="" /></span> to remember where you've been</span>
         </div>
 

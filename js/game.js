@@ -180,31 +180,47 @@ function loadSavedVariables()
             }
         },
         breadcrumbs: {
-            // in range, reachable and centred enough in view that the player
-            // has plainly seen it - not just backed into or panned past
-            available: () => breadcrumbs.nearestInView !== null,
+            // a few cells is enough: markers sit at dead ends, and a player who
+            // only ever sees one from the mouth of a corridor turns around
+            available: () => breadcrumbs.nearestInSight !== null
+                && !breadcrumbs.playerLeft(breadcrumbs.nearestInSight),
             conditions: {
-                0: (tutorialData) => breadcrumbs.pickupCount > tutorialData.pickupStart,
-                1: (tutorialData) => breadcrumbs.placeCount > tutorialData.placeStart,
-                2: (tutorialData) => Date.now() - tutorialData.lastLoggedTime > 6000
+                0: () => breadcrumbs.nearestInView !== null,
+                1: (tutorialData) => breadcrumbs.pickupCount > tutorialData.pickupStart,
+                2: (tutorialData) => breadcrumbs.placeCount > tutorialData.placeStart,
+                3: (tutorialData) => Date.now() - tutorialData.lastLoggedTime > 6000
             },
             setup: {
                 0: (tutorialData) => {
-                    tutorialData.pickupStart = breadcrumbs.pickupCount;
                     // kept for later steps: carrying one takes it out of
                     // `breadcrumbs`, and placing it empties the stack
-                    tutorialData.marker = breadcrumbs.nearestInView;
+                    tutorialData.marker = breadcrumbs.nearestInSight;
                     mountBreadcrumbIcons(tutorialData.marker);
+                    // the only place the glow is ever driven by anything but
+                    // proximity, and only while this step is asking for a walk
+                    breadcrumbs.setTutorialFlash(tutorialData.marker);
                 },
                 1: (tutorialData) => {
-                    tutorialData.placeStart = breadcrumbs.placeCount;
+                    breadcrumbs.setTutorialFlash(null);
+                    tutorialData.pickupStart = breadcrumbs.pickupCount;
+                    // they may have walked up to a different one
+                    tutorialData.marker = breadcrumbs.nearestInView ?? tutorialData.marker;
+                    mountBreadcrumbIcons(tutorialData.marker);
                 },
                 2: (tutorialData) => {
+                    tutorialData.placeStart = breadcrumbs.placeCount;
+                },
+                3: (tutorialData) => {
                     tutorialData.lastLoggedTime = Date.now();
                     mountBreadcrumbIcons(tutorialData.marker
                         ?? breadcrumbs.nearestReachable ?? breadcrumbs.nextInStack);
                 }
-            }
+            },
+            abandoned: {
+                // only the walk is abandonable - later steps are at the marker
+                0: (tutorialData) => breadcrumbs.playerLeft(tutorialData.marker)
+            },
+            teardown: () => breadcrumbs.setTutorialFlash(null)
         },
         'breadcrumb-reaim': {
             // Follows the lesson above, but only while holding a marker.

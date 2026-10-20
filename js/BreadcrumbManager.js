@@ -7,6 +7,7 @@ import { SceneryClaims } from './sceneryClaims.js';
 import createGlowMaterial from './glowMaterial.js';
 import { breadcrumbIconSource } from './BreadcrumbIcon.js';
 import { pickBreadcrumbHue, BREADCRUMB_SATURATION, BREADCRUMB_LIGHTNESS } from './breadcrumbHue.js';
+import { reachableWithin, segmentKey } from './mazeQuery.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -27,7 +28,7 @@ const glowSphereGeometry = new THREE.SphereGeometry(0.6, 16, 12);
 
 // a dead end's `direction` is the axis-aligned move that led into it (see
 // maze.js's analytics pass), which is exactly the same {axis, dir} the
-// blocking wall sits at - the room's own collision_map is solid there by
+// blocking wall sits at - the cell's own collision_map is solid there by
 // construction, since that's the move that couldn't continue
 function surfaceFromDirection(direction) {
     const axes = ['x', 'y', 'z'];
@@ -64,6 +65,23 @@ export const DOUBLE_ACTIVATE_MS = 300;
 // reads as an oval on a wide screen
 export const IN_VIEW_NDC_RADIUS = 0.6;
 
+// one cell to the next, in world units
+const CELL_PITCH = maze.getOffset(3) - maze.getOffset(1);
+
+// how far `nearestInSight` reaches, in cells. Markers sit at dead ends, so a
+// player who only sees one from the mouth of a corridor turns around rather
+// than walking up to it - the lesson has to be able to start from there.
+export const SIGHT_CELLS = 2;
+const SIGHT_GATE = SIGHT_CELLS * CELL_PITCH;
+
+// how far the player has to go before the tutorial is abandoned
+export const ABANDON_CELLS = SIGHT_CELLS + 1;
+
+// Parameters for flashing during the breadcrumb tutorial.
+const FLASH_PERIOD_SECONDS = 0.8;
+const FLASH_ON_SECONDS = 0.3;
+const FLASH_LEVEL = 0.9;
+
 // how far ahead of the camera a click/tap drops a breadcrumb, in cells
 export const PLACEMENT_DISTANCE_SCALE = 0.33;
 
@@ -90,6 +108,14 @@ export default class BreadcrumbManager {
         // tutorial signals; counts are monotonic across a maze
         this.nearestReachable = null;
         this.nearestInView = null;
+        // in view and in line down the maze, but likely still out of reach
+        this.nearestInSight = null;
+        this._flashTarget = null;
+        // where the player stood on the last glow update - `playerLeft` measures
+        // from here, so it costs nothing per frame
+        this._glowPlayerPos = new THREE.Vector3();
+        // { breadcrumb, near } - the cells around one marker, walked once
+        this._abandonReach = null;
         this.pickupCount = 0;
         this.placeCount = 0;
         this.reaimCount = 0;
@@ -502,12 +528,15 @@ export default class BreadcrumbManager {
     }
 
     updateGlowHighlight(playerWorldPos, camera = null) {
+        this._glowPlayerPos.copy(playerWorldPos);
         const now = performance.now();
         const deltaTime = this._glowLastTime === null ? 0 : (now - this._glowLastTime) / 1000;
         this._glowLastTime = now;
 
         const FADE_SPEED = 16.0;
         const playerGate = maze.majorWidth * 0.75;
+
+        const flashOn = (now / 1000) % FLASH_PERIOD_SECONDS < FLASH_ON_SECONDS;
 
         // closest in-range breadcrumb with line of sight, off the same test
         // that drives the glow - no second pass needed
@@ -516,25 +545,41 @@ export default class BreadcrumbManager {
         // and the closest of those the player is actually looking at
         let inView = null;
         let inViewDist = Infinity;
+        // the same, out to SIGHT_GATE: too far to touch, close enough to point at
+        let inSight = null;
+        let inSightDist = Infinity;
 
         for (const breadcrumb of this.breadcrumbs) {
             if (breadcrumb === this._interactTarget) continue;
 
             const playerDist = playerWorldPos.distanceTo(breadcrumb.position);
-            const inRange = playerDist <= playerGate
+            // the wide band first, so line of sight is walked at most once
+            const hasSight = playerDist <= SIGHT_GATE
                 && this._canReachBreadcrumb(playerWorldPos, breadcrumb);
+            const inRange = hasSight && playerDist <= playerGate;
+            const visible = hasSight && camera !== null
+                && this._isInView(breadcrumb, camera);
 
             if (inRange && playerDist < nearestDist) {
                 nearestDist = playerDist;
                 nearest = breadcrumb;
             }
-            if (inRange && playerDist < inViewDist
-                && camera !== null && this._isInView(breadcrumb, camera)) {
+            if (inRange && visible && playerDist < inViewDist) {
                 inViewDist = playerDist;
                 inView = breadcrumb;
             }
+            if (visible && playerDist < inSightDist) {
+                inSightDist = playerDist;
+                inSight = breadcrumb;
+            }
 
-            const target = inRange ? 0.5 * (playerDist / playerGate)**2 : 0.0;
+            let target = inRange ? 0.5 * (playerDist / playerGate)**2 : 0.0;
+
+            // if the tutorial is pointing at this breadcrumb, pulse it up to FLASH_LEVEL
+            if (breadcrumb === this._flashTarget && flashOn) {
+                target = Math.max(target, FLASH_LEVEL);
+            }
+
             const alpha = THREE.MathUtils.lerp(
                 breadcrumb.userData.glowAlpha,
                 target,
@@ -545,7 +590,39 @@ export default class BreadcrumbManager {
         }
 
         this.nearestReachable = nearest;
-        if (camera !== null) this.nearestInView = inView;
+        if (camera !== null) {
+            this.nearestInView = inView;
+            this.nearestInSight = inSight;
+        }
+    }
+
+    // Pulse one breadcrumb's glow while the lesson points it out. Null clears
+    // it, and anything no longer in the maze is dropped rather than kept.
+    setTutorialFlash(breadcrumb) {
+        this._flashTarget = this.breadcrumbs.includes(breadcrumb) ? breadcrumb : null;
+    }
+
+    /**
+     * Has the player gone somewhere else? Counted in cells walked, so turning
+     * away or losing sight of it is still standing there, while the corridor
+     * on the far side of its wall is not. One they are carrying counts as not
+     * left, and so does anything from another maze.
+     * @param {THREE.Object3D} breadcrumb
+     * @returns {boolean}
+     */
+    playerLeft(breadcrumb) {
+        if (!this.breadcrumbs.includes(breadcrumb)) return false;
+        if (this.mazedata?.collision_map == null) return false;
+
+        // the fan-out only changes when the marker does, so walk it once
+        if (this._abandonReach?.breadcrumb !== breadcrumb) {
+            const cell = maze.getMazePos(breadcrumb.position);
+            const near = reachableWithin(this.mazedata, cell, ABANDON_CELLS);
+            this._abandonReach = { breadcrumb, near };
+        }
+
+        const here = maze.getMazePos(this._glowPlayerPos);
+        return !this._abandonReach.near.has(segmentKey(this.mazedata, here));
     }
 
     // --- Maze lifecycle ---
@@ -575,6 +652,9 @@ export default class BreadcrumbManager {
         this.hoveredBreadcrumb = null;
         this.nearestReachable = null;
         this.nearestInView = null;
+        this.nearestInSight = null;
+        this._flashTarget = null;
+        this._abandonReach = null;
         this.pickupCount = 0;
         this.placeCount = 0;
         this.reaimCount = 0;

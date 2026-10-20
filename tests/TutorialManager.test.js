@@ -269,7 +269,7 @@ describe('abandoning an unfinished tutorial', () => {
         expect(manager.showTutorials.intro).not.toBe(false);
     });
 
-    it('clears the in-flight and armed state', () => {
+    it('puts a gated lesson back on its gate', () => {
         const { manager, breadcrumbs } = build({ showTutorials: { intro: false } });
         manager.startNextTutorial();
         breadcrumbs.ready = true;
@@ -279,7 +279,22 @@ describe('abandoning an unfinished tutorial', () => {
         manager.abandonTutorial();
 
         expect(manager.inTutorial).toBe(false);
+        expect(manager.armedType).toBe('breadcrumbs');
+
+        // and the gate opening again starts it over from step 0
+        manager.update();
+        expect(manager.inTutorial).toBe(true);
+        expect(manager.tutorialData.step).toBe(0);
+    });
+
+    it('leaves an ungated lesson waiting for the next offer', () => {
+        const { manager } = build();
+        manager.startNextTutorial();
+        manager.abandonTutorial();
+
         expect(manager.armedType).toBe(null);
+        manager.update();
+        expect(manager.inTutorial).toBe(false);
     });
 
     it('still reports a lesson that genuinely ran out of steps', () => {
@@ -332,5 +347,78 @@ describe('reaching the goal', () => {
         expect(completed).toEqual([]);
         expect(manager.showTutorials.breadcrumbs).not.toBe(false);
         expect(manager.nextTutorialType()).toBe('breadcrumbs');
+    });
+});
+
+// A step can give up on its own: the thing it was asking about went away.
+describe('abandoned() step tests', () => {
+    // breadcrumbs, gated, where step 0 can decide it has lost the plot
+    const givingUp = (state) => ({
+        ...type(state, true),
+        abandoned: { 0: () => state.gone }
+    });
+
+    function buildGiving() {
+        const state = { done: false, ready: true, gone: false };
+        const completed = [];
+        const manager = new TutorialManager({
+            tutorialOrder: ['breadcrumbs'],
+            tutorialType: 'breadcrumbs',
+            onTutorialComplete: (t) => completed.push(t),
+            callbacks: { breadcrumbs: givingUp(state) }
+        });
+        manager.startNextTutorial();
+        manager.update();
+        return { manager, state, completed };
+    }
+
+    it('drops the lesson unseen when the step gives up', () => {
+        const { manager, state, completed } = buildGiving();
+        expect(manager.inTutorial).toBe(true);
+
+        state.gone = true;
+        manager.update();
+
+        expect(manager.inTutorial).toBe(false);
+        expect(completed).toEqual([]);
+        expect(manager.showTutorials.breadcrumbs).not.toBe(false);
+    });
+
+    it('starts over once the gate opens again', () => {
+        const { manager, state } = buildGiving();
+        state.gone = true;
+        manager.update();
+
+        state.gone = false;
+        manager.update();
+
+        expect(manager.inTutorial).toBe(true);
+        expect(manager.tutorialData.step).toBe(0);
+        expect(visible(elements, 'breadcrumbs', 0)).toBe(true);
+    });
+
+    it('does not consult a step that has no test of its own', () => {
+        const { manager, state } = buildGiving();
+
+        // step 1, where walking off is expected rather than a failure
+        state.done = true;
+        manager.update();
+        state.done = false;
+        expect(manager.tutorialData.step).toBe(1);
+
+        state.gone = true;
+        manager.update();
+
+        expect(manager.inTutorial).toBe(true);
+    });
+
+    it('advances rather than gives up when both would fire', () => {
+        const { manager, state } = buildGiving();
+
+        state.done = true;
+        state.gone = false;
+        manager.update();
+
+        expect(manager.tutorialData.step).toBe(1);
     });
 });

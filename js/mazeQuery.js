@@ -1,9 +1,13 @@
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
  *
- * Small shared pure-logic helpers for scenery that needs to ask
- * basic questions about a maze - "is this room in bounds", "is this panel
- * solid". No THREE/DOM dependency, mirrors maze.js's own philosophy.
+ * Small shared pure-logic helpers for code that needs to ask basic questions
+ * about a maze - "is this cell in bounds", "is this panel solid". No THREE/DOM
+ * dependency, mirrors maze.js's own philosophy.
+ *
+ * Cell and room both mean one of the maze's own open segments here, the way
+ * maze.js uses them. The decor modules also call the squares of a panel's 9x9
+ * surface grid cells - those are the ones carrying an {i, j}.
  */
 
 const AXES = ['x', 'y', 'z'];
@@ -30,6 +34,46 @@ function panelSolid(mazeData, room, axis, dir) {
     return mazeData.collision_map[p.x][p.y][p.z] === true;
 }
 
+// a segment's index in the maze, flattened - cheap enough to use as a Set key
+function segmentKey(mazeData, segment) {
+    return segment.x + mazeData.segments[0] * (segment.y + mazeData.segments[1] * segment.z);
+}
+
+/**
+ * Every segment within `steps` cells of travel from `cell`, as a Set of
+ * segmentKey values - the doorways between them included, so a player standing
+ * in one still counts. Walking distance, not distance: the next corridor over
+ * is one cell away and a long way round.
+ *
+ * Bounded on purpose. This answers "is that still nearby", not "where is it".
+ */
+function reachableWithin(mazeData, cell, steps) {
+    const seen = new Set([segmentKey(mazeData, cell)]);
+    let frontier = [cell];
+
+    for (let step = 0; step < steps && frontier.length > 0; step++) {
+        const next = [];
+        for (const from of frontier) {
+            for (const axis of AXES) {
+                for (const dir of [-1, 1]) {
+                    if (panelSolid(mazeData, from, axis, dir)) continue;
+
+                    const neighbour = { ...from, [axis]: from[axis] + 2 * dir };
+                    if (!roomInBounds(mazeData, neighbour)) continue;
+
+                    const key = segmentKey(mazeData, neighbour);
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    seen.add(segmentKey(mazeData, { ...from, [axis]: from[axis] + dir }));
+                    next.push(neighbour);
+                }
+            }
+        }
+        frontier = next;
+    }
+    return seen;
+}
+
 function randomInt(rng, n) {
     return Math.floor(rng() * n);
 }
@@ -43,4 +87,4 @@ function randomRoom(mazeData, rng) {
     };
 }
 
-export { AXES, WALL_SURFACES, CEILING_SURFACE, FLOOR_SURFACE, ALL_SURFACES, roomInBounds, panelSolid, randomInt, randomRoom };
+export { AXES, WALL_SURFACES, CEILING_SURFACE, FLOOR_SURFACE, ALL_SURFACES, roomInBounds, panelSolid, segmentKey, reachableWithin, randomInt, randomRoom };
