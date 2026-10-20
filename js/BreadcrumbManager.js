@@ -105,7 +105,8 @@ export default class BreadcrumbManager {
 
         this.breadcrumbStack = [];
 
-        // tutorial signals; counts are monotonic across a maze
+        // tutorial signals; the counts run for the session, read both as
+        // totals and as deltas, so a new maze does not zero them
         this.nearestReachable = null;
         this.nearestInView = null;
         // in view and in line down the maze, but likely still out of reach
@@ -655,9 +656,6 @@ export default class BreadcrumbManager {
         this.nearestInSight = null;
         this._flashTarget = null;
         this._abandonReach = null;
-        this.pickupCount = 0;
-        this.placeCount = 0;
-        this.reaimCount = 0;
 
         // pick X% of dead ends at random
         const DEAD_END_FILL = 0.5;

@@ -1010,3 +1010,33 @@ describe('playerLeft', () => {
         expect(manager.playerLeft(undefined)).toBe(false);
     });
 });
+
+// The lessons read these as session totals - the re-aim lesson waits for a few
+// markers to be placed before it offers itself - as well as as deltas.
+describe('tutorial counters', () => {
+    const nextMaze = (manager) => manager.initializeMaze({
+        segments: [50, 50, 50],
+        analytics: { dead_ends_data: [{ position: [1, 1, 1], direction: [0, 0, 1] }] }
+    });
+
+    it('survive the next maze', () => {
+        const { manager } = makeManager(1);
+        manager.pickupCount = 4;
+        manager.placeCount = 3;
+        manager.reaimCount = 1;
+
+        nextMaze(manager);
+
+        expect(manager.pickupCount).toBe(4);
+        expect(manager.placeCount).toBe(3);
+        expect(manager.reaimCount).toBe(1);
+    });
+
+    it('start at zero on a fresh manager', () => {
+        const { manager } = makeManager(1);
+
+        expect(manager.pickupCount).toBe(0);
+        expect(manager.placeCount).toBe(0);
+        expect(manager.reaimCount).toBe(0);
+    });
+});

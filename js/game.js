@@ -99,6 +99,9 @@ var tutorialManager;
 // non-VR tutorials, one per maze in this order. VR is set imperatively on
 // sessionstart, so it is deliberately not listed.
 const TUTORIAL_ORDER = ['intro', 'breadcrumbs', 'breadcrumb-reaim'];
+// markers placed before the re-aim lesson offers itself - it refines a habit,
+// so it waits until the player has one to refine
+const REAIM_AFTER_PLACEMENTS = 5;
 var playerLight;
 var introCinematic;
 // armed before controls.lock() - on touch devices lock() dispatches its event
@@ -223,10 +226,11 @@ function loadSavedVariables()
             teardown: () => breadcrumbs.setTutorialFlash(null)
         },
         'breadcrumb-reaim': {
-            // Follows the lesson above, but only while holding a marker.
-            // Finishing without one leaves it armed for next maze.
+            // Follows the lesson above, once a few markers are down and the
+            // next is in hand. Unoffered, it stays armed for the next maze.
             chained: true,
-            available: () => breadcrumbs.breadcrumbStack.length > 0,
+            available: () => breadcrumbs.placeCount >= REAIM_AFTER_PLACEMENTS
+                && breadcrumbs.breadcrumbStack.length > 0,
             conditions: {
                 // no action required: advance once they try it, or on a timer
                 0: (tutorialData) => breadcrumbs.reaimCount > tutorialData.reaimStart
