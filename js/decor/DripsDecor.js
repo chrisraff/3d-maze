@@ -49,8 +49,8 @@
  * actually a tail to fade.
  */
 import * as THREE from 'three';
-import { majorWidth, getOffset } from './maze.js';
-import { WALL_SURFACES, CEILING_SURFACE, panelSolid, roomInBounds, randomRoom, randomInt } from './mazeQuery.js';
+import { majorWidth, getOffset } from '../maze/maze.js';
+import { WALL_SURFACES, CEILING_SURFACE, panelSolid, roomInBounds, randomRoom, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 const DOT_SIZE = 0.035; // streak width, and its length at zero speed (cubic at rest)

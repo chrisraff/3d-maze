@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import TouchJoystick from '../js/TouchJoystick.js';
+import TouchJoystick from '../js/input/TouchJoystick.js';
 
 // Stand-in for the two divs: enough of an element for the widget's writes.
 function stubElement() {

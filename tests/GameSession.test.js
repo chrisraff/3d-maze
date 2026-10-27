@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import GameSession, { formatMazeTime } from '../js/GameSession.js';
-import { EventBus } from '../js/EventBus.js';
+import GameSession, { formatMazeTime } from '../js/state/GameSession.js';
+import { EventBus } from '../js/state/EventBus.js';
 
 const FAKE_MAZE = { bounds: [3, 3, 3], size_string: '3' };
 

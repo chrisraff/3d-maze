@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import TutorialManager from '../js/TutorialManager.js';
+import TutorialManager from '../js/ui/TutorialManager.js';
 
 // Minimal stand-in for the step markup: an element per type/step pair, looked
 // up by the same attribute selector TutorialManager builds.

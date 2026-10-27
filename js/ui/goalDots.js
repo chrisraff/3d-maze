@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import sampleUniformSphere from './sampleUniformSphere.js';
+import sampleUniformSphere from '../render/sampleUniformSphere.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/

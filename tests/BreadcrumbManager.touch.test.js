@@ -4,8 +4,8 @@ import BreadcrumbManager, {
     TAP_ZONE_DIAMETER_SCALE,
     TAP_ZONE_EDGE_MARGIN_PX,
     DOUBLE_ACTIVATE_MS
-} from '../js/BreadcrumbManager.js';
-import { YIELD } from '../js/TouchArbiter.js';
+} from '../js/breadcrumbs/BreadcrumbManager.js';
+import { YIELD } from '../js/input/TouchArbiter.js';
 
 // A wide phone in landscape, and the narrowest shape the game lets you play in
 // (isValidMobileAspectRatio in game.js requires width * 3.95 / 3 > height).

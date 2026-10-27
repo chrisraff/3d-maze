@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import DustEffect from '../js/dust.js';
+import DustEffect from '../js/render/dust.js';
 
 const RADIUS = 10;
 const COUNT = 2000;

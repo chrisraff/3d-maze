@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import * as maze from './maze.js';
-import checkCollisionOnAxis from './checkCollisionOnAxis.js';
-import { YIELD } from './TouchArbiter.js';
+import * as maze from '../maze/maze.js';
+import checkCollisionOnAxis from '../maze/checkCollisionOnAxis.js';
+import { YIELD } from '../input/TouchArbiter.js';
 import BreadcrumbBaseDecor from './BreadcrumbBaseDecor.js';
-import { SceneryClaims } from './sceneryClaims.js';
-import createGlowMaterial from './glowMaterial.js';
+import { SceneryClaims } from '../decor/sceneryClaims.js';
+import createGlowMaterial from '../render/glowMaterial.js';
 import { breadcrumbIconSource } from './BreadcrumbIcon.js';
 import { pickBreadcrumbHue, BREADCRUMB_SATURATION, BREADCRUMB_LIGHTNESS } from './breadcrumbHue.js';
-import { reachableWithin, segmentKey } from './mazeQuery.js';
+import { reachableWithin, segmentKey } from '../maze/mazeQuery.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/

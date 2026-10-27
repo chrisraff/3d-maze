@@ -5,8 +5,8 @@
  */
 import { vi, expect } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS, SIGHT_CELLS } from '../js/BreadcrumbManager.js';
-import * as maze from '../js/maze.js';
+import BreadcrumbManager, { HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS, SIGHT_CELLS } from '../js/breadcrumbs/BreadcrumbManager.js';
+import * as maze from '../js/maze/maze.js';
 
 // Gates from findNearby / updateGlowHighlight
 export const PLAYER_GATE = maze.majorWidth * 0.75; // 1.5

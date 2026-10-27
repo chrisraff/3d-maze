@@ -3,7 +3,7 @@
  * as a rainbow-colored line.
  */
 import * as THREE from 'three';
-import { MeshLine, MeshLineMaterial } from './THREE.MeshLine.js';
+import { MeshLine, MeshLineMaterial } from '../render/THREE.MeshLine.js';
 
 export default class RunHistory {
     // pointSpacing controls both the record threshold and the interpolation

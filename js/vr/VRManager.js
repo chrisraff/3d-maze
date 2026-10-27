@@ -4,8 +4,8 @@
 import * as THREE from 'three';
 import { HTMLMesh } from 'three/examples/jsm/interactive/HTMLMesh.js';
 import VRButtonManager from './VRButtonManager.js';
-import bus from './EventBus.js';
-import { mountBreadcrumbIcons } from './BreadcrumbIcon.js';
+import bus from '../state/EventBus.js';
+import { mountBreadcrumbIcons } from '../breadcrumbs/BreadcrumbIcon.js';
 
 // Below this the gaze is so near vertical that levelling leaves no horizontal
 // direction to normalise, so 'level' falls back to the gaze itself.

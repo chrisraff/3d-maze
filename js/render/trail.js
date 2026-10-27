@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as maze from './maze.js';
+import * as maze from '../maze/maze.js';
 import sampleUniformSphere from './sampleUniformSphere.js';
 
 /**

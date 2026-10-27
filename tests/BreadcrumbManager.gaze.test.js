@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { GHOST_OPACITY, HITBOX_RADIUS } from '../js/BreadcrumbManager.js';
-import * as maze from '../js/maze.js';
+import BreadcrumbManager, { GHOST_OPACITY, HITBOX_RADIUS } from '../js/breadcrumbs/BreadcrumbManager.js';
+import * as maze from '../js/maze/maze.js';
 
 // A wall-free maze, so the collision passes leave placement alone.
 const emptyMazeData = () => ({

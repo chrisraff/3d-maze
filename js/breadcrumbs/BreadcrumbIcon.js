@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import iconRenderer from './IconRenderer.js';
+import iconRenderer from '../ui/IconRenderer.js';
 
 /**
  * A still icon of the breadcrumb the player would place next, shown beside

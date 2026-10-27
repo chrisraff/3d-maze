@@ -22,8 +22,8 @@
  * mismatched, closer to a highlighted UI element than a wall fixture.
  */
 import * as THREE from 'three';
-import { majorWidth, minorWidth, getOffset } from './maze.js';
-import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
+import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 // deep enough to clear minorWidth (the wall's own thickness) on both sides

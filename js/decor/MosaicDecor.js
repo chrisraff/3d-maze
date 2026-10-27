@@ -16,8 +16,8 @@
  * wall, but a little different, same as Skyline.
  */
 import * as THREE from 'three';
-import { majorWidth, minorWidth, getOffset } from './maze.js';
-import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
+import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout

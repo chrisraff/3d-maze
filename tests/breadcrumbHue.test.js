@@ -6,7 +6,7 @@ import {
     MIN_PANEL_DISTANCE,
     BREADCRUMB_SATURATION,
     BREADCRUMB_LIGHTNESS,
-} from '../js/breadcrumbHue.js';
+} from '../js/breadcrumbs/breadcrumbHue.js';
 
 function mazeStub(size) {
     return { segments: [size * 2 + 1, size * 2 + 1, size * 2 + 1] };

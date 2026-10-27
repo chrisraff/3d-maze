@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos, isPathClear } from '../js/maze.js';
+import { majorWidth, minorWidth, getWidth, getOffset, generateMaze, getMazePos, isPathClear } from '../js/maze/maze.js';
 
 // Maze indexing convention: even indices are thin wall segments (minorWidth),
 // odd indices are open cells (majorWidth). A maze of size s has segments

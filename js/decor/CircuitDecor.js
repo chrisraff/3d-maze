@@ -23,8 +23,8 @@
  * every other edge - its two cells don't lie on the same flat plane.
  */
 import * as THREE from 'three';
-import { majorWidth, minorWidth, getOffset } from './maze.js';
-import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
+import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims, panelKey } from './sceneryClaims.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout

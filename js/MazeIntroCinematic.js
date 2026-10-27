@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as maze from './maze.js';
-import createGlowMaterial from './glowMaterial.js';
+import * as maze from './maze/maze.js';
+import createGlowMaterial from './render/glowMaterial.js';
 
 /**
  * The establishing shot played once, ahead of the intro tutorial's control

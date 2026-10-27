@@ -35,8 +35,8 @@
  * matching the center's old look.
  */
 import * as THREE from 'three';
-import { majorWidth, minorWidth, getOffset } from './maze.js';
-import { ROLE } from './sceneryClaims.js';
+import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
+import { ROLE } from '../decor/sceneryClaims.js';
 
 const MAX_RADIUS = majorWidth * 0.4;
 const HEIGHT_MIN = 0.0075;

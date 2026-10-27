@@ -7,8 +7,8 @@
  * occlude or clip through. Animated: call update() each frame.
  */
 import * as THREE from 'three';
-import { getOffset } from './maze.js';
-import { randomRoom, randomInt } from './mazeQuery.js';
+import { getOffset } from '../maze/maze.js';
+import { randomRoom, randomInt } from '../maze/mazeQuery.js';
 
 const CLUSTER_SPREAD = 0.6; // how far motes wander from their room's center
 const DRIFT_SPEED = 0.15;

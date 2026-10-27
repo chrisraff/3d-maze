@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { uiLookDirection } from '../js/VRManager.js';
+import { uiLookDirection } from '../js/vr/VRManager.js';
 
 // Camera looking down -Z by default; pitch it with a rotation about X.
 const looking = (pitchRadians = 0, yawRadians = 0) =>

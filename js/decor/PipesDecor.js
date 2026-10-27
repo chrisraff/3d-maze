@@ -46,8 +46,8 @@
  * wall for the camera's near plane to cut into it (see MAX_PROTRUSION).
  */
 import * as THREE from 'three';
-import { majorWidth, minorWidth, getOffset } from './maze.js';
-import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from './mazeQuery.js';
+import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
+import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 
 // see SkylineDecor's file comment for the derivation of this same constant

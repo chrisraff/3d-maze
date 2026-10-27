@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import TouchArbiter, { YIELD } from '../js/TouchArbiter.js';
+import TouchArbiter, { YIELD } from '../js/input/TouchArbiter.js';
 
 // Stand-in for the canvas: records listeners so tests can fire touches at it.
 function stubElement() {

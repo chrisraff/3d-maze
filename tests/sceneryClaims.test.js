@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { SceneryClaims, ROLE, conflicts, panelKey, orderForBuild } from '../js/sceneryClaims.js';
-import { generateMaze } from '../js/maze.js';
-import BreadcrumbManager from '../js/BreadcrumbManager.js';
-import BreadcrumbBaseDecor from '../js/BreadcrumbBaseDecor.js';
-import SkylineDecor from '../js/SkylineDecor.js';
-import MosaicDecor from '../js/MosaicDecor.js';
-import LatticeStudsDecor from '../js/LatticeStudsDecor.js';
-import CircuitDecor from '../js/CircuitDecor.js';
-import PipesDecor from '../js/PipesDecor.js';
-import SplotchesDecor from '../js/SplotchesDecor.js';
-import DripsDecor from '../js/DripsDecor.js';
+import { SceneryClaims, ROLE, conflicts, panelKey, orderForBuild } from '../js/decor/sceneryClaims.js';
+import { generateMaze } from '../js/maze/maze.js';
+import BreadcrumbManager from '../js/breadcrumbs/BreadcrumbManager.js';
+import BreadcrumbBaseDecor from '../js/breadcrumbs/BreadcrumbBaseDecor.js';
+import SkylineDecor from '../js/decor/SkylineDecor.js';
+import MosaicDecor from '../js/decor/MosaicDecor.js';
+import LatticeStudsDecor from '../js/decor/LatticeStudsDecor.js';
+import CircuitDecor from '../js/decor/CircuitDecor.js';
+import PipesDecor from '../js/decor/PipesDecor.js';
+import SplotchesDecor from '../js/decor/SplotchesDecor.js';
+import DripsDecor from '../js/decor/DripsDecor.js';
 
 // MotesDecor is absent on purpose: it drifts in open air, declares a null
 // PROFILE, and its constructor needs a DOM for its texture.

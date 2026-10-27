@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import PlayerCollider from '../js/PlayerCollider.js';
-import { generateMaze, getOffset, minorWidth } from '../js/maze.js';
+import PlayerCollider from '../js/maze/PlayerCollider.js';
+import { generateMaze, getOffset, minorWidth } from '../js/maze/maze.js';
 
 const COLLISION_DISTANCE = 0.25;
 

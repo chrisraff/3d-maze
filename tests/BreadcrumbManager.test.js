@@ -3,8 +3,8 @@
 // Grip-driven behaviour lives in BreadcrumbManager.vr.test.js.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { ABANDON_CELLS } from '../js/BreadcrumbManager.js';
-import * as maze from '../js/maze.js';
+import BreadcrumbManager, { ABANDON_CELLS } from '../js/breadcrumbs/BreadcrumbManager.js';
+import * as maze from '../js/maze/maze.js';
 import {
     PLAYER_GATE, SIGHT_GATE, v, stubBreadcrumbDom, makeManager, placeAt,
     giveMaze, segmentAt, makeGrip, makeCamera
