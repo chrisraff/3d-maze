@@ -46,7 +46,7 @@ function bandsOverlap(a, b) {
 
 // true if these two decors may not share one side of one panel
 function conflicts(a, b) {
-    // a null profile claims nothing at all (motes drift in open air)
+    // a null profile claims nothing at all, so it can't contend for a panel
     if (!a || !b) return false;
 
     if (!bandsOverlap(a.band, b.band)) {

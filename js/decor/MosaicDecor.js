@@ -17,8 +17,10 @@
  */
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
-import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
+import { randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
+import { pickSite } from './branchSites.js';
+import { budgetFor } from './sceneryBudget.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -78,6 +80,12 @@ export default class MosaicDecor {
     // the panel collides with them while anything standing clear passes over
     static PROFILE = { band: [0, TILE_DEPTH], role: ROLE.FEATURE };
 
+    // pieces per room relative to the other kinds (sceneryBudget.js)
+    static WEIGHT = 1;
+
+    // may be steered onto the panel at the end of a branch (branchSites.js)
+    static BRANCH_SITES = true;
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -90,11 +98,11 @@ export default class MosaicDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
-        const count = Math.max(1, mazeData.bounds[0] - 1);
+        const count = budgetFor(mazeData, MosaicDecor, rng);
 
         const dummy = new THREE.Object3D();
         dummy.rotation.set(0, 0, 0);
@@ -104,7 +112,7 @@ export default class MosaicDecor {
 
         let panelCount = 0;
         for (let i = 0; i < count; i++) {
-            const site = this._pickSite(mazeData, rng, claims);
+            const site = pickSite(mazeData, rng, claims, MosaicDecor, sites);
             if (!site) continue;
             this._buildPanel(mazeData, site, dummy, tmpColor, matrices, colors, rng);
             panelCount++;
@@ -120,16 +128,6 @@ export default class MosaicDecor {
         this.group.add(this.mesh);
 
         return panelCount;
-    }
-
-    _pickSite(mazeData, rng, claims, maxAttempts = 30) {
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const room = randomRoom(mazeData, rng);
-            const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
-            if (claims.claim(room, surface, MosaicDecor.PROFILE)) return { room, surface };
-        }
-        return null;
     }
 
     _buildPanel(mazeData, { room, surface }, dummy, tmpColor, matrices, colors, rng) {

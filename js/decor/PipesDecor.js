@@ -47,8 +47,10 @@
  */
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
-import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
+import { AXES, roomInBounds, panelSolid, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
+import { candidateSites } from './branchSites.js';
+import { budgetFor } from './sceneryBudget.js';
 
 // see SkylineDecor's file comment for the derivation of this same constant
 const CAMERA_COLLISION_DISTANCE = 0.25;
@@ -144,6 +146,13 @@ export default class PipesDecor {
         band: [STANDOFF - PIPE_RADIUS, STANDOFF + PIPE_RADIUS], role: ROLE.ACCENT,
     };
 
+    // pieces per room relative to the other kinds (sceneryBudget.js)
+    static WEIGHT = 1;
+
+    // the run may be started at the end of a branch (branchSites.js) and
+    // travels on from there across whatever panels it reaches
+    static BRANCH_SITES = true;
+
     constructor() {
         this.group = new THREE.Group();
 
@@ -162,12 +171,12 @@ export default class PipesDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
         this.group.remove(...this.group.children);
         this.pipeMesh = null;
         this.capMesh = null;
 
-        const count = Math.max(1, mazeData.bounds[0] - 1);
+        const count = budgetFor(mazeData, PipesDecor, rng);
 
         const dummy = new THREE.Object3D();
         const pipeMatrices = [], pipeColors = [];
@@ -183,8 +192,9 @@ export default class PipesDecor {
 
         let runCount = 0;
         for (let i = 0; i < count * 3 && runCount < count; i++) {
-            const path = this._buildRun(mazeData, rng, claims);
-            if (!path) continue;
+            const run = this._buildRun(mazeData, rng, claims, sites);
+            if (!run) continue;
+            const { path, commit } = run;
             const runPipes = [], runPipeColors = [], runCaps = [], runCapColors = [];
             this._renderRun(mazeData, path, rng, dummy, runPipes, runPipeColors, runCaps, runCapColors);
 
@@ -200,6 +210,7 @@ export default class PipesDecor {
             // claimed once the run survives both overlap checks, so a
             // discarded run leaves no panel blocked behind it
             for (const seg of path) claims.claim(seg.room, seg.surface, PipesDecor.PROFILE);
+            commit();
 
             pipeMatrices.push(...runPipes);
             pipeColors.push(...runPipeColors);
@@ -226,18 +237,19 @@ export default class PipesDecor {
         return runCount;
     }
 
-    // builds one nominal (unshifted) centerline as a list of straight
-    // segments: { start, end, room, surface, lateralAxis } - lateralAxis is
-    // the in-plane axis NOT being traveled along for that segment, i.e. the
-    // axis a parallel pipe bundle offsets along (see the file comment)
-    _buildRun(mazeData, rng, claims, maxAttempts = 30) {
-        let room, surface;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            room = randomRoom(mazeData, rng);
-            surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (panelSolid(mazeData, room, surface.axis, surface.dir)
-                && claims.canClaim(room, surface, PipesDecor.PROFILE)) break;
-            room = null;
+    // Builds one nominal (unshifted) centerline as { path, commit }: path is
+    // a list of straight segments { start, end, room, surface, lateralAxis },
+    // where lateralAxis is the in-plane axis NOT being traveled along, i.e.
+    // the axis a parallel pipe bundle offsets along (see the file comment).
+    // `commit` is the caller's to call once it keeps the run - a discarded run
+    // still consumes its branch site, which is why build() asks for up to
+    // three times as many runs as it needs.
+    _buildRun(mazeData, rng, claims, sites = null, maxAttempts = 30) {
+        let room = null, surface, commit;
+        for (const candidate of candidateSites(mazeData, rng, PipesDecor, sites, maxAttempts)) {
+            if (!claims.canClaim(candidate.room, candidate.surface, PipesDecor.PROFILE)) continue;
+            ({ room, surface, commit } = candidate);
+            break;
         }
         if (!room) return null;
 
@@ -326,7 +338,7 @@ export default class PipesDecor {
         buried[surface.axis] = getOffset(room[surface.axis]) + surface.dir * (majorWidth / 2 + minorWidth / 2);
         path.push({ start: point.clone(), end: buried, room, surface, lateralAxis });
 
-        return path;
+        return { path, commit };
     }
 
     _renderRun(mazeData, path, rng, dummy, pipeMatrices, pipeColors, capMatrices, capColors) {

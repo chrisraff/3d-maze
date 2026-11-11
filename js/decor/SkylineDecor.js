@@ -23,8 +23,10 @@
  */
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
-import { ALL_SURFACES, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
+import { randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
+import { pickSite } from './branchSites.js';
+import { budgetFor } from './sceneryBudget.js';
 
 const GRID_SIZE = 27;
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -151,6 +153,17 @@ export default class SkylineDecor {
     // exclusive because a silhouette shared with anything else isn't one
     static PROFILE = { band: [0, MAX_HEIGHT], role: ROLE.FEATURE, exclusive: true };
 
+    // Pieces per room relative to the other kinds (sceneryBudget.js).
+    //
+    // The kind to cap first if the top of the size slider gets expensive: a
+    // 27x27 grid is ~648 instanced boxes per piece, nine times Mosaic on the
+    // same panel, which is 64k of a size-12 maze's 84k. Still one draw call,
+    // so `static BUDGET = { max: n }` stays unset.
+    static WEIGHT = 1;
+
+    // may be steered onto the panel at the end of a branch (branchSites.js)
+    static BRANCH_SITES = true;
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -163,11 +176,11 @@ export default class SkylineDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
-        const count = Math.max(1, mazeData.bounds[0] - 2);
+        const count = budgetFor(mazeData, SkylineDecor, rng);
 
         const dummy = new THREE.Object3D();
         dummy.rotation.set(0, 0, 0);
@@ -177,7 +190,7 @@ export default class SkylineDecor {
 
         let wallCount = 0;
         for (let i = 0; i < count; i++) {
-            const site = this._pickSite(mazeData, rng, claims);
+            const site = pickSite(mazeData, rng, claims, SkylineDecor, sites);
             if (!site) continue;
             this._buildWall(mazeData, site, dummy, tmpColor, matrices, colors, rng);
             wallCount++;
@@ -193,16 +206,6 @@ export default class SkylineDecor {
         this.group.add(this.mesh);
 
         return wallCount;
-    }
-
-    _pickSite(mazeData, rng, claims, maxAttempts = 30) {
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const room = randomRoom(mazeData, rng);
-            const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
-            if (claims.claim(room, surface, SkylineDecor.PROFILE)) return { room, surface };
-        }
-        return null;
     }
 
     _buildWall(mazeData, { room, surface }, dummy, tmpColor, matrices, colors, rng) {

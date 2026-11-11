@@ -12,8 +12,6 @@ import PipesDecor from '../js/decor/PipesDecor.js';
 import SplotchesDecor from '../js/decor/SplotchesDecor.js';
 import DripsDecor from '../js/decor/DripsDecor.js';
 
-// MotesDecor is absent on purpose: it drifts in open air, declares a null
-// PROFILE, and its constructor needs a DOM for its texture.
 const PROFILES = {
     Base: BreadcrumbBaseDecor.PROFILE,
     Sky: SkylineDecor.PROFILE,

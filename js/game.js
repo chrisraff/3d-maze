@@ -27,6 +27,7 @@ import MazeWorld from './maze/MazeWorld.js';
 import MazeIntroCinematic from './MazeIntroCinematic.js';
 import SCENERY_DECORS from './decor/scenery.js';
 import { SceneryClaims, orderForBuild } from './decor/sceneryClaims.js';
+import BranchSites from './decor/branchSites.js';
 import Settings from './state/Settings.js';
 
 initAnalytics();
@@ -677,7 +678,11 @@ function buildMaze(size=mazeSize) {
     // them; the rest follows by role (see sceneryClaims.js)
     const claims = new SceneryClaims();
     breadcrumbs.initializeMaze(mazeData, claims);
-    for (const decor of orderForBuild(scenery)) decor.build(mazeData, undefined, claims);
+    // every kind's branch sites are dealt out before any of them builds, so
+    // that build order can't double as site-quality order (branchSites.js)
+    const branchSites = new BranchSites(mazeData, scenery);
+    for (const decor of orderForBuild(scenery))
+        decor.build(mazeData, undefined, claims, branchSites);
 
     session.newMaze(mazeData);
 };

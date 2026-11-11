@@ -52,6 +52,7 @@ import * as THREE from 'three';
 import { majorWidth, getOffset } from '../maze/maze.js';
 import { WALL_SURFACES, CEILING_SURFACE, panelSolid, roomInBounds, randomRoom, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
+import { budgetFor } from './sceneryBudget.js';
 
 const DOT_SIZE = 0.035; // streak width, and its length at zero speed (cubic at rest)
 const STREAK_LENGTH_PER_SPEED = 0.06; // extra length per world-unit/sec of fall speed
@@ -264,6 +265,9 @@ export default class DripsDecor {
         },
     };
 
+    // pieces per room relative to the other kinds (sceneryBudget.js)
+    static WEIGHT = 1;
+
     // the profile for one source kind, or null where there's nothing to claim
     static profileFor(type) {
         const variant = DripsDecor.PROFILE.variants[type];
@@ -315,7 +319,7 @@ export default class DripsDecor {
     }
 
     build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
-        const sourceCount = Math.max(1, mazeData.bounds[0] - 1);
+        const sourceCount = budgetFor(mazeData, DripsDecor, rng);
 
         const xs = [], zs = [], startYs = [], floorYs = [], terminalSpeeds = [], colorComponents = [];
 

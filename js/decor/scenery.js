@@ -3,10 +3,9 @@
  *
  * Every kind of scenery grown across the maze's walls, ceilings and floors.
  * Each Decor class exposes addTo(scene) and build(mazeData, rng), plus
- * update(dt) if it animates (see MotesDecor, DripsDecor).
+ * update(dt) if it animates (see DripsDecor).
  */
 import DripsDecor from './DripsDecor.js';
-import MotesDecor from './MotesDecor.js';
 import LatticeStudsDecor from './LatticeStudsDecor.js';
 import SplotchesDecor from './SplotchesDecor.js';
 import SkylineDecor from './SkylineDecor.js';
@@ -16,7 +15,6 @@ import PipesDecor from './PipesDecor.js';
 
 const SCENERY_DECORS = [
     DripsDecor,
-    MotesDecor,
     LatticeStudsDecor,
     SplotchesDecor,
     SkylineDecor,

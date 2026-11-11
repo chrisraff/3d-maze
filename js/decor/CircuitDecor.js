@@ -24,8 +24,10 @@
  */
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
-import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
+import { AXES, roomInBounds, panelSolid, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims, panelKey } from './sceneryClaims.js';
+import { candidateSites } from './branchSites.js';
+import { budgetFor } from './sceneryBudget.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -45,7 +47,6 @@ const STRAIGHT_BIAS = 0.7;
 const FORK_CHANCE = 0.1;
 const MAX_WALKERS = 5;
 const MAX_STEPS = 45;
-const CIRCUITS_PER_MAZE_FACTOR = 1; // roughly this many circuits per unit of mazeData.bounds[0]
 
 function inPlaneAxes(surfaceAxis) {
     return AXES.filter(a => a !== surfaceAxis);
@@ -185,6 +186,13 @@ export default class CircuitDecor {
     // so a circuit shares a panel with anything standing clear of them
     static PROFILE = { band: [0, PAD_DEPTH], role: ROLE.ACCENT };
 
+    // pieces per room relative to the other kinds (sceneryBudget.js)
+    static WEIGHT = 1;
+
+    // the seed panel may be steered to the end of a branch (branchSites.js);
+    // the trace then walks outward from there
+    static BRANCH_SITES = true;
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -197,11 +205,11 @@ export default class CircuitDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
-        const count = Math.max(1, Math.round((mazeData.bounds[0] - 1) * CIRCUITS_PER_MAZE_FACTOR));
+        const count = budgetFor(mazeData, CircuitDecor, rng);
         const claimed = new Set();
 
         const dummy = new THREE.Object3D();
@@ -212,7 +220,7 @@ export default class CircuitDecor {
 
         let circuitCount = 0;
         for (let i = 0; i < count; i++) {
-            if (this._growCircuit(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors))
+            if (this._growCircuit(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors, sites))
                 circuitCount++;
         }
 
@@ -228,11 +236,8 @@ export default class CircuitDecor {
         return circuitCount;
     }
 
-    _growCircuit(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors) {
-        for (let attempt = 0; attempt < 10; attempt++) {
-            const room = randomRoom(mazeData, rng);
-            const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
+    _growCircuit(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors, sites = null) {
+        for (const { room, surface, commit } of candidateSites(mazeData, rng, CircuitDecor, sites, 10)) {
             if (!claims.canClaim(room, surface, CircuitDecor.PROFILE)) continue;
 
             const [axisA, axisB] = inPlaneAxes(surface.axis);
@@ -373,6 +378,7 @@ export default class CircuitDecor {
             for (const edge of edges) { touch(edge.from); touch(edge.to); }
             for (const node of nodes) touch(node);
             for (const cell of touched.values()) claims.claim(cell.room, cell.surface, CircuitDecor.PROFILE);
+            commit();
 
             for (const node of nodes) {
                 const pos = cellWorldPos(node);

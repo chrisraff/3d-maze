@@ -27,8 +27,10 @@
  */
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
-import { AXES, ALL_SURFACES, roomInBounds, panelSolid, randomRoom, randomInt } from '../maze/mazeQuery.js';
+import { AXES, roomInBounds, panelSolid, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
+import { candidateSites } from './branchSites.js';
+import { budgetFor } from './sceneryBudget.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -136,6 +138,13 @@ export default class SplotchesDecor {
     // carries, so it's hosted everywhere except by an exclusive claim
     static PROFILE = { band: [0, CUBE_SIZE], role: ROLE.FILL, unobtrusive: true };
 
+    // pieces per room relative to the other kinds (sceneryBudget.js)
+    static WEIGHT = 1;
+
+    // the seed panel may be steered to the end of a branch (branchSites.js);
+    // the splotch then grows outward from there
+    static BRANCH_SITES = true;
+
     constructor() {
         this.group = new THREE.Group();
         this.boxGeometry = new THREE.InstancedBufferGeometry();
@@ -148,11 +157,11 @@ export default class SplotchesDecor {
         scene.add(this.group);
     }
 
-    build(mazeData, rng = Math.random, claims = new SceneryClaims()) {
+    build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
         this.group.remove(...this.group.children);
         this.mesh = null;
 
-        const splotchTarget = Math.max(1, mazeData.bounds[0] - 1);
+        const splotchTarget = budgetFor(mazeData, SplotchesDecor, rng);
         const claimed = new Set();
 
         const dummy = new THREE.Object3D();
@@ -163,7 +172,7 @@ export default class SplotchesDecor {
 
         let splotchCount = 0;
         for (let i = 0; i < splotchTarget; i++) {
-            if (this._growSplotch(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors))
+            if (this._growSplotch(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors, sites))
                 splotchCount++;
         }
 
@@ -181,11 +190,9 @@ export default class SplotchesDecor {
 
     // picks a seed panel + flood-fills outward from its center cell,
     // rendering cubes for the filled cells directly
-    _growSplotch(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors) {
-        for (let attempt = 0; attempt < MAX_SEED_ATTEMPTS; attempt++) {
-            const room = randomRoom(mazeData, rng);
-            const surface = ALL_SURFACES[randomInt(rng, ALL_SURFACES.length)];
-            if (!panelSolid(mazeData, room, surface.axis, surface.dir)) continue;
+    _growSplotch(mazeData, claimed, claims, rng, dummy, tmpColor, matrices, colors, sites = null) {
+        const candidates = candidateSites(mazeData, rng, SplotchesDecor, sites, MAX_SEED_ATTEMPTS);
+        for (const { room, surface, commit } of candidates) {
             if (!claims.canClaim(room, surface, SplotchesDecor.PROFILE)) continue;
 
             const seed = { room, surface, i: Math.floor((GRID_SIZE - 1) / 2), j: Math.floor((GRID_SIZE - 1) / 2) };
@@ -201,6 +208,7 @@ export default class SplotchesDecor {
                 claimed.add(cellKey(cell.room, cell.surface, cell.i, cell.j));
                 claims.claim(cell.room, cell.surface, SplotchesDecor.PROFILE);
             }
+            commit();
 
             const hue = rng(); // full hue range per splotch - a mixed mineral palette
             const saturation = 0.1 + rng() * 0.15; // pale, crystalline
