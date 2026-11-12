@@ -3,6 +3,7 @@ import * as maze from '../maze/maze.js';
 import checkCollisionOnAxis from '../maze/checkCollisionOnAxis.js';
 import { YIELD } from '../input/TouchArbiter.js';
 import BreadcrumbBaseDecor from './BreadcrumbBaseDecor.js';
+import BreadcrumbPlacementCue from './BreadcrumbPlacementCue.js';
 import { SceneryClaims } from '../decor/sceneryClaims.js';
 import createGlowMaterial from '../render/glowMaterial.js';
 import { breadcrumbIconSource } from './BreadcrumbIcon.js';
@@ -60,6 +61,10 @@ export const TAP_ZONE_EDGE_MARGIN_PX = 72;
 
 // window for a second click/tap to re-aim the breadcrumb the first one placed
 export const DOUBLE_ACTIVATE_MS = 300;
+
+// how long after a placement its motion cue goes up. Half the window, so the
+// click gets an answer; a re-aim after that restarts the cue the other way.
+export const CUE_SETTLE_MS = DOUBLE_ACTIVATE_MS / 2;
 
 // how centred `nearestInView` demands a breadcrumb be; an NDC ellipse, so it
 // reads as an oval on a wide screen
@@ -165,6 +170,11 @@ export default class BreadcrumbManager {
         // (see BreadcrumbBaseDecor's file comment) - never moves, never
         // appears for a breadcrumb the player places themselves
         this.base = new BreadcrumbBaseDecor();
+
+        // the bands that show which way a freshly placed breadcrumb points,
+        // and the placement waiting to fire them - see updatePlacementCue
+        this.placementCue = new BreadcrumbPlacementCue();
+        this._pendingCue = null;
     }
 
     get interactState() { return this._interactState; }
@@ -178,6 +188,7 @@ export default class BreadcrumbManager {
     addTo(scene) {
         this.scene = scene;
         this.base.addTo(scene);
+        this.placementCue.addTo(scene);
     };
 
     updateBases(dt) {
@@ -425,6 +436,7 @@ export default class BreadcrumbManager {
     // Commit the in-progress placement.
     endPlace() {
         this.breadcrumbs.push(this._interactTarget);
+        this._startPlacementCue(this._interactTarget);
         this._interactState = null;
         this._interactTarget = null;
         this._interactGripObject = null;
@@ -642,6 +654,11 @@ export default class BreadcrumbManager {
         this._interactState = null;
         this._interactTarget = null;
         this._interactGripObject = null;
+
+        // a cue still running belongs to a breadcrumb this maze is about to
+        // take out of the scene
+        this._pendingCue = null;
+        this.placementCue.cancel();
 
         // clear existing breadcrumbs
         for (let i = 0; i < this.breadcrumbs.length; i++) {
@@ -884,7 +901,10 @@ export default class BreadcrumbManager {
 
     _rememberPlacement(breadcrumb, now = Date.now()) {
         this._lastPlacement = breadcrumb == null ? null : { breadcrumb, time: now };
-        if (breadcrumb != null) this.placeCount++;
+        if (breadcrumb == null) return;
+
+        this.placeCount++;
+        this._pendingCue = { breadcrumb, settleAt: now + CUE_SETTLE_MS };
     }
 
     // Second half of a double click/tap: turn the breadcrumb the first half
@@ -905,6 +925,10 @@ export default class BreadcrumbManager {
         // same helper as placement, so the two gestures stay exact opposites
         this._aimAwayFromPlayer(placement.breadcrumb, camera);
         this.reaimCount++;
+        // restart the cue so the reversal plays in full; this can land between
+        // frames, so take the player position here rather than trust it
+        camera.getWorldPosition(this._playerWorldPos);
+        this._startPlacementCue(placement.breadcrumb);
         return true;
     }
 
@@ -982,6 +1006,25 @@ export default class BreadcrumbManager {
 
         this.updateGlowForCamera(camera);
         this.updateBases(delta);
+        this.updatePlacementCue(delta);
+    }
+
+    // Fires a placement's cue once CUE_SETTLE_MS has passed (a re-aim restarts
+    // it instead), then advances whichever cue is running.
+    updatePlacementCue(delta, now = Date.now()) {
+        if (this._pendingCue !== null && now >= this._pendingCue.settleAt)
+            this._startPlacementCue(this._pendingCue.breadcrumb);
+
+        this.placementCue.update(delta);
+    }
+
+    // A breadcrumb picked up again before this never gets a cue. The player
+    // position decides how far back the bands launch; update() keeps it fresh.
+    _startPlacementCue(breadcrumb) {
+        this._pendingCue = null;
+        if (breadcrumb == null || !this.breadcrumbs.includes(breadcrumb)) return;
+
+        this.placementCue.start(breadcrumb, this._playerWorldPos);
     }
 
     updateGlowForCamera(camera) {
@@ -1051,6 +1094,9 @@ export default class BreadcrumbManager {
             return;
 
         this._deenergizeBase(breadcrumb);
+
+        if (this._pendingCue?.breadcrumb === breadcrumb) this._pendingCue = null;
+        this.placementCue.cancel(breadcrumb);
 
         this.scene.remove(breadcrumb);
         const idx = this.breadcrumbs.indexOf(breadcrumb);
