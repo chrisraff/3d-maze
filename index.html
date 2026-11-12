@@ -149,6 +149,40 @@
                 min-width: 20em;
             }
 
+            .menu-select-grid {
+                display: grid;
+                grid-template-columns: auto auto;
+                align-items: center;
+                justify-content: center;
+                column-gap: 0.5em;
+                row-gap: 0.4em;
+            }
+            .menu-select-grid label {
+                text-align: right;
+            }
+
+            .menu-select {
+                color: #ffffff;
+                background-color: rgba(50, 50, 50, 0.8);
+                border: solid 1px rgba(170, 170, 170, 0.8);
+                border-radius: 5px;
+
+                font-family: Arial;
+                font-size: inherit;
+                padding: 0.2em 0.3em;
+            }
+            .menu-select:hover {
+                background-color: rgba(80, 80, 80, 0.8);
+            }
+            .menu-select option {
+                color: #ffffff;
+                background-color: rgb(40, 40, 40);
+            }
+
+            #menu-customize {
+                font-size: 125%;
+            }
+
             #completionMessage {
                 width: 100%;
 
@@ -880,6 +914,7 @@
                         <br/>
 
                         <div class="button-zone">
+                            <button target-menu="menu-customize">Customize</button>
                             <button target-menu="menu-options" class="menu-button-root-only">Options</button>
                             <div class="vr-device-enabled vr-device-first">
                                 <div class="menu-button-root-only">
@@ -888,6 +923,66 @@
                             </div>
                             <button class="menu-back-button">Back</button>
                             <button class="menu-button-root-only button-play" style="display: none;">Back</button>
+                        </div>
+                    </div>
+
+                    <!-- Each option appears twice: a dropdown everywhere, and a radio
+                         group in VR, where the list a select opens is drawn by the
+                         browser and never reaches the headset. Settings.js keeps the
+                         two in step. -->
+                    <div id="menu-customize" style="display: none;" class="focusable-menu">
+                        <div class="menu-select-grid xr-non-vr">
+                            <label for="maze-setting-scenery-select">Scenery:</label>
+                            <select id="maze-setting-scenery-select" name="maze-setting-scenery" class="menu-select">
+                                <option value="on">On</option>
+                                <option value="sparse">Sparse</option>
+                                <option value="off">Off</option>
+                            </select>
+
+                            <label for="maze-setting-markers-select">Markers:</label>
+                            <select id="maze-setting-markers-select" name="maze-setting-markers" class="menu-select">
+                                <option value="unlimited">Unlimited</option>
+                                <option value="on">On</option>
+                                <option value="off">Off</option>
+                            </select>
+                        </div>
+
+                        <div class="menu-radio-button xr-vr xr-force-redraw" style="text-align: left; display: none;" name="maze-setting-scenery">
+                            <div>Scenery:</div>
+                            <div>
+                                <input type="radio" id="maze-setting-scenery-on" name="maze-setting-scenery" value="on" checked>
+                                <label for="maze-setting-scenery-on">On</label>
+                            </div>
+                            <div>
+                                <input type="radio" id="maze-setting-scenery-sparse" name="maze-setting-scenery" value="sparse">
+                                <label for="maze-setting-scenery-sparse">Sparse</label>
+                            </div>
+                            <div>
+                                <input type="radio" id="maze-setting-scenery-off" name="maze-setting-scenery" value="off">
+                                <label for="maze-setting-scenery-off">Off</label>
+                            </div>
+                        </div>
+
+                        <div class="menu-radio-button xr-vr xr-force-redraw" style="text-align: left; display: none;" name="maze-setting-markers">
+                            <div>Markers:</div>
+                            <div>
+                                <input type="radio" id="maze-setting-markers-unlimited" name="maze-setting-markers" value="unlimited">
+                                <label for="maze-setting-markers-unlimited">Unlimited</label>
+                            </div>
+                            <div>
+                                <input type="radio" id="maze-setting-markers-on" name="maze-setting-markers" value="on" checked>
+                                <label for="maze-setting-markers-on">On</label>
+                            </div>
+                            <div>
+                                <input type="radio" id="maze-setting-markers-off" name="maze-setting-markers" value="off">
+                                <label for="maze-setting-markers-off">Off</label>
+                            </div>
+                        </div>
+
+                        <span class="transparent-text-50">Applies to new mazes</span>
+
+                        <div class="button-zone">
+                            <button class="menu-back-button">Back</button>
                         </div>
                     </div>
 

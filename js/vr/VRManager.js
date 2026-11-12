@@ -937,7 +937,7 @@ export default class VRManager extends EventTarget {
         const placing = this.breadcrumbs?.isGazePlacing ?? false;
 
         const count = document.querySelector('#vr-radial-marker-count');
-        if (count) count.textContent = held > 0 ? String(held) : '';
+        if (count) count.textContent = held > 0 ? this.breadcrumbs.inventoryLabel : '';
 
         // inline display is the only hide HTMLMesh reads
         option.style.display = (held > 0 || placing) ? '' : 'none';

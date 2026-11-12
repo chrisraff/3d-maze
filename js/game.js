@@ -29,6 +29,8 @@ import SCENERY_DECORS from './decor/scenery.js';
 import { SceneryClaims, orderForBuild } from './decor/sceneryClaims.js';
 import BranchSites from './decor/branchSites.js';
 import Settings from './state/Settings.js';
+import { MAZE_OPTION_DEFAULTS, sceneryScaleFor } from './state/mazeOptions.js';
+import { setSceneryDensityScale } from './decor/sceneryBudget.js';
 
 initAnalytics();
 
@@ -100,6 +102,15 @@ var tutorialManager;
 // non-VR tutorials, one per maze in this order. VR is set imperatively on
 // sessionstart, so it is deliberately not listed.
 const TUTORIAL_ORDER = ['intro', 'breadcrumbs', 'breadcrumb-reaim'];
+// The marker lessons and the supply each needs: finding one only means
+// something where markers stand in the maze; re-aiming just needs one in hand.
+const MARKER_TUTORIALS = {
+    'breadcrumbs': (markerMode) => markerMode === 'on',
+    'breadcrumb-reaim': (markerMode) => markerMode !== 'off',
+};
+// which of TUTORIAL_ORDER the player has finished; kept so that hiding a
+// lesson for one maze is never mistaken for having learned it
+var tutorialsSeen = [];
 // markers placed before the re-aim lesson offers itself - it refines a habit,
 // so it waits until the player has one to refine
 const REAIM_AFTER_PLACEMENTS = 5;
@@ -124,7 +135,7 @@ function loadSavedVariables()
 
     // Which of TUTORIAL_ORDER is done; the 30-day lapse that re-arms the intro
     // wipes it. 'intro' is seeded so players predating this key skip it.
-    const tutorialsSeen = showTutorial
+    tutorialsSeen = showTutorial
         ? []
         : ['intro', ...storageGetItem('tutorialsSeen', '').split(',').filter(Boolean)];
 
@@ -302,6 +313,20 @@ function loadSavedVariables()
     document.querySelectorAll('.menu-experienced').forEach((el) => {
         el.style.display = showTutorial ? 'none' : '';
     });
+}
+
+/**
+ * Hides or restores the marker lessons for the maze about to be built. A
+ * lesson whose supply isn't there would hold its slot rather than skip it:
+ * `breadcrumbs` would arm and wait forever for a marker to come into sight,
+ * with re-aim queued behind it. Hidden rather than recorded as seen, so the
+ * lesson still comes in a maze that can give it.
+ */
+function applyMarkerTutorialVisibility(markerMode) {
+    if (!tutorialManager) return;
+
+    for (const [type, needsSupply] of Object.entries(MARKER_TUTORIALS))
+        tutorialManager.showTutorials[type] = needsSupply(markerMode) && !tutorialsSeen.includes(type);
 }
 
 function setupInputBindings() {
@@ -673,14 +698,24 @@ function buildMaze(size=mazeSize) {
 
     mazeData = mazeWorld.build(mazeSize);
 
+    // read at build time, not when they change: an option describes a maze,
+    // so it lands on the next one (settings load after the first build starts)
+    const mazeOptions = settings?.mazeOptions ?? MAZE_OPTION_DEFAULTS;
+    const sceneryScale = sceneryScaleFor(mazeOptions.scenery);
+    setSceneryDensityScale(sceneryScale);
+    breadcrumbs.setMarkerMode(mazeOptions.markers);
+    applyMarkerTutorialVisibility(mazeOptions.markers);
+
     // breadcrumb bases are placed before any scenery and claim their panels
     // outright, so decor grows around the wayfinding markers rather than over
     // them; the rest follows by role (see sceneryClaims.js)
     const claims = new SceneryClaims();
     breadcrumbs.initializeMaze(mazeData, claims);
-    // every kind's branch sites are dealt out before any of them builds, so
-    // that build order can't double as site-quality order (branchSites.js)
-    const branchSites = new BranchSites(mazeData, scenery);
+    // Every kind's branch sites are dealt out before any of them builds, so
+    // that build order can't double as site-quality order (branchSites.js).
+    // Scenery off still runs every build, which is what clears the last
+    // maze's decor, but no kind will ask for a site, so skip the nexus scan.
+    const branchSites = sceneryScale > 0 ? new BranchSites(mazeData, scenery) : null;
     for (const decor of orderForBuild(scenery))
         decor.build(mazeData, undefined, claims, branchSites);
 

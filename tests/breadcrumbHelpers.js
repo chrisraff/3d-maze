@@ -25,10 +25,13 @@ export function stubBreadcrumbDom() {
 
 // Build a manager with `count` real breadcrumbs created through initializeMaze
 // (Math.random is stubbed so the first `count` dead ends are always selected).
-export function makeManager(count = 1) {
+// `markerMode` is the Markers option the maze is built under: only 'on'
+// spawns markers into the maze, whatever `count` says.
+export function makeManager(count = 1, { markerMode = 'on' } = {}) {
     const manager = new BreadcrumbManager();
     const scene = new THREE.Scene();
     manager.addTo(scene);
+    manager.setMarkerMode(markerMode);
 
     const deadEnds = [];
     for (let i = 0; i < count * 2; i++) {

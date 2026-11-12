@@ -9,6 +9,7 @@ import createGlowMaterial from '../render/glowMaterial.js';
 import { breadcrumbIconSource } from './BreadcrumbIcon.js';
 import { pickBreadcrumbHue, BREADCRUMB_SATURATION, BREADCRUMB_LIGHTNESS } from './breadcrumbHue.js';
 import { reachableWithin, segmentKey } from '../maze/mazeQuery.js';
+import { MAZE_OPTION_DEFAULTS } from '../state/mazeOptions.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -109,6 +110,8 @@ export default class BreadcrumbManager {
         this.breadcrumbGeometry = null;
 
         this.breadcrumbStack = [];
+        // the Markers option this maze was built under (mazeOptions.js)
+        this.markerMode = MAZE_OPTION_DEFAULTS.markers;
 
         // tutorial signals; the counts run for the session, read both as
         // totals and as deltas, so a new maze does not zero them
@@ -413,9 +416,9 @@ export default class BreadcrumbManager {
     // pointObject: ray-space THREE object (controller aim direction for initial orientation)
     // Returns true if started, false if the stack is empty.
     beginPlace(gripObject, pointObject) {
-        if (this.breadcrumbStack.length === 0) return false;
+        const breadcrumb = this._takeFromStack();
+        if (breadcrumb === null) return false;
 
-        const breadcrumb = this.breadcrumbStack.pop();
         this.scene.add(breadcrumb);
 
         pointObject.getWorldQuaternion(breadcrumb.quaternion);
@@ -638,6 +641,68 @@ export default class BreadcrumbManager {
         return !this._abandonReach.near.has(segmentKey(this.mazedata, here));
     }
 
+    // --- Marker supply ---
+    //
+    // Where a player's markers come from, per the Markers option
+    // (mazeOptions.js). Only 'on' spawns any into the maze, so the other two
+    // modes leave no medallion bases behind either (BreadcrumbBaseDecor).
+
+    // takes effect on the next initializeMaze, where a maze's markers settle
+    setMarkerMode(mode) {
+        this.markerMode = mode;
+    }
+
+    get isUnlimited() { return this.markerMode === 'unlimited'; }
+
+    // the HUD and VR ring count; a bottomless stack holds one marker, not "1"
+    get inventoryLabel() {
+        return this.isUnlimited ? '\u221e' : String(this.breadcrumbStack.length);
+    }
+
+    /**
+     * A marker with its hue, meshes and grab target, standing nowhere yet.
+     * A minted one has no dead end behind it, so no medallion base and no
+     * panel to hold its hue away from (breadcrumbHue.js); its caller passes
+     * a hue off the whole wheel.
+     */
+    _createMarker(hue) {
+        const breadcrumb = new THREE.Object3D();
+
+        breadcrumb.userData.originalMaterial = new THREE.MeshLambertMaterial({
+            color: `hsl(${hue}, ${BREADCRUMB_SATURATION * 100}%, ${BREADCRUMB_LIGHTNESS * 100}%)`,
+            vertexColors: true,
+        });
+        breadcrumb.userData.glowMaterial = createGlowMaterial();
+        breadcrumb.userData.glowAlpha = 0.0;
+
+        this.updateBreadcrumbMesh(breadcrumb);
+
+        const hitBox = new THREE.Mesh(hitBoxGeometry, hitBoxMaterial);
+        hitBox.scale.multiplyScalar(HITBOX_GROWTH);
+        hitBox.userData.isBreadCrumbHitBox = true;
+        hitBox.userData.parentBreadcrumb = breadcrumb;
+        hitBox.layers.set(3);
+        breadcrumb.add(hitBox);
+
+        breadcrumb.scale.multiplyScalar(BREADCRUMB_SCALE);
+
+        return breadcrumb;
+    }
+
+    /**
+     * Takes the marker a placement is about to use, refilling a bottomless
+     * stack behind it so the inventory never empties; null means
+     * empty-handed. Refilling after the pop rather than holding a spare
+     * keeps the icon, the count and `nextInStack` - all of which read the
+     * stack directly - showing the marker the next placement will use.
+     */
+    _takeFromStack() {
+        const breadcrumb = this.breadcrumbStack.pop() ?? null;
+        if (breadcrumb !== null && this.isUnlimited && this.breadcrumbStack.length === 0)
+            this.breadcrumbStack.push(this._createMarker(Math.random() * 360));
+        return breadcrumb;
+    }
+
     // --- Maze lifecycle ---
 
     // `claims` is the scenery ledger this maze's decor will be built
@@ -674,8 +739,8 @@ export default class BreadcrumbManager {
         this._flashTarget = null;
         this._abandonReach = null;
 
-        // pick X% of dead ends at random
-        const DEAD_END_FILL = 0.5;
+        // pick X% of dead ends at random; only 'on' stocks the maze
+        const DEAD_END_FILL = this.markerMode === 'on' ? 0.5 : 0;
         let deadEndSelection = new Array(mazedata.analytics.dead_ends_data.length).fill(false);
         const numBreadcrumbs = Math.floor(mazedata.analytics.dead_ends_data.length * DEAD_END_FILL);
         let count = 0;
@@ -695,8 +760,6 @@ export default class BreadcrumbManager {
                 const deadEnd = mazedata.analytics.dead_ends_data[i];
                 directionVector.set(...deadEnd.direction);
 
-                const breadcrumb = new THREE.Object3D();
-
                 // surface first: it names the panel breadcrumbHue.js measures
                 // the hue against, so a breadcrumb can't match its own wall
                 const surface = surfaceFromDirection(deadEnd.direction);
@@ -705,11 +768,8 @@ export default class BreadcrumbManager {
                     ? pickBreadcrumbHue(mazedata, { ...room, [surface.axis]: room[surface.axis] + surface.dir })
                     : Math.random() * 360;
 
-                const newMaterial = new THREE.MeshLambertMaterial({
-                    color: `hsl(${hue}, ${BREADCRUMB_SATURATION * 100}%, ${BREADCRUMB_LIGHTNESS * 100}%)`,
-                    vertexColors: true,
-                });
-                breadcrumb.userData.originalMaterial = newMaterial;
+                const breadcrumb = this._createMarker(hue);
+                const newMaterial = breadcrumb.userData.originalMaterial;
 
                 if (surface) {
                     // read the hue back out of the material's actual color
@@ -733,17 +793,6 @@ export default class BreadcrumbManager {
                         lightness: hsl.l,
                     });
                 }
-                breadcrumb.userData.glowMaterial = createGlowMaterial();
-                breadcrumb.userData.glowAlpha = 0.0;
-
-                this.updateBreadcrumbMesh(breadcrumb);
-
-                const hitBox = new THREE.Mesh(hitBoxGeometry, hitBoxMaterial);
-                hitBox.scale.multiplyScalar(HITBOX_GROWTH);
-                hitBox.userData.isBreadCrumbHitBox = true;
-                hitBox.userData.parentBreadcrumb = breadcrumb;
-                hitBox.layers.set(3);
-                breadcrumb.add(hitBox);
 
                 // `direction` led into the dead end, so reverse it to face up the corridor
                 breadcrumb.lookAt(directionVector);
@@ -757,14 +806,16 @@ export default class BreadcrumbManager {
 
                 breadcrumb.position.addScaledVector(directionVector, maze.majorWidth * 0.2);
 
-                breadcrumb.scale.multiplyScalar(BREADCRUMB_SCALE);
-
                 this.scene.add(breadcrumb);
                 this.breadcrumbs.push(breadcrumb);
             }
         }
 
         this.base.build(mazedata, medallionSites);
+
+        // nothing in the maze to go and find, so the first one starts in hand
+        if (this.isUnlimited)
+            this.breadcrumbStack.push(this._createMarker(Math.random() * 360));
 
         this.updateBreadCrumbDisplay();
     }
@@ -794,9 +845,10 @@ export default class BreadcrumbManager {
     // Returns false when empty-handed or already mid-interaction.
     beginGazePlace(camera, mazeData) {
         if (this._interactState !== null) return false;
-        if (this.breadcrumbStack.length === 0) return false;
 
-        const breadcrumb = this.breadcrumbStack.pop();
+        const breadcrumb = this._takeFromStack();
+        if (breadcrumb === null) return false;
+
         this.scene.add(breadcrumb);
 
         this._interactState = 'gaze-placing';
@@ -1187,10 +1239,9 @@ export default class BreadcrumbManager {
     }
 
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
-        if (this.breadcrumbStack.length === 0)
+        const breadcrumb = this._takeFromStack();
+        if (breadcrumb === null)
             return null;
-
-        const breadcrumb = this.breadcrumbStack.pop();
 
         this.placementPosition(breadcrumb.position, camera, mazeData, sceneX, sceneY);
 
@@ -1216,7 +1267,7 @@ export default class BreadcrumbManager {
 
         const countElement = document.getElementById('breadcrumb-count');
         if (countElement)
-            countElement.textContent = count.toString();
+            countElement.textContent = this.inventoryLabel;
 
         // the icon depicts the breadcrumb that addBreadcrumb would pop next
         const iconElement = document.getElementById('breadcrumb-icon');

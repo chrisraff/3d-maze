@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { DENSITY, roomCount, sceneryBudget, budgetFor } from '../js/decor/sceneryBudget.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import {
+    DENSITY, roomCount, sceneryBudget, budgetFor, setSceneryDensityScale, sceneryDensityScale,
+} from '../js/decor/sceneryBudget.js';
 import SCENERY_DECORS from '../js/decor/scenery.js';
+import { SPARSE_SCENERY_SCALE, sceneryScaleFor } from '../js/state/mazeOptions.js';
 
 const maze = size => ({ bounds: [size, size, size] });
 
@@ -64,6 +67,46 @@ describe('sceneryBudget', () => {
     it('honours a ceiling for a kind that gets expensive when dense', () => {
         expect(sceneryBudget(maze(12), 1, { max: 40 }, up)).toBe(40);
         expect(sceneryBudget(maze(3), 1, { max: 40 }, up)).toBe(2);
+    });
+});
+
+// the Scenery option lands here as module state, so each case puts it back
+describe('the density scale', () => {
+    afterEach(() => setSceneryDensityScale(1));
+
+    it('is 1 until something sets it, so the tuned density is the default', () => {
+        expect(sceneryDensityScale()).toBe(1);
+    });
+
+    it('thins what every kind asks for, in proportion', () => {
+        const full = mean(8);
+        setSceneryDensityScale(SPARSE_SCENERY_SCALE);
+        expect(mean(8) / full).toBeCloseTo(SPARSE_SCENERY_SCALE, 1);
+        // the whole mix is still there, just less of it
+        for (const Kind of SCENERY_DECORS)
+            expect(budgetFor(maze(8), Kind, up), Kind.name).toBeGreaterThan(0);
+    });
+
+    it('can thin a kind out of a small maze, which the floor alone could not', () => {
+        // a size-3 maze asks for 1.54 pieces of each kind, so a third of
+        // that has to be able to come out as none at all
+        setSceneryDensityScale(SPARSE_SCENERY_SCALE);
+        expect(sceneryBudget(maze(3), 1, {}, down)).toBe(0);
+        expect(sceneryBudget(maze(3), 1, {}, up)).toBe(1);
+        // and a size-2 maze, where the floor binds at every scale
+        expect(sceneryBudget(maze(2), 1, {}, down)).toBe(0);
+    });
+
+    it('places nothing anywhere at zero, however big the maze', () => {
+        setSceneryDensityScale(sceneryScaleFor('off'));
+        for (const size of [2, 3, 12])
+            for (const Kind of SCENERY_DECORS)
+                expect(budgetFor(maze(size), Kind, up), `${Kind.name} at ${size}`).toBe(0);
+    });
+
+    it('still honours a ceiling', () => {
+        setSceneryDensityScale(SPARSE_SCENERY_SCALE);
+        expect(sceneryBudget(maze(12), 1, { max: 20 }, up)).toBe(20);
     });
 });
 

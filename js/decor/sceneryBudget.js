@@ -21,6 +21,22 @@
 // pieces per room, per unit weight
 const DENSITY = 0.057;
 
+/**
+ * A multiplier on every kind's budget at once: the Scenery option
+ * (mazeOptions.js), 1 as tuned above. Module state, set once per maze by
+ * buildMaze, rather than an argument threaded through seven build()
+ * signatures - each kind already reaches in here for its own count.
+ */
+let densityScale = 1;
+
+function setSceneryDensityScale(scale) {
+    densityScale = scale;
+}
+
+function sceneryDensityScale() {
+    return densityScale;
+}
+
 const roomCount = mazeData => mazeData.bounds.reduce((a, b) => a * b, 1);
 
 /**
@@ -32,12 +48,15 @@ const roomCount = mazeData => mazeData.bounds.reduce((a, b) => a * b, 1);
  *
  * `min` keeps a kind from vanishing in a small maze, and only binds below
  * ~18 rooms. `max` caps a kind whose pieces get expensive (see SkylineDecor).
+ * `min` applies before the density scale, so it floors what a kind asks for
+ * rather than what it gets - Off places nothing, and Sparse can thin a kind
+ * out of a small maze.
  */
 function sceneryBudget(mazeData, weight = 1, { min = 1, max = Infinity } = {}, rng = Math.random) {
-    const wanted = DENSITY * weight * roomCount(mazeData);
+    const wanted = Math.max(min, DENSITY * weight * roomCount(mazeData)) * densityScale;
     const whole = Math.floor(wanted);
     const count = whole + (rng() < wanted - whole ? 1 : 0);
-    return Math.max(min, Math.min(max, count));
+    return Math.min(max, count);
 }
 
 /** The budget for a decor class, from its `static WEIGHT` and `static BUDGET`. */
@@ -45,4 +64,4 @@ function budgetFor(mazeData, kind, rng = Math.random) {
     return sceneryBudget(mazeData, kind.WEIGHT ?? 1, kind.BUDGET ?? {}, rng);
 }
 
-export { DENSITY, roomCount, sceneryBudget, budgetFor };
+export { DENSITY, roomCount, sceneryBudget, budgetFor, setSceneryDensityScale, sceneryDensityScale };

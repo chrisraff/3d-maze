@@ -1,9 +1,14 @@
 /**
  * Persisted user settings: loads them from storage into the UI and the
  * control/VR options, and keeps storage in sync when the DOM controls change.
- * The only module besides storage.js that touches localStorage.
+ * The only module besides storage.js that touches localStorage. The maze
+ * generation options are persisted here too but applied by buildMaze, off
+ * `mazeOptions` (see mazeOptions.js).
  */
 import { storageGetItem, storageSetItem } from './storage.js';
+import {
+    MAZE_OPTION_BY_KEY, MAZE_OPTION_DEFAULTS, MAZE_OPTION_STORAGE_KEYS, coerceMazeOption,
+} from './mazeOptions.js';
 
 export default class Settings {
     constructor({ controls, vrManager, renderer, vrDeviceType }) {
@@ -13,6 +18,9 @@ export default class Settings {
         this.vrDeviceType = vrDeviceType;
 
         this.vrMirrorEnabled = false;
+
+        // { scenery, markers } - what the next maze will be generated with
+        this.mazeOptions = { ...MAZE_OPTION_DEFAULTS };
     }
 
     // reads stored settings and applies them to the controls and the menu DOM
@@ -38,6 +46,12 @@ export default class Settings {
         const vrMirroringDefault = this.vrDeviceType === 'vr-device-enabled' ? 'true' : 'false';
         this.vrMirrorEnabled = storageGetItem('vr-setting-mirror', vrMirroringDefault) === 'true';
         document.querySelector('#vr-setting-mirror').checked = this.vrMirrorEnabled;
+
+        for (const [option, key] of Object.entries(MAZE_OPTION_STORAGE_KEYS)) {
+            const mode = coerceMazeOption(option, storageGetItem(key, MAZE_OPTION_DEFAULTS[option]));
+            this.mazeOptions[option] = mode;
+            this._showMazeOption(key, mode);
+        }
     }
 
     // attaches change/input listeners to the settings DOM controls
@@ -62,6 +76,15 @@ export default class Settings {
                     this._updateVrRotateSpeedSettingEnabled();
                     storageSetItem('vr-setting-rotation', event.target.value);
                 }
+                // the VR half of a maze option (see index.html)
+                this._setMazeOption(event.target.name, event.target.value);
+            });
+        });
+
+        // the dropdown half of a maze option, which is what non-VR shows
+        document.querySelectorAll('.menu-select').forEach((el) => {
+            el.addEventListener('change', (event) => {
+                this._setMazeOption(event.target.name, event.target.value);
             });
         });
 
@@ -83,6 +106,31 @@ export default class Settings {
                     this.vrManager.uiMesh.material.map.update();
                 }
             });
+        });
+    }
+
+    /**
+     * Records a maze option the player just chose; buildMaze applies it to
+     * the next maze. `key` is the control's name, which doubles as its
+     * storage key, and anything that isn't a maze option's is ignored, since
+     * this shares its listeners with the control settings.
+     */
+    _setMazeOption(key, value) {
+        const option = MAZE_OPTION_BY_KEY[key];
+        if (!option) return;
+
+        const mode = coerceMazeOption(option, value);
+        this.mazeOptions[option] = mode;
+        storageSetItem(key, mode);
+        this._showMazeOption(key, mode);
+    }
+
+    // a dropdown and a radio group are two views of one setting, only one on
+    // screen at a time, so both are set whichever the value came from
+    _showMazeOption(key, mode) {
+        document.querySelectorAll(`[name="${key}"]`).forEach((el) => {
+            if (el.tagName == 'SELECT') el.value = mode;
+            else if (el.type == 'radio') el.checked = el.value == mode;
         });
     }
 
