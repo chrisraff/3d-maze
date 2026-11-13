@@ -28,6 +28,7 @@ import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { pickSite } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
 import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
+import { clearInstanced } from '../render/instancedCleanup.js';
 
 const GRID_SIZE = 27;
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -173,7 +174,7 @@ export default class SkylineDecor {
     }
 
     build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
-        this.group.remove(...this.group.children);
+        clearInstanced(this.group, [this.boxGeometry]);
         this.mesh = null;
 
         const count = budgetFor(mazeData, SkylineDecor, rng);

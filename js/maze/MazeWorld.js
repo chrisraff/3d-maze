@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import * as maze from './maze.js';
+import { clearInstanced } from '../render/instancedCleanup.js';
 
 const PI_2 = Math.PI / 2;
 
@@ -37,7 +38,7 @@ export default class MazeWorld {
 
     // generates a new maze and rebuilds the scene meshes; returns the maze data
     build(size) {
-        this.group.remove(...this.group.children);
+        clearInstanced(this.group, [this.wallGeometry]);
 
         let dummyWall = new THREE.Object3D;
         let wallMatrices = [];

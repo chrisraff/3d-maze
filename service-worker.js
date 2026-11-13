@@ -53,6 +53,7 @@ const FILES_TO_CACHE = [
     '/js/breadcrumbs/BreadcrumbBaseDecor.js',
     '/js/breadcrumbs/BreadcrumbPlacementCue.js',
     '/js/render/glowMaterial.js',
+    '/js/render/instancedCleanup.js',
     '/js/MazeIntroCinematic.js',
     '/js/ui/IconRenderer.js',
     '/js/ui/GoalDotIcon.js',

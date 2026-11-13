@@ -53,6 +53,7 @@ import { majorWidth, getOffset } from '../maze/maze.js';
 import { WALL_SURFACES, CEILING_SURFACE, panelSolid, roomInBounds, randomRoom, randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { budgetFor } from './sceneryBudget.js';
+import { clearInstanced } from '../render/instancedCleanup.js';
 
 const DOT_SIZE = 0.035; // streak width, and its length at zero speed (cubic at rest)
 const STREAK_LENGTH_PER_SPEED = 0.06; // extra length per world-unit/sec of fall speed
@@ -350,7 +351,7 @@ export default class DripsDecor {
         this.growth = this.elapsed.map((e, i) => easeGrowth(e / this.growDuration[i]));
         this.landing = new Array(n).fill(false);
 
-        this.group.remove(...this.group.children);
+        clearInstanced(this.group, [this.streakGeometry]);
         this.mesh = null;
         if (n > 0) {
             this.mesh = new THREE.InstancedMesh(this.streakGeometry, this.material, n);

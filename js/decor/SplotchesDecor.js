@@ -31,6 +31,7 @@ import { AXES, roomInBounds, panelSolid, randomInt } from '../maze/mazeQuery.js'
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { candidateSites } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
+import { clearInstanced } from '../render/instancedCleanup.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -158,7 +159,7 @@ export default class SplotchesDecor {
     }
 
     build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
-        this.group.remove(...this.group.children);
+        clearInstanced(this.group, [this.boxGeometry]);
         this.mesh = null;
 
         const splotchTarget = budgetFor(mazeData, SplotchesDecor, rng);

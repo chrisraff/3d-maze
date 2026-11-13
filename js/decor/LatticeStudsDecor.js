@@ -28,6 +28,7 @@ import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { pickSite } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
 import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
+import { clearInstanced } from '../render/instancedCleanup.js';
 
 // deep enough to clear minorWidth (the wall's own thickness) on both sides
 // with room to spare, so each stud visibly pokes through rather than
@@ -82,7 +83,7 @@ export default class LatticeStudsDecor {
     }
 
     build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
-        this.group.remove(...this.group.children);
+        clearInstanced(this.group, [this.boxGeometry]);
         this.mesh = null;
 
         const count = budgetFor(mazeData, LatticeStudsDecor, rng);

@@ -37,6 +37,7 @@
 import * as THREE from 'three';
 import { majorWidth, minorWidth, getOffset } from '../maze/maze.js';
 import { ROLE } from '../decor/sceneryClaims.js';
+import { clearInstanced } from '../render/instancedCleanup.js';
 
 const MAX_RADIUS = majorWidth * 0.4;
 const HEIGHT_MIN = 0.0075;
@@ -227,7 +228,9 @@ export default class BreadcrumbBaseDecor {
     // saturation/lightness in [0, 1], read straight off that breadcrumb's
     // own material color so the outer ring is a true match
     build(mazeData, sites, rng = Math.random) {
-        this.group.remove(...this.group.children);
+        // dotGeometry is in the list because its attributes are replaced below,
+        // even though the Points drawing it is never rebuilt
+        clearInstanced(this.group, [this.studGeometry, this.dotGeometry]);
         this.studMesh = null;
 
         const dummy = new THREE.Object3D();

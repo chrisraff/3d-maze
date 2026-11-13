@@ -52,6 +52,7 @@ import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { candidateSites } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
 import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
+import { clearInstanced } from '../render/instancedCleanup.js';
 
 // see SkylineDecor's file comment for the derivation of this same constant
 const CAMERA_COLLISION_DISTANCE = 0.25;
@@ -165,7 +166,7 @@ export default class PipesDecor {
     }
 
     build(mazeData, rng = Math.random, claims = new SceneryClaims(), sites = null) {
-        this.group.remove(...this.group.children);
+        clearInstanced(this.group, [this.pipeGeometry, this.capGeometry]);
         this.pipeMesh = null;
         this.capMesh = null;
 
