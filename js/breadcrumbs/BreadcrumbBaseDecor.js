@@ -19,13 +19,13 @@
  * Height mirrors that same inward motion: minimal at the outer ring,
  * ramping up toward a single tall stud at the center.
  *
- * Dots: each spawns at a random angle and random point in the cycle,
- * decelerating uniformly outward (fast at first, slowing to a stop right as
- * it reaches its max radius) with a slight drift off the surface, then
- * fades out over the last stretch of the cycle - see FADE_START. That whole
- * cycle is a pure function of (time, angle, phase), so it runs in the
- * vertex shader off static per-dot attributes rather than being integrated
- * on the CPU - see DOT_VERTEX_CHUNKS.
+ * Dots: each starts at a random point in the cycle and leaves on a fresh
+ * random bearing every pass, decelerating uniformly outward (fast at first,
+ * slowing to a stop right as it reaches its max radius) with a slight drift
+ * off the surface, then fading out over the last stretch of the cycle - see
+ * FADE_START. That whole cycle is a pure function of (time, phase, seed),
+ * so it runs in the vertex shader off static per-dot attributes rather than
+ * being integrated on the CPU - see DOT_VERTEX_CHUNKS.
  *
  * De-energizing: once a breadcrumb is grabbed (BreadcrumbManager calls
  * deenergize(index) from beginReorient/removeBreadcrumb), its base's dots
@@ -99,13 +99,34 @@ const DOT_VERTEX_CHUNKS = {
     '#include <common>': `
         #include <common>
         uniform float u_time;
-        attribute vec3 dotDirection; // unit vector in the panel's plane
-        attribute vec3 dotNormal;    // unit vector off the panel, into the room
-        attribute float dotPhase;    // where in the cycle this dot started
-        attribute float dotMuted;    // 1 once its breadcrumb has been picked up
+        attribute vec3 dotAxis;   // one of the panel's in-plane axes; bearings are measured from it
+        attribute vec3 dotNormal; // unit vector off the panel, into the room
+        attribute float dotPhase; // where in the cycle this dot started
+        attribute float dotSeed;  // this dot's index, to decorrelate the hash below
+        attribute float dotMuted; // 1 once its breadcrumb has been picked up
+
+        // float-only hash (Hoskins') rather than the usual fract(sin(...))
+        // one, whose precision is unreliable on mobile GPUs
+        float dotHash(vec2 p) {
+            vec3 q = fract(p.xyx * 0.1031);
+            q += dot(q, q.yzx + 33.33);
+            return fract((q.x + q.y) * q.z);
+        }
     `,
     '#include <begin_vertex>': `
-        float progress = fract(u_time / ${glslFloat(RADIATE_PERIOD)} + dotPhase);
+        // phase staggers the dots, and the integer part is the cycle count,
+        // which feeds the bearing hash below
+        float cycles = u_time / ${glslFloat(RADIATE_PERIOD)} + dotPhase;
+        float cycle = floor(cycles);
+        float progress = cycles - cycle;
+
+        // re-rolled every cycle, so a dot scatters rather than retracing one
+        // fixed spoke forever. Jumping at the cycle boundary is invisible by
+        // construction: progress 1 has the dot fully faded (see FADE_START)
+        // and progress 0 puts it at radius 0, the one point every bearing
+        // shares.
+        float angle = dotHash(vec2(dotSeed, cycle)) * 6.2831853;
+        vec3 direction = dotAxis * cos(angle) + cross(dotNormal, dotAxis) * sin(angle);
 
         // uniformly decelerating motion (like a spark losing momentum to
         // friction): starts at speed 2*RADIATE_RADIUS/RADIATE_PERIOD and
@@ -114,7 +135,7 @@ const DOT_VERTEX_CHUNKS = {
         float remaining = 1.0 - progress;
         float radius = ${glslFloat(RADIATE_RADIUS)} * (1.0 - remaining * remaining);
         float normalOffset = ${glslFloat(DOT_SPAWN_OFFSET)} + ${glslFloat(NORMAL_DRIFT_MAX)} * progress;
-        vec3 transformed = position + dotDirection * radius + dotNormal * normalOffset;
+        vec3 transformed = position + direction * radius + dotNormal * normalOffset;
 
         // full brightness while it's still moving, fading out over the last
         // stretch as it coasts to a stop. A de-energized dot is dropped
@@ -200,17 +221,19 @@ function loadDotTexture() {
 }
 
 // collects the per-dot attribute data a build produces, so the flat layout
-// the shader reads lives in one place rather than in five parallel arrays
-// the caller has to keep index-aligned by hand
+// the shader reads lives in one place rather than in six parallel arrays
+// the caller has to keep index-aligned by hand. The seed is just the dot's
+// own index - all the shader asks of it is that no two dots share one.
 function dotCollector() {
     return {
-        center: [], direction: [], normal: [], phase: [], color: [],
+        center: [], axis: [], normal: [], phase: [], seed: [], color: [],
         count: 0,
-        push(center, direction, normal, phase, color) {
+        push(center, axis, normal, phase, color) {
             this.center.push(center.x, center.y, center.z);
-            this.direction.push(direction.x, direction.y, direction.z);
+            this.axis.push(axis.x, axis.y, axis.z);
             this.normal.push(normal.x, normal.y, normal.z);
             this.phase.push(phase);
+            this.seed.push(this.count);
             this.color.push(color.r, color.g, color.b);
             this.count++;
         },
@@ -326,9 +349,10 @@ export default class BreadcrumbBaseDecor {
             name, new THREE.BufferAttribute(new Float32Array(source), itemSize));
         attribute('position', dots.center, 3);
         attribute('color', dots.color, 3);
-        attribute('dotDirection', dots.direction, 3);
+        attribute('dotAxis', dots.axis, 3);
         attribute('dotNormal', dots.normal, 3);
         attribute('dotPhase', dots.phase, 1);
+        attribute('dotSeed', dots.seed, 1);
         attribute('dotMuted', dots.count, 1); // all zero: every base starts energized
 
         return sites.length;
@@ -453,24 +477,23 @@ export default class BreadcrumbBaseDecor {
         }
 
         // animated dots radiating outward from the medallion's own center -
-        // random angle and random start-of-cycle timing per dot (rather than
-        // evenly spaced spokes) so they read as scattered sparks, not a
-        // mechanical pattern; each also drifts slightly off the surface
-        // as it travels (see NORMAL_DRIFT_MAX)
+        // random start-of-cycle timing per dot, and a bearing the shader
+        // re-rolls on every pass (rather than evenly spaced spokes, or one
+        // spoke per dot repeating forever) so they read as scattered sparks
+        // and not a mechanical pattern; each also drifts slightly off the
+        // surface as it travels (see NORMAL_DRIFT_MAX)
         const dotColor = new THREE.Color().setHSL(hue, 0.85, 0.65);
         const panelPoint = roomCenter.clone();
         panelPoint[surface.axis] = panelOffset;
         const normalDir = new THREE.Vector3();
         normalDir[surface.axis] = -surface.dir; // away from the wall, into the room
-        const dir = new THREE.Vector3();
+        // the panel's own first in-plane axis; the shader turns each bearing
+        // off it, taking the second axis as cross(normal, this)
+        const planeAxis = new THREE.Vector3();
+        planeAxis[axisA] = 1;
 
         for (let d = 0; d < DOTS_PER_MEDALLION; d++) {
-            const angle = rng() * Math.PI * 2;
-            dir.set(0, 0, 0);
-            dir[axisA] = Math.cos(angle);
-            dir[axisB] = Math.sin(angle);
-
-            dots.push(panelPoint, dir, normalDir, rng(), dotColor);
+            dots.push(panelPoint, planeAxis, normalDir, rng(), dotColor);
         }
 
         medallions.push({
