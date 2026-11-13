@@ -241,6 +241,21 @@ describe('gaze placement', () => {
         expect(facingTowardCamera(manager.interactTarget, camera)).toBeCloseTo(1, 6);
     });
 
+    // the preview is the placement, so it has to show the facing setting
+    // rather than a fixed direction of its own
+    it('previews aimed away once the setting says so', () => {
+        const { manager, camera } = makeManager();
+        manager.setFacingMode('away');
+
+        manager.beginGazePlace(camera, emptyMazeData());
+
+        expect(facingTowardCamera(manager.interactTarget, camera)).toBeCloseTo(-1, 6);
+
+        const previewed = manager.interactTarget.quaternion.clone();
+        const placed = manager.commitGazePlace();
+        expect(placed.quaternion.angleTo(previewed)).toBeCloseTo(0, 6);
+    });
+
     it('commits where it stands', () => {
         const { manager, camera, scene } = makeManager();
         manager.beginGazePlace(camera, emptyMazeData());

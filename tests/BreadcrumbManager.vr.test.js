@@ -101,7 +101,7 @@ describe('beginPlace / endPlace', () => {
         expect(manager.interactState).toBeNull();
     });
 
-    it('pops from the stack, adds to the scene at the grip, facing opposite the aim', () => {
+    it('pops from the stack, adds to the scene at the grip, aimed back up the ray', () => {
         const { manager, scene } = makeManager(1);
         const [b] = manager.breadcrumbs;
         manager.removeBreadcrumb(b);
@@ -117,9 +117,22 @@ describe('beginPlace / endPlace', () => {
         expect(manager.breadcrumbStack).toHaveLength(0);
         expect(scene.children).toContain(b);
         expect(b.position.distanceTo(v(0.2, 0.3, 0.4))).toBeLessThan(1e-9);
-        expect(b.quaternion.angleTo(rotY(Math.PI))).toBeLessThan(1e-6);
+        // the ray runs down the controller's -Z and +Z is the marker's facing
+        // axis, so the aim quaternion as copied already points it at the player
+        expect(b.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
         // not committed to placed collection until endPlace
         expect(manager.breadcrumbs).not.toContain(b);
+    });
+
+    it('aims it down the ray instead when the facing setting says Away', () => {
+        const { manager } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        manager.removeBreadcrumb(b);
+        manager.setFacingMode('away');
+
+        manager.beginPlace(makeGrip(), new THREE.Object3D()); // identity aim
+
+        expect(b.quaternion.angleTo(rotY(Math.PI))).toBeLessThan(1e-6);
     });
 
     it('endPlace commits the breadcrumb to the placed collection and clears state', () => {
@@ -172,7 +185,10 @@ describe('updateInteract while placing', () => {
     it('applies the grip rotation delta on top of the initial aim orientation', () => {
         const { manager } = makeManager(1);
         const grip = makeGrip(0, 0, 0.5);
-        const b = startPlacing(manager, grip); // aim identity -> start orient rotY(PI)
+        // Away, so the start orientation is something the delta can be told
+        // apart from: identity aim -> start orient rotY(PI)
+        manager.setFacingMode('away');
+        const b = startPlacing(manager, grip);
 
         grip.quaternion.copy(rotY(Math.PI / 2));
         manager.updateInteract(makeCamera(0, 0, 1));

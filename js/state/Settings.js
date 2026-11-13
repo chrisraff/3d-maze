@@ -3,24 +3,42 @@
  * control/VR options, and keeps storage in sync when the DOM controls change.
  * The only module besides storage.js that touches localStorage. The maze
  * generation options are persisted here too but applied by buildMaze, off
- * `mazeOptions` (see mazeOptions.js).
+ * `mazeOptions` (see mazeOptions.js); marker facing is pushed straight into
+ * BreadcrumbManager, since it applies to the next placement (markerFacing.js).
  */
 import { storageGetItem, storageSetItem } from './storage.js';
 import {
     MAZE_OPTION_BY_KEY, MAZE_OPTION_DEFAULTS, MAZE_OPTION_STORAGE_KEYS, coerceMazeOption,
 } from './mazeOptions.js';
+import {
+    MARKER_FACING_CONTEXT_BY_KEY, MARKER_FACING_DEFAULT, MARKER_FACING_MODES,
+    MARKER_FACING_STORAGE_KEYS, coerceMarkerFacing, markerFacingContext,
+    reverseMarkerFacing,
+} from './markerFacing.js';
 
 export default class Settings {
-    constructor({ controls, vrManager, renderer, vrDeviceType }) {
+    constructor({ controls, vrManager, renderer, vrDeviceType, breadcrumbs }) {
         this.controls = controls;
         this.vrManager = vrManager;
         this.renderer = renderer;
         this.vrDeviceType = vrDeviceType;
+        this.breadcrumbs = breadcrumbs;
 
         this.vrMirrorEnabled = false;
 
         // { scenery, markers } - what the next maze will be generated with
         this.mazeOptions = { ...MAZE_OPTION_DEFAULTS };
+
+        // { screen, vr } - which way each context aims a placed marker
+        // (markerFacing.js). Tracked rather than read off renderer.xr, since
+        // the VR mirror blanks isPresenting mid-frame to render the spectator.
+        this.markerFacing = { screen: MARKER_FACING_DEFAULT, vr: MARKER_FACING_DEFAULT };
+        this.vrPresenting = false;
+    }
+
+    /** The facing mode in force, which is the context the player is in. */
+    get markerFacingMode() {
+        return this.markerFacing[markerFacingContext(this.vrPresenting)];
     }
 
     // reads stored settings and applies them to the controls and the menu DOM
@@ -52,6 +70,20 @@ export default class Settings {
             this.mazeOptions[option] = mode;
             this._showMazeOption(key, mode);
         }
+
+        for (const [context, key] of Object.entries(MARKER_FACING_STORAGE_KEYS)) {
+            const mode = coerceMarkerFacing(storageGetItem(key, MARKER_FACING_DEFAULT));
+            this.markerFacing[context] = mode;
+            this._showMarkerFacing(key, mode);
+        }
+        this._applyMarkerFacing();
+    }
+
+    // Entering or leaving VR swaps which of the two stored values is in
+    // force; the control itself is the same one either side.
+    setVrPresenting(isPresenting) {
+        this.vrPresenting = isPresenting;
+        this._applyMarkerFacing();
     }
 
     // attaches change/input listeners to the settings DOM controls
@@ -76,8 +108,9 @@ export default class Settings {
                     this._updateVrRotateSpeedSettingEnabled();
                     storageSetItem('vr-setting-rotation', event.target.value);
                 }
-                // the VR half of a maze option (see index.html)
+                // the VR half of a maze option or of marker facing (see index.html)
                 this._setMazeOption(event.target.name, event.target.value);
+                this._setMarkerFacing(event.target.name, event.target.value);
             });
         });
 
@@ -85,6 +118,7 @@ export default class Settings {
         document.querySelectorAll('.menu-select').forEach((el) => {
             el.addEventListener('change', (event) => {
                 this._setMazeOption(event.target.name, event.target.value);
+                this._setMarkerFacing(event.target.name, event.target.value);
             });
         });
 
@@ -132,6 +166,54 @@ export default class Settings {
             if (el.tagName == 'SELECT') el.value = mode;
             else if (el.type == 'radio') el.checked = el.value == mode;
         });
+    }
+
+    /**
+     * Records which way the player just asked markers to face. `key` is the
+     * control's name, which doubles as its storage key and names the context
+     * it belongs to; anything that isn't one is ignored, since this shares
+     * its listeners with the other settings.
+     */
+    _setMarkerFacing(key, value) {
+        const context = MARKER_FACING_CONTEXT_BY_KEY[key];
+        if (!context) return;
+
+        const mode = coerceMarkerFacing(value);
+        this.markerFacing[context] = mode;
+        storageSetItem(key, mode);
+        this._showMarkerFacing(key, mode);
+        this._applyMarkerFacing();
+    }
+
+    // The two halves of this control hold a value each rather than mirroring
+    // one, so a half only ever shows its own context's mode.
+    _showMarkerFacing(key, mode) {
+        document.querySelectorAll(`[name="${key}"]`).forEach((el) => {
+            if (el.tagName == 'SELECT') el.value = mode;
+            else if (el.type == 'radio') el.checked = el.value == mode;
+        });
+    }
+
+    _applyMarkerFacing() {
+        const mode = this.markerFacingMode;
+        this.breadcrumbs?.setFacingMode(mode);
+        this._showMarkerFacingCopy(mode);
+    }
+
+    /**
+     * The one lesson that names a direction (`breadcrumb-reaim`) has a
+     * fragment per direction, each classed for what it promises. The gesture
+     * reverses whatever the setting placed, so the one shown is the reverse
+     * of the mode. That copy lives outside `#overlay`, so inline display is
+     * for the form-factor pass's sake rather than HTMLMesh's.
+     */
+    _showMarkerFacingCopy(mode) {
+        const promised = reverseMarkerFacing(mode);
+        for (const direction of MARKER_FACING_MODES) {
+            document.querySelectorAll(`.marker-aim-${direction}`).forEach((el) => {
+                el.style.display = direction == promised ? '' : 'none';
+            });
+        }
     }
 
     _updateVrRotateSpeedSettingEnabled() {

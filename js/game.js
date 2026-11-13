@@ -570,6 +570,9 @@ function init() {
     // Setup VR event listeners
     renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);
+        // marker facing is stored per context, so entering VR swaps which of
+        // the two values is in force (markerFacing.js)
+        settings?.setVrPresenting(true);
         dust._material.size = dustSizeVR;
         goalDots.setVR( true );
 
@@ -580,6 +583,7 @@ function init() {
 
     renderer.xr.addEventListener('sessionend', (event) => {
         controls.setXRPresenting(false);
+        settings?.setVrPresenting(false);
         // gaze state belongs to the session; a stranded preview would follow
         // the camera around for the rest of the run
         vrManager.closeRadialMenu();
@@ -655,7 +659,7 @@ function init() {
     loadSavedVariables();
 
     // user settings (storage <-> DOM <-> controls)
-    settings = new Settings({ controls, vrManager, renderer, vrDeviceType });
+    settings = new Settings({ controls, vrManager, renderer, vrDeviceType, breadcrumbs });
     settings.load();
     settings.bindDom();
 

@@ -813,10 +813,16 @@
             <span>Place <span class="marker-token">markers<img class="breadcrumb-icon" alt="" /></span> to remember where you've been</span>
         </div>
 
-        <!-- Follows the lesson above, once the player is holding a marker -->
+        <!-- Follows the lesson above, once the player is holding a marker.
+             Built from fragments rather than a sentence each, because this one
+             varies two ways: the gesture by form factor, and the direction by
+             the Markers Face setting. A `marker-aim-*` class names the
+             direction that copy promises, and Settings shows the one opposite
+             the setting - the gesture is a reversal (markerFacing.js). -->
         <div tutorial-step="0" tutorial-type="breadcrumb-reaim" style="display: none;" class="tutorial-text tutorial-text-low tutorial-element">
-            <span class='formfactor-desktop'>Double click to aim a <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> away from you</span>
-            <span style="display: none;" class='formfactor-non-desktop'>Double tap to aim a <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> away from you</span>
+            <span class='formfactor-desktop'>Double click</span><span style="display: none;" class='formfactor-non-desktop'>Double tap</span>
+            to aim a <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span>
+            <span class="marker-aim-away">away from you</span><span style="display: none;" class="marker-aim-toward">back at you</span>
         </div>
 
         <div id="overlay">
@@ -1017,6 +1023,32 @@
                             <label for="setting-fixed-camera">Fixed Camera</label>
                         </div>
 
+                        <!-- One setting with two halves, as the Customize options are:
+                             a dropdown on screen, a radio group in VR, where the list
+                             a select opens never reaches the headset. Here the halves
+                             hold a value each rather than mirroring one - the aim a
+                             hand wants is not the aim a mouse wants - so each is
+                             named for its own context (markerFacing.js). -->
+                        <div class="menu-select-grid xr-non-vr">
+                            <label for="setting-marker-facing-select">Markers Face:</label>
+                            <select id="setting-marker-facing-select" name="setting-marker-facing" class="menu-select">
+                                <option value="toward">Toward Me</option>
+                                <option value="away">Away From Me</option>
+                            </select>
+                        </div>
+
+                        <div class="menu-radio-button xr-vr xr-force-redraw" style="text-align: left; display: none;" name="vr-setting-marker-facing">
+                            <div>Markers Face:</div>
+                            <div>
+                                <input type="radio" id="vr-setting-marker-facing-toward" name="vr-setting-marker-facing" value="toward" checked>
+                                <label for="vr-setting-marker-facing-toward">Toward Me</label>
+                            </div>
+                            <div>
+                                <input type="radio" id="vr-setting-marker-facing-away" name="vr-setting-marker-facing" value="away">
+                                <label for="vr-setting-marker-facing-away">Away From Me</label>
+                            </div>
+                        </div>
+
                         <div class="vr-controls-controllers">
                             <div class="xr-vr xr-force-redraw menu-radio-button" style="text-align: left; display: none;" name="vr-setting-movement">
                                 <div>VR Movement:</div>
@@ -1049,7 +1081,7 @@
                         </div>
 
                         <div class="vr-controls-gaze" class="xr-vr" style="display: none;">
-                            There are no options for this control scheme.
+                            There are no movement options for this control scheme.
                         </div>
 
                         <div class="xr-vr" style="display: none;">

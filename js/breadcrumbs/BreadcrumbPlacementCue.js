@@ -6,15 +6,15 @@
  * and fade out after about four minorWidths.
  *
  * A marker's whole job is to point somewhere - at you ("this branch is
- * spent", the default) or away from you ("this is the way I was heading", the
- * double-click result) - and a still arrow at arm's length reads the same
- * either way until you have walked around it. The bands say which way it
- * faces by moving that way.
+ * spent") or away from you ("this is the way I was heading") - and a still
+ * arrow at arm's length reads the same either way until you have walked
+ * around it. The bands say which way it faces by moving that way.
  *
  * Direction comes from the marker's own +Z, the facing axis BreadcrumbManager
- * aims (see its _aimAtPlayer / _aimAwayFromPlayer), so the double-click
- * reversal needs nothing here: the same local motion runs the other way
- * because the marker itself turned around.
+ * aims (see its _aimFacing), so nothing here cares which way a placement went:
+ * the same local motion runs the other way because the marker itself turned
+ * around. That holds for both the Markers Face setting (markerFacing.js) and
+ * the double-click reversal of it; only the launch point below is told apart.
  *
  * Acceleration is the deliberate mirror of BreadcrumbBaseDecor's radiating
  * dots, which decelerate to a stop. Those mark a place and should settle;
@@ -193,7 +193,8 @@ export default class BreadcrumbPlacementCue {
     //
     // `viewerPos` is where the player is watching from. It only decides how
     // far back the bands launch (see _spawnOffsetFor); leaving it out assumes
-    // the marker faces the player, which every placement but a VR one does.
+    // the marker faces the player, which is the setting's default but no
+    // longer a safe guess, so every caller passes one.
     start(breadcrumb, viewerPos = null) {
         if (breadcrumb == null) return;
 

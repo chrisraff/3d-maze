@@ -10,6 +10,9 @@ import { breadcrumbIconSource } from './BreadcrumbIcon.js';
 import { pickBreadcrumbHue, BREADCRUMB_SATURATION, BREADCRUMB_LIGHTNESS } from './breadcrumbHue.js';
 import { reachableWithin, segmentKey } from '../maze/mazeQuery.js';
 import { MAZE_OPTION_DEFAULTS } from '../state/mazeOptions.js';
+import {
+    MARKER_FACING_DEFAULT, coerceMarkerFacing, reverseMarkerFacing,
+} from '../state/markerFacing.js';
 
 /**
  * @author Chris Raff / http://www.ChrisRaff.com/
@@ -112,6 +115,8 @@ export default class BreadcrumbManager {
         this.breadcrumbStack = [];
         // the Markers option this maze was built under (mazeOptions.js)
         this.markerMode = MAZE_OPTION_DEFAULTS.markers;
+        // which way a placement aims a marker (markerFacing.js)
+        this.facingMode = MARKER_FACING_DEFAULT;
 
         // tutorial signals; the counts run for the session, read both as
         // totals and as deltas, so a new maze does not zero them
@@ -421,8 +426,11 @@ export default class BreadcrumbManager {
 
         this.scene.add(breadcrumb);
 
+        // the ray runs down the controller's own -Z and +Z is the marker's
+        // facing axis, so the quaternion as copied already aims it back along
+        // the ray at the player; Away turns it to point where the hand points
         pointObject.getWorldQuaternion(breadcrumb.quaternion);
-        breadcrumb.rotateY(Math.PI);
+        if (this.facingMode === 'away') breadcrumb.rotateY(Math.PI);
         this._interactStartOrientQuat.copy(breadcrumb.quaternion);
 
         gripObject.getWorldPosition(this._interactStartPos);
@@ -652,6 +660,16 @@ export default class BreadcrumbManager {
         this.markerMode = mode;
     }
 
+    /**
+     * Which way the next placement aims a marker (markerFacing.js). Settings
+     * pushes this in whenever the player changes it, or moves between the
+     * screen and VR, so it lands on the next placement rather than the next
+     * maze - and the double gesture stays its exact reverse either way.
+     */
+    setFacingMode(mode) {
+        this.facingMode = coerceMarkerFacing(mode);
+    }
+
     get isUnlimited() { return this.markerMode === 'unlimited'; }
 
     // the HUD and VR ring count; a bottomless stack holds one marker, not "1"
@@ -860,7 +878,8 @@ export default class BreadcrumbManager {
         return true;
     }
 
-    // Per-frame: sit exactly where a tap would drop it, facing the player.
+    // Per-frame: sit exactly where a tap would drop it, aimed the way the
+    // facing setting will leave it.
     updateGazePlace(camera, mazeData) {
         if (!this.isGazePlacing) return;
 
@@ -871,7 +890,7 @@ export default class BreadcrumbManager {
         if (!isFinitePosition(this._placeGhostPos)) return;
 
         this._interactTarget.position.copy(this._placeGhostPos);
-        this._aimAtPlayer(this._interactTarget, camera);
+        this._aimFacing(this._interactTarget, camera);
     }
 
     // Leave it where it stands. Returns the breadcrumb, or null if not placing.
@@ -923,7 +942,7 @@ export default class BreadcrumbManager {
     {
         const breadcrumb = this.raycastSearchForBreadcrumb(camera, sceneX, sceneY);
 
-        if (this._tryPointPlacementAwayFromPlayer(camera, breadcrumb))
+        if (this._tryReversePlacementAim(camera, breadcrumb))
             return;
 
         if (breadcrumb !== null) {
@@ -939,7 +958,7 @@ export default class BreadcrumbManager {
     }
 
     handleBreadcrumbClick(camera, mazeData) {
-        if (this._tryPointPlacementAwayFromPlayer(camera, this.hoveredBreadcrumb))
+        if (this._tryReversePlacementAim(camera, this.hoveredBreadcrumb))
             return;
 
         if (this.hoveredBreadcrumb) {
@@ -960,10 +979,11 @@ export default class BreadcrumbManager {
     }
 
     // Second half of a double click/tap: turn the breadcrumb the first half
-    // placed around to face the way the player is heading instead of back at
-    // them. `target` is what this click/tap actually hit - aiming somewhere
-    // else places a second breadcrumb as usual rather than spinning the first.
-    _tryPointPlacementAwayFromPlayer(camera, target, now = Date.now()) {
+    // placed around, so it points the other way from however the facing
+    // setting left it (markerFacing.js). `target` is what this click/tap
+    // actually hit - aiming somewhere else places a second breadcrumb as
+    // usual rather than spinning the first.
+    _tryReversePlacementAim(camera, target, now = Date.now()) {
         const placement = this._lastPlacement;
         this._lastPlacement = null;
 
@@ -975,7 +995,7 @@ export default class BreadcrumbManager {
             return false;
 
         // same helper as placement, so the two gestures stay exact opposites
-        this._aimAwayFromPlayer(placement.breadcrumb, camera);
+        this._aimFacing(placement.breadcrumb, camera, reverseMarkerFacing(this.facingMode));
         this.reaimCount++;
         // restart the cue so the reversal plays in full; this can land between
         // frames, so take the player position here rather than trust it
@@ -1238,6 +1258,14 @@ export default class BreadcrumbManager {
         breadcrumb.rotateY(Math.PI);
     }
 
+    // How a placement aims a marker: the facing setting by default, or the
+    // other mode for the double gesture. One helper for both, so the two stay
+    // exact opposites whichever way the setting points.
+    _aimFacing(breadcrumb, camera, mode = this.facingMode) {
+        if (mode === 'away') this._aimAwayFromPlayer(breadcrumb, camera);
+        else this._aimAtPlayer(breadcrumb, camera);
+    }
+
     addBreadcrumb(camera, mazeData, sceneX=0, sceneY=0) {
         const breadcrumb = this._takeFromStack();
         if (breadcrumb === null)
@@ -1246,7 +1274,7 @@ export default class BreadcrumbManager {
         this.placementPosition(breadcrumb.position, camera, mazeData, sceneX, sceneY);
 
         this.scene.add(breadcrumb);
-        this._aimAtPlayer(breadcrumb, camera);
+        this._aimFacing(breadcrumb, camera);
         this.breadcrumbs.push(breadcrumb);
 
         this.updateBreadCrumbDisplay();

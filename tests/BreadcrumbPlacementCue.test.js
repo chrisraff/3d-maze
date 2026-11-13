@@ -82,7 +82,7 @@ describe('when the cue fires', () => {
         manager.placementCue.update(0.2);
         manager.scene.updateMatrixWorld(true);
 
-        expect(manager._tryPointPlacementAwayFromPlayer(camera, placed, 1100)).toBe(true);
+        expect(manager._tryReversePlacementAim(camera, placed, 1100)).toBe(true);
 
         expect(manager.placementCue.isPlaying).toBe(true);
         expect(manager.placementCue.breadcrumb).toBe(placed);
@@ -230,7 +230,7 @@ describe('which way the bands go', () => {
         const placed = manager.addBreadcrumb(camera, emptyMazeData());
         manager._rememberPlacement(placed, 1000);
         manager.scene.updateMatrixWorld(true);
-        manager._tryPointPlacementAwayFromPlayer(camera, placed, 1100);
+        manager._tryReversePlacementAim(camera, placed, 1100);
         const start = bandOffset(manager, manager.placementCue.bands[0]).clone();
         manager.placementCue.update(0.2);
 
@@ -270,7 +270,7 @@ describe('where the bands launch', () => {
         const placed = placeAndSettle(manager, camera);
         manager.scene.updateMatrixWorld(true);
 
-        manager._tryPointPlacementAwayFromPlayer(camera, placed, 1100);
+        manager._tryReversePlacementAim(camera, placed, 1100);
 
         // the player is looking at the arrow's back now, so there is nothing
         // in the way and no run-up to find
@@ -283,6 +283,80 @@ describe('where the bands launch', () => {
 
         manager.placementCue.start(placed);   // no viewer position
 
+        expect(manager.placementCue.bands[0].position.z).toBeCloseTo(SPAWN_OFFSET_TOWARD, 6);
+    });
+});
+
+// Everything above runs on the default facing, where a marker points back
+// at the player. Away is the same cue with the other launch point, and the
+// timing it hangs off - the settle delay, and a re-aim restarting it - has to
+// be the same on both sides, or half the setting's players get a cue that
+// fires before the gesture it answers is finished.
+describe('with the facing setting on Away', () => {
+    const facingTowardCamera = (placed, camera) => v(0, 0, 1)
+        .applyQuaternion(placed.quaternion)
+        .dot(camera.position.clone().sub(placed.position).normalize());
+
+    function placeAway(manager, camera, now = 1000) {
+        manager.setFacingMode('away');
+        const placed = manager.addBreadcrumb(camera, emptyMazeData());
+        manager._rememberPlacement(placed, now);
+        manager.scene.updateMatrixWorld(true);
+        return placed;
+    }
+
+    it('still holds off until the settle time', () => {
+        const { manager, camera } = makeEmptyHandedManager();
+        placeAway(manager, camera);
+
+        manager.updateGlowForCamera(camera);
+        manager.updatePlacementCue(0, 1000 + CUE_SETTLE_MS - 1);
+
+        expect(manager.placementCue.isPlaying).toBe(false);
+    });
+
+    it('fires at the settle time, launching from the marker itself', () => {
+        const { manager, camera } = makeEmptyHandedManager();
+        const placed = placeAway(manager, camera);
+
+        manager.updateGlowForCamera(camera);
+        manager.updatePlacementCue(0, 1000 + CUE_SETTLE_MS);
+
+        expect(manager.placementCue.isPlaying).toBe(true);
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(-1, 6);
+        expect(manager.placementCue.bands[0].position.z).toBeCloseTo(SPAWN_OFFSET_AWAY, 6);
+    });
+
+    it('leaves away from the player, the way the marker points', () => {
+        const { manager, camera } = makeEmptyHandedManager();
+        const placed = placeAway(manager, camera);
+        manager.updateGlowForCamera(camera);
+        manager.updatePlacementCue(0, 1000 + CUE_SETTLE_MS);
+        const start = bandOffset(manager, manager.placementCue.bands[0]).clone();
+
+        manager.placementCue.update(0.2);
+
+        const [band] = visibleBands(manager);
+        const travelled = bandOffset(manager, band).sub(start);
+        const toPlayer = camera.position.clone().sub(placed.position).normalize();
+
+        expect(travelled.length()).toBeGreaterThan(0);
+        expect(travelled.clone().normalize().dot(toPlayer)).toBeCloseTo(-1, 6);
+    });
+
+    // the gesture is a reversal, so on this setting it is the one that lands
+    // a marker facing the player - and the cue has to find the run-up again
+    it('restarts from the far launch point when a re-aim turns it toward the player', () => {
+        const { manager, camera } = makeEmptyHandedManager();
+        const placed = placeAway(manager, camera);
+        manager.updateGlowForCamera(camera);
+        manager.updatePlacementCue(0, 1000 + CUE_SETTLE_MS);
+        manager.placementCue.update(0.2);
+
+        expect(manager._tryReversePlacementAim(camera, placed, 1100)).toBe(true);
+
+        expect(facingTowardCamera(placed, camera)).toBeCloseTo(1, 6);
+        expect(manager.placementCue.isPlaying).toBe(true);
         expect(manager.placementCue.bands[0].position.z).toBeCloseTo(SPAWN_OFFSET_TOWARD, 6);
     });
 });
