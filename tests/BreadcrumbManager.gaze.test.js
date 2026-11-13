@@ -289,12 +289,17 @@ describe('gaze placement', () => {
 
         manager.beginGazePlace(camera, emptyMazeData());
         const material = manager.interactTarget.userData.mesh.material;
-        expect(material.transparent).toBe(true);
         expect(material.opacity).toBeCloseTo(GHOST_OPACITY, 6);
 
         manager.commitGazePlace();
-        expect(material.transparent).toBe(false);
         expect(material.opacity).toBeCloseTo(1, 6);
+
+        // A marker's material is born transparent and nothing may clear it:
+        // THREE keys the shader program on that flag (`opaque` in
+        // WebGLPrograms) and a program built opaque hard-sets
+        // `diffuseColor.a = 1.0`, so every opacity above stops reaching the
+        // pixels - the fade and this ghost both silently render solid.
+        expect(material.transparent).toBe(true);
     });
 
     it('drops an in-flight preview when a new maze loads', () => {

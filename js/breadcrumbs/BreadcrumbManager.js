@@ -97,6 +97,15 @@ export const PLACEMENT_DISTANCE_SCALE = 0.33;
 // how solid the gaze ghost looks while it is still only a preview
 export const GHOST_OPACITY = 0.55;
 
+// Distances a marker fades out over as the player closes on it, so walking
+// into one dissolves it instead of being sliced open on the near plane - and
+// also seconds of approach, walking speed being majorWidth per second.
+// Desktop's 0.1 near plane (game.js) is what binds: the arrow reaches 0.138
+// along its facing axis, so it starts clipping at 0.238, where it is still
+// ~9% opaque. VR has room to spare - VRManager drops near to 0.001.
+const NEAR_FADE_START = maze.majorWidth * 0.2;
+const NEAR_FADE_END = maze.majorWidth * 0.1;
+
 const HOVER_EMISSIVE_WHITE = new THREE.Color(1, 1, 1);
 
 const isFinitePosition = (v) =>
@@ -577,6 +586,8 @@ export default class BreadcrumbManager {
             if (breadcrumb === this._interactTarget) continue;
 
             const playerDist = playerWorldPos.distanceTo(breadcrumb.position);
+            this._updateNearFade(breadcrumb, playerDist);
+
             // the wide band first, so line of sight is walked at most once
             const hasSight = playerDist <= SIGHT_GATE
                 && this._canReachBreadcrumb(playerWorldPos, breadcrumb);
@@ -689,6 +700,7 @@ export default class BreadcrumbManager {
         breadcrumb.userData.originalMaterial = new THREE.MeshLambertMaterial({
             color: `hsl(${hue}, ${BREADCRUMB_SATURATION * 100}%, ${BREADCRUMB_LIGHTNESS * 100}%)`,
             vertexColors: true,
+            transparent: true,
         });
         breadcrumb.userData.glowMaterial = createGlowMaterial();
         breadcrumb.userData.glowAlpha = 0.0;
@@ -924,11 +936,34 @@ export default class BreadcrumbManager {
         this.updateBreadCrumbDisplay();
     }
 
+     */
+    _updateNearFade(breadcrumb, playerDist) {
+        const mesh = breadcrumb.userData.mesh;
+        const material = mesh?.material;
+        if (!material) return;
+
+        const opacity = THREE.MathUtils.smoothstep(playerDist, NEAR_FADE_END, NEAR_FADE_START);
+        if (material.opacity === opacity) return;
+
+        material.opacity = opacity;
+        mesh.visible = opacity > 0;
+    }
+
+    // Back to solid, for a marker leaving the scene: a pickup at point blank
+    // takes a fully faded one, and it has to be visible when re-placed.
+    _resetNearFade(breadcrumb) {
+        const mesh = breadcrumb.userData.mesh;
+        if (!mesh) return;
+
+        mesh.visible = true;
+        if (!mesh.material) return;
+        mesh.material.opacity = 1;
+    }
+
     _setGhost(breadcrumb, isGhost) {
         const material = breadcrumb?.userData.mesh?.material;
         if (!material) return;
 
-        material.transparent = isGhost;
         material.opacity = isGhost ? GHOST_OPACITY : 1;
         // a translucent preview shouldn't occlude the maze behind it
         material.depthWrite = !isGhost;
@@ -1184,6 +1219,7 @@ export default class BreadcrumbManager {
         breadcrumb.userData.glowAlpha = 0.0;
         if (breadcrumb.userData.glowMaterial)
             breadcrumb.userData.glowMaterial.uniforms.uAlpha.value = 0.0;
+        this._resetNearFade(breadcrumb);
 
         this.breadcrumbStack.push(breadcrumb);
 
