@@ -11,6 +11,11 @@ import {
 const SCREEN_KEY = KEYS.screen;
 const VR_KEY = KEYS.vr;
 
+// storage.js namespaces what it writes, so the fake store below is keyed the
+// way the browser would be. Spelled out rather than imported, so a careless
+// change to the prefix fails here instead of orphaning every stored setting.
+const STORED_PREFIX = '3dmaze-';
+
 // a stand-in DOM element: enough of one for Settings to read, write and
 // listen to. `dispatch` plays the part of an event bubbling up to a handler.
 function el({ id = null, name = null, tagName = 'INPUT', type = null, value = null, classes = [] }) {
@@ -46,11 +51,12 @@ function makeDom(elements) {
 // Settings reaches storage.js, which grabs window.localStorage as it loads, so
 // the stub has to be in place before the import.
 async function setup(stored = {}) {
-    const store = new Map(Object.entries(stored));
+    const backing = new Map(
+        Object.entries(stored).map(([key, value]) => [STORED_PREFIX + key, value]));
     vi.stubGlobal('window', {
         localStorage: {
-            getItem: (key) => store.has(key) ? store.get(key) : null,
-            setItem: (key, value) => store.set(key, String(value)),
+            getItem: (key) => backing.has(key) ? backing.get(key) : null,
+            setItem: (key, value) => backing.set(key, String(value)),
         },
     });
 
@@ -98,6 +104,13 @@ async function setup(stored = {}) {
     const radioOf = (mode) => facingRadios.find(r => r.value === mode);
     const shownCopy = () => MARKER_FACING_MODES
         .filter(direction => copy[direction].style.display !== 'none');
+    // the setting's own key, so a test says what it means rather than carrying
+    // the prefix around; `rawKeys` is for checking the prefix landed at all
+    const store = {
+        get: (key) => backing.get(STORED_PREFIX + key),
+        has: (key) => backing.has(STORED_PREFIX + key),
+        rawKeys: () => [...backing.keys()],
+    };
     return { settings, store, applied, facingSelect, facingRadioGroup, radioOf, shownCopy };
 }
 
@@ -189,6 +202,18 @@ describe('changing it', () => {
         expect(settings.markerFacing).toEqual({ screen: 'toward', vr: 'away' });
         // not in VR, so what the markers are using hasn't changed
         expect(applied.at(-1)).toBe('toward');
+    });
+
+    // the game shares an origin with the rest of the site, so neither half may
+    // claim a bare name of its own (storage.js)
+    it('writes both halves under the namespaced key', async () => {
+        const { store, facingSelect, facingRadioGroup, radioOf } = await setup();
+
+        facingSelect.value = 'away';
+        facingSelect.dispatch('change');
+        facingRadioGroup.dispatch('change', radioOf('away'));
+
+        expect(store.rawKeys()).toEqual([`${STORED_PREFIX}${SCREEN_KEY}`, `${STORED_PREFIX}${VR_KEY}`]);
     });
 });
 
