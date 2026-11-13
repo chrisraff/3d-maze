@@ -22,7 +22,10 @@
  * Dots: each spawns at a random angle and random point in the cycle,
  * decelerating uniformly outward (fast at first, slowing to a stop right as
  * it reaches its max radius) with a slight drift off the surface, then
- * fades out over the last stretch of the cycle - see FADE_START.
+ * fades out over the last stretch of the cycle - see FADE_START. That whole
+ * cycle is a pure function of (time, angle, phase), so it runs in the
+ * vertex shader off static per-dot attributes rather than being integrated
+ * on the CPU - see DOT_VERTEX_CHUNKS.
  *
  * De-energizing: once a breadcrumb is grabbed (BreadcrumbManager calls
  * deenergize(index) from beginReorient/removeBreadcrumb), its base's dots
@@ -64,7 +67,7 @@ const RADIATE_RADIUS = MAX_RADIUS * 1.15; // roughly majorWidth/2 - how far out 
 const RADIATE_PERIOD = 2.6; // seconds for one dot's full cycle, center to fade-out
 // fraction of the cycle a dot spends at full brightness before fading -
 // it's already slowed almost to a stop by the time this kicks in (see the
-// deceleration curve in _applyDotPositions), so it reads as coasting to
+// deceleration curve in DOT_VERTEX_CHUNKS), so it reads as coasting to
 // rest and fading, not fading while still visibly moving
 const FADE_START = 0.7;
 const DOT_SIZE = 0.03;
@@ -83,6 +86,45 @@ const NORMAL_DRIFT_MAX = 0.05;
 
 const clamp01 = c => c < 0 ? 0 : c > 1 ? 1 : c;
 
+// GLSL wants a float to look like one, however round the constant is
+const glslFloat = n => Number.isInteger(n) ? `${n}.0` : `${n}`;
+
+// Patched into three's points shader (onBeforeCompile, like dust.js) so
+// PointsMaterial's sizing, map and alphaTest still apply to the dots.
+//
+// The fade is applied to vColor, not to alpha: the material is additive
+// with alphaTest 0.5 against the dot texture, so dimming alpha would clip
+// a dot out partway through its fade instead of easing it off.
+const DOT_VERTEX_CHUNKS = {
+    '#include <common>': `
+        #include <common>
+        uniform float u_time;
+        attribute vec3 dotDirection; // unit vector in the panel's plane
+        attribute vec3 dotNormal;    // unit vector off the panel, into the room
+        attribute float dotPhase;    // where in the cycle this dot started
+        attribute float dotMuted;    // 1 once its breadcrumb has been picked up
+    `,
+    '#include <begin_vertex>': `
+        float progress = fract(u_time / ${glslFloat(RADIATE_PERIOD)} + dotPhase);
+
+        // uniformly decelerating motion (like a spark losing momentum to
+        // friction): starts at speed 2*RADIATE_RADIUS/RADIATE_PERIOD and
+        // slows to a stop exactly as it lands on RADIATE_RADIUS at
+        // progress=1 (1 - (1-t)^2, the standard quadratic ease-out)
+        float remaining = 1.0 - progress;
+        float radius = ${glslFloat(RADIATE_RADIUS)} * (1.0 - remaining * remaining);
+        float normalOffset = ${glslFloat(DOT_SPAWN_OFFSET)} + ${glslFloat(NORMAL_DRIFT_MAX)} * progress;
+        vec3 transformed = position + dotDirection * radius + dotNormal * normalOffset;
+
+        // full brightness while it's still moving, fading out over the last
+        // stretch as it coasts to a stop. A de-energized dot is dropped
+        // outright rather than allowed to finish its cycle.
+        float fadeStart = ${glslFloat(FADE_START)};
+        float fade = clamp((progress - fadeStart) / (1.0 - fadeStart), 0.0, 1.0);
+        vColor *= (1.0 - smoothstep(0.0, 1.0, fade)) * (1.0 - dotMuted);
+    `,
+};
+
 // the wall model's own hole layout reuses this exact RGB-from-grid-index
 // formula (see MazeWorld.js's build()) to color each panel - mirrored here
 // (not imported, to avoid coupling this module to MazeWorld's THREE/scene
@@ -96,11 +138,6 @@ function panelRenderedColor(mazeData, panelIndex) {
         clamp01(0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1]),
         clamp01(0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2]),
     );
-}
-
-// t in [0, 1] -> 1 down to 0, smoothstep eased
-function dotFadeEnvelope(t) {
-    return 1 - t * t * (3 - 2 * t);
 }
 
 // sRGB <-> OKLab (Björn Ottosson's formulas) - used instead of HSL for the
@@ -162,6 +199,24 @@ function loadDotTexture() {
     }
 }
 
+// collects the per-dot attribute data a build produces, so the flat layout
+// the shader reads lives in one place rather than in five parallel arrays
+// the caller has to keep index-aligned by hand
+function dotCollector() {
+    return {
+        center: [], direction: [], normal: [], phase: [], color: [],
+        count: 0,
+        push(center, direction, normal, phase, color) {
+            this.center.push(center.x, center.y, center.z);
+            this.direction.push(direction.x, direction.y, direction.z);
+            this.normal.push(normal.x, normal.y, normal.z);
+            this.phase.push(phase);
+            this.color.push(color.r, color.g, color.b);
+            this.count++;
+        },
+    };
+}
+
 function pushStud(matrices, colors, dummy, position, size, depth, normalAxis, color) {
     dummy.position.copy(position);
     dummy.scale.set(size, size, size);
@@ -196,16 +251,20 @@ export default class BreadcrumbBaseDecor {
             depthWrite: false,
             blending: THREE.AdditiveBlending,
         });
+        // one uniform object held here rather than read back off the
+        // compiled shader (dust.js's pattern), so update() can drive the
+        // clock before the first render has compiled anything
+        this._timeUniform = { value: 0 };
+        this.dotMaterial.onBeforeCompile = shader => {
+            shader.uniforms.u_time = this._timeUniform;
+            for (const [include, chunk] of Object.entries(DOT_VERTEX_CHUNKS)) {
+                shader.vertexShader = shader.vertexShader.replace(include, chunk);
+            }
+        };
+
         this.dotPoints = new THREE.Points(this.dotGeometry, this.dotMaterial);
         this.dotPoints.frustumCulled = false;
 
-        this._dotCenters = [];
-        this._dotDirections = [];
-        this._dotNormalDirs = [];
-        this._dotSpeed = [];
-        this._dotPhase = [];
-        this._dotBaseColor = [];
-        this._dotMuted = [];
         this._t = 0;
 
         // one entry per site passed to build(), in the same order - lets
@@ -239,18 +298,15 @@ export default class BreadcrumbBaseDecor {
         const colors = [];
         const tmpColor = new THREE.Color();
 
-        const dotCenters = [];
-        const dotDirections = [];
-        const dotNormalDirs = [];
-        const dotSpeed = [];
-        const dotPhase = [];
-        const dotBaseColor = [];
+        // per-dot attribute data, filled in _buildMedallion - all of it
+        // static for the life of the maze except dotMuted
+        const dots = dotCollector();
         const studRadiusFraction = [];
         const medallions = [];
 
         for (const site of sites) {
             this._buildMedallion(mazeData, site, dummy, tmpColor, matrices, colors, studRadiusFraction, rng,
-                dotCenters, dotDirections, dotNormalDirs, dotSpeed, dotPhase, dotBaseColor, medallions);
+                dots, medallions);
         }
 
         if (matrices.length > 0) {
@@ -261,21 +317,19 @@ export default class BreadcrumbBaseDecor {
             this.group.add(this.studMesh);
         }
 
-        this._dotCenters = dotCenters;
-        this._dotDirections = dotDirections;
-        this._dotNormalDirs = dotNormalDirs;
-        this._dotSpeed = dotSpeed;
-        this._dotPhase = dotPhase;
-        this._dotBaseColor = dotBaseColor;
-        this._dotMuted = new Array(dotCenters.length).fill(false);
         this._studRadiusFraction = studRadiusFraction;
         this._medallions = medallions;
         this._t = 0;
+        this._timeUniform.value = 0;
 
-        const n = dotCenters.length;
-        this.dotGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-        this.dotGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-        this._applyDotPositions(); // paint an initial frame so nothing pops in at the origin
+        const attribute = (name, source, itemSize) => this.dotGeometry.setAttribute(
+            name, new THREE.BufferAttribute(new Float32Array(source), itemSize));
+        attribute('position', dots.center, 3);
+        attribute('color', dots.color, 3);
+        attribute('dotDirection', dots.direction, 3);
+        attribute('dotNormal', dots.normal, 3);
+        attribute('dotPhase', dots.phase, 1);
+        attribute('dotMuted', dots.count, 1); // all zero: every base starts energized
 
         return sites.length;
     }
@@ -283,7 +337,7 @@ export default class BreadcrumbBaseDecor {
     update(dt) {
         if (this._medallions.length === 0) return;
         this._t += dt;
-        this._applyDotPositions();
+        this._timeUniform.value = this._t;
         this._applyDeenergizeTransitions();
     }
 
@@ -297,60 +351,21 @@ export default class BreadcrumbBaseDecor {
         const medallion = this._medallions[index];
         if (!medallion || medallion.deenergizeStart !== null) return;
         medallion.deenergizeStart = this._t;
-        for (let i = medallion.dotStart; i < medallion.dotStart + medallion.dotCount; i++) {
-            this._dotMuted[i] = true;
-        }
-    }
-
-    _applyDotPositions() {
-        const n = this._dotCenters.length;
-        const positions = this.dotGeometry.attributes.position.array;
-        const colors = this.dotGeometry.attributes.color.array;
-        const tmpColor = new THREE.Color();
-
-        for (let i = 0; i < n; i++) {
-            if (this._dotMuted[i]) {
-                // de-energized: stop spawning/showing this dot outright,
-                // rather than letting it finish its current cycle
-                colors[i * 3 + 0] = 0;
-                colors[i * 3 + 1] = 0;
-                colors[i * 3 + 2] = 0;
-                continue;
-            }
-
-            const progress = ((this._t * this._dotSpeed[i] + this._dotPhase[i]) % 1 + 1) % 1;
-            // uniformly decelerating motion (like a spark losing momentum to
-            // friction): starts at speed 2*RADIATE_RADIUS/RADIATE_PERIOD and
-            // slows to a stop exactly as it lands on RADIATE_RADIUS at
-            // progress=1 - same reach as the old constant-speed version
-            // (1 - (1-t)^2 == 2t - t^2, the standard quadratic ease-out)
-            const radius = RADIATE_RADIUS * (1 - (1 - progress) ** 2);
-            const normalOffset = DOT_SPAWN_OFFSET + NORMAL_DRIFT_MAX * progress;
-            const center = this._dotCenters[i];
-            const dir = this._dotDirections[i];
-            const normalDir = this._dotNormalDirs[i];
-
-            positions[i * 3 + 0] = center.x + dir.x * radius + normalDir.x * normalOffset;
-            positions[i * 3 + 1] = center.y + dir.y * radius + normalDir.y * normalOffset;
-            positions[i * 3 + 2] = center.z + dir.z * radius + normalDir.z * normalOffset;
-
-            // full brightness while it's still moving, fading out over the
-            // last stretch as it coasts to a stop
-            const envelope = progress < FADE_START ? 1 : dotFadeEnvelope((progress - FADE_START) / (1 - FADE_START));
-            tmpColor.copy(this._dotBaseColor[i]).multiplyScalar(envelope);
-            colors[i * 3 + 0] = tmpColor.r;
-            colors[i * 3 + 1] = tmpColor.g;
-            colors[i * 3 + 2] = tmpColor.b;
-        }
-
-        this.dotGeometry.attributes.position.needsUpdate = true;
-        this.dotGeometry.attributes.color.needsUpdate = true;
+        const muted = this.dotGeometry.attributes.dotMuted;
+        muted.array.fill(1, medallion.dotStart, medallion.dotStart + medallion.dotCount);
+        muted.needsUpdate = true;
     }
 
     // recolors the studs of any medallion currently mid-transition (or just
     // finished) toward its de-energized target; medallions untouched since
     // the last frame are skipped entirely, and a medallion is skipped for
     // good once it reaches the end of its transition
+    //
+    // Unlike the dots, this stays on the CPU: it only runs for the second
+    // or so after a pickup, over one medallion's ~47 studs, and moving it
+    // would mean an OKLab-to-sRGB conversion in the shader plus eight
+    // static floats on every stud in the maze, paid whether or not anybody
+    // ever picks that marker up
     _applyDeenergizeTransitions() {
         if (!this.studMesh) return;
 
@@ -381,7 +396,7 @@ export default class BreadcrumbBaseDecor {
     }
 
     _buildMedallion(mazeData, { room, surface, hue, saturation: trueSaturation, lightness: trueLightness }, dummy, tmpColor, matrices, colors, studRadiusFraction, rng,
-        dotCenters, dotDirections, dotNormalDirs, dotSpeed, dotPhase, dotBaseColor, medallions) {
+        dots, medallions) {
         const [axisA, axisB] = ['x', 'y', 'z'].filter(a => a !== surface.axis);
         const roomCenter = new THREE.Vector3(getOffset(room.x), getOffset(room.y), getOffset(room.z));
         const panelOffset = getOffset(room[surface.axis]) + surface.dir * majorWidth / 2;
@@ -394,7 +409,7 @@ export default class BreadcrumbBaseDecor {
         const ringCount = 2 + Math.floor(rng() * 3); // 2..4 rings
         const angleOffset = rng() * Math.PI * 2;
         const studStart = matrices.length;
-        const dotStart = dotCenters.length;
+        const dotStart = dots.count;
 
         const position = new THREE.Vector3();
         const lab = { L: 0, a: 0, b: 0 };
@@ -443,28 +458,24 @@ export default class BreadcrumbBaseDecor {
         // mechanical pattern; each also drifts slightly off the surface
         // as it travels (see NORMAL_DRIFT_MAX)
         const dotColor = new THREE.Color().setHSL(hue, 0.85, 0.65);
-        const panelPoint = new THREE.Vector3(roomCenter.x, roomCenter.y, roomCenter.z);
+        const panelPoint = roomCenter.clone();
         panelPoint[surface.axis] = panelOffset;
         const normalDir = new THREE.Vector3();
         normalDir[surface.axis] = -surface.dir; // away from the wall, into the room
+        const dir = new THREE.Vector3();
 
         for (let d = 0; d < DOTS_PER_MEDALLION; d++) {
             const angle = rng() * Math.PI * 2;
-            const dir = new THREE.Vector3();
+            dir.set(0, 0, 0);
             dir[axisA] = Math.cos(angle);
             dir[axisB] = Math.sin(angle);
 
-            dotCenters.push(panelPoint);
-            dotDirections.push(dir);
-            dotNormalDirs.push(normalDir);
-            dotSpeed.push(1 / RADIATE_PERIOD);
-            dotPhase.push(rng());
-            dotBaseColor.push(dotColor);
+            dots.push(panelPoint, dir, normalDir, rng(), dotColor);
         }
 
         medallions.push({
             studStart, studCount: matrices.length - studStart,
-            dotStart, dotCount: dotCenters.length - dotStart,
+            dotStart, dotCount: dots.count - dotStart,
             trueOklab, panelOklab,
             deenergizeStart: null, settled: false,
         });
