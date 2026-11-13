@@ -80,16 +80,20 @@ const DOT_SPAWN_OFFSET = HEIGHT_MAX * 0.9;
 // as gently puffing further off the surface, not staying at a fixed height
 const NORMAL_DRIFT_MAX = 0.05;
 
+const clamp01 = c => c < 0 ? 0 : c > 1 ? 1 : c;
+
 // the wall model's own hole layout reuses this exact RGB-from-grid-index
 // formula (see MazeWorld.js's build()) to color each panel - mirrored here
 // (not imported, to avoid coupling this module to MazeWorld's THREE/scene
 // setup) so a medallion's center can blend toward the real color of the
-// panel behind it
+// panel behind it. Clamped, as breadcrumbHue.js and panelPalette.js both
+// are: grid index 0 drives the formula slightly negative in a small maze,
+// which the GPU renders as black and only skews the blend path here
 function panelRenderedColor(mazeData, panelIndex) {
     return new THREE.Color(
-        0.05 + 0.9 * (panelIndex.x - 1) / mazeData.segments[0],
-        0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1],
-        0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2],
+        clamp01(0.05 + 0.9 * (panelIndex.x - 1) / mazeData.segments[0]),
+        clamp01(0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1]),
+        clamp01(0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2]),
     );
 }
 
@@ -108,7 +112,7 @@ function srgbToLinear(c) {
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 function linearToSrgb(c) {
-    c = Math.max(0, Math.min(1, c));
+    c = clamp01(c);
     return c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055;
 }
 function rgbToOklab(color) {

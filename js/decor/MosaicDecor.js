@@ -12,7 +12,7 @@
  * jitter) gives the individual tiles definition against their neighbors.
  *
  * The whole palette is anchored to the panel's own rendered color (see
- * panelRenderedColor) rather than a free-floating random hue - close to the
+ * panelPalette.js) rather than a free-floating random hue - close to the
  * wall, but a little different, same as Skyline.
  */
 import * as THREE from 'three';
@@ -21,6 +21,7 @@ import { randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { pickSite } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
+import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -54,24 +55,13 @@ function makePatternFn(rng) {
     };
 }
 
-// mirrors MazeWorld.js's own wall-coloring formula (see BreadcrumbBaseDecor's
-// panelRenderedColor for the same derivation) - not imported, to keep this
-// module free of MazeWorld's THREE/scene setup
-function panelRenderedColor(mazeData, panelIndex) {
-    return new THREE.Color(
-        0.05 + 0.9 * (panelIndex.x - 1) / mazeData.segments[0],
-        0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1],
-        0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2],
-    );
-}
-
 function pushTile(matrices, colors, dummy, tmpColor, position, surfaceAxis, hue, saturation, lightness) {
     dummy.position.copy(position);
     dummy.scale.set(CELL_SIZE - TILE_GAP, CELL_SIZE - TILE_GAP, CELL_SIZE - TILE_GAP);
     dummy.scale[surfaceAxis] = TILE_DEPTH;
     dummy.updateMatrix();
     matrices.push(dummy.matrix.clone());
-    tmpColor.setHSL(((hue % 1) + 1) % 1, saturation, lightness);
+    setPaletteColor(tmpColor, hue, saturation, lightness);
     colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
 }
 
@@ -139,7 +129,7 @@ export default class MosaicDecor {
         // Circuit, this is allowed to read as its own decorative surface
         const panelIndex = { ...room, [surface.axis]: room[surface.axis] + surface.dir };
         const panelHSL = { h: 0, s: 0, l: 0 };
-        panelRenderedColor(mazeData, panelIndex).getHSL(panelHSL);
+        panelPaletteHSL(mazeData, panelIndex, panelHSL);
         const baseHue = ((panelHSL.h + (rng() * 2 - 1) * 0.06) % 1 + 1) % 1;
         const hueRange = 0.05 + rng() * 0.05; // how far the mosaic drifts from baseHue
         const pattern = makePatternFn(rng);
@@ -155,15 +145,11 @@ export default class MosaicDecor {
 
                 const hue = baseHue + (pattern(u, v) - 0.5) * hueRange;
                 const checker = (i + j) % 2 === 0 ? 1 : -1;
-                // scaled by whichever headroom (to black or to white) is
-                // actually available, rather than added then hard-clamped -
-                // near either end of the maze's color gradient (a very dark
-                // or very light panel), a flat +/-0.14 swing would otherwise
-                // regularly overshoot past 0 or 1 and clip flat, reading as
-                // jarring pure-black/pure-white tiles instead of "a little
-                // different" from their neighbor
-                const delta = 0.1 * checker + (rng() * 2 - 1) * 0.04;
-                const lightness = baseLightness + delta * (delta >= 0 ? (1 - baseLightness) : baseLightness);
+                // a displayed offset, held constant across the gradient by
+                // shadeLightness (panelPalette.js) - this module had worked
+                // out its own headroom scaling for the clipping half of that
+                // problem, which is now shared with every panel-anchored kind
+                const lightness = shadeLightness(baseLightness, 0.035 * checker + (rng() * 2 - 1) * 0.015);
 
                 position.copy(center);
                 position[axisA] = center[axisA] + (i - (GRID_SIZE - 1) / 2) * CELL_SIZE;

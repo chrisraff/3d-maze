@@ -51,6 +51,7 @@ import { AXES, roomInBounds, panelSolid, randomInt } from '../maze/mazeQuery.js'
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { candidateSites } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
+import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
 
 // see SkylineDecor's file comment for the derivation of this same constant
 const CAMERA_COLLISION_DISTANCE = 0.25;
@@ -88,17 +89,6 @@ function inPlaneAxes(axis) {
     return AXES.filter(a => a !== axis);
 }
 
-// mirrors MazeWorld.js's own wall-coloring formula (see BreadcrumbBaseDecor's
-// panelRenderedColor for the same derivation) - not imported, to keep this
-// module free of MazeWorld's THREE/scene setup
-function panelRenderedColor(mazeData, panelIndex) {
-    return new THREE.Color(
-        0.05 + 0.9 * (panelIndex.x - 1) / mazeData.segments[0],
-        0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1],
-        0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2],
-    );
-}
-
 // "roughly the same color as the cell" - the panel's own rendered color,
 // darkened/desaturated so the pipe still reads as a distinct object, with a
 // small hue jitter that's the same for every segment of one run so the
@@ -107,10 +97,13 @@ function panelRenderedColor(mazeData, panelIndex) {
 function pipeColorFor(mazeData, room, surface, hueJitter) {
     const panelIndex = { ...room, [surface.axis]: room[surface.axis] + surface.dir };
     const hsl = { h: 0, s: 0, l: 0 };
-    panelRenderedColor(mazeData, panelIndex).getHSL(hsl);
-    const color = new THREE.Color();
-    color.setHSL(((hsl.h + hueJitter) % 1 + 1) % 1, hsl.s * 0.55, Math.max(0.12, hsl.l * 0.6));
-    return color;
+    panelPaletteHSL(mazeData, panelIndex, hsl);
+    // the same displayed amount darker than its panel the whole way along the
+    // maze's gradient - the old Math.max(0.12, l * 0.6) read the panel's
+    // linear value, where the dark end sits around 0.02, so nearly a fifth of
+    // all panels hit that floor and came out *brighter* than their wall
+    return setPaletteColor(new THREE.Color(), hsl.h + hueJitter, hsl.s * 0.55,
+        shadeLightness(hsl.l, -0.14));
 }
 
 function pushSegment(matrices, colors, dummy, start, end, color) {

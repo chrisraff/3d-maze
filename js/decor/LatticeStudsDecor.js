@@ -16,7 +16,7 @@
  * decorating the existing holes instead of floating independently of them.
  *
  * Color is a deliberate hue rotation away from the panel's own rendered
- * color (see panelRenderedColor), with a saturation and lightness lift, so
+ * color (see panelPalette.js), with a saturation and lightness lift, so
  * the studs read as a coordinated hardware accent rather than blending into
  * the wall. The rotation stays small - a large jump reads as glaringly
  * mismatched, closer to a highlighted UI element than a wall fixture.
@@ -27,6 +27,7 @@ import { randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { pickSite } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
+import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
 
 // deep enough to clear minorWidth (the wall's own thickness) on both sides
 // with room to spare, so each stud visibly pokes through rather than
@@ -39,16 +40,11 @@ const STUD_SIZE = (majorWidth / 3) * 0.4;
 // than it is deep
 const STUD_PROTRUSION = (STUD_DEPTH - minorWidth) / 2;
 
-// mirrors MazeWorld.js's own wall-coloring formula (see BreadcrumbBaseDecor's
-// panelRenderedColor for the same derivation) - not imported, to keep this
-// module free of MazeWorld's THREE/scene setup
-function panelRenderedColor(mazeData, panelIndex) {
-    return new THREE.Color(
-        0.05 + 0.9 * (panelIndex.x - 1) / mazeData.segments[0],
-        0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1],
-        0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2],
-    );
-}
+// displayed lightness lift off the panel, and the extra the checker adds to
+// every other stud - the amounts these came to mid-maze, where the palette
+// was tuned (shadeLightness in panelPalette.js)
+const LIFT = 0.08;
+const CHECKER_LIFT = 0.045;
 
 function pushStud(matrices, colors, dummy, tmpColor, position, size, depth, normalAxis, hue, saturation, lightness) {
     dummy.position.copy(position);
@@ -56,7 +52,7 @@ function pushStud(matrices, colors, dummy, tmpColor, position, size, depth, norm
     dummy.scale[normalAxis] = depth;
     dummy.updateMatrix();
     matrices.push(dummy.matrix.clone());
-    tmpColor.setHSL(((hue % 1) + 1) % 1, saturation, lightness);
+    setPaletteColor(tmpColor, hue, saturation, lightness);
     colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
 }
 
@@ -130,11 +126,15 @@ export default class LatticeStudsDecor {
         // in a random direction each panel
         const panelIndex = { ...room, [surface.axis]: room[surface.axis] + surface.dir };
         const panelHSL = { h: 0, s: 0, l: 0 };
-        panelRenderedColor(mazeData, panelIndex).getHSL(panelHSL);
+        panelPaletteHSL(mazeData, panelIndex, panelHSL);
         const rotation = (0.0417 + rng() * 0.0417) * (rng() < 0.5 ? -1 : 1);
         const hue = ((panelHSL.h + rotation) % 1 + 1) % 1;
         const saturation = Math.min(1, panelHSL.s + 0.1 + rng() * 0.1);
-        const baseLightness = Math.min(1, panelHSL.l * 0.5 + 0.3);
+        // a displayed lift off the panel, so a stud still reads as catching
+        // the light in the bright corner of the maze - the old linear
+        // l * 0.5 + 0.3 was a lerp toward a fixed 0.6, which lifted the dark
+        // end by +0.36 and *darkened* the bright end by -0.14
+        const baseLightness = shadeLightness(panelHSL.l, LIFT);
 
         const position = new THREE.Vector3();
         for (let i = 0; i < HOLE_OFFSETS.length; i++) {
@@ -144,7 +144,7 @@ export default class LatticeStudsDecor {
                 position[axisB] = center[axisB] + HOLE_OFFSETS[j];
                 position[surface.axis] = wallMid;
 
-                const lightness = Math.min(1, Math.max(0, baseLightness + 0.08 * ((i + j) % 2))); // subtle checker shading
+                const lightness = shadeLightness(baseLightness, CHECKER_LIFT * ((i + j) % 2)); // subtle checker shading
                 pushStud(matrices, colors, dummy, tmpColor, position, STUD_SIZE, STUD_DEPTH, surface.axis, hue, saturation, lightness);
             }
         }

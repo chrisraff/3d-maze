@@ -18,7 +18,7 @@
  * so a tower never looks like it's sprouting out of a gap in the wall.
  *
  * The palette is anchored to the panel's own rendered color (see
- * panelRenderedColor) rather than a free-floating random hue - close to the
+ * panelPalette.js) rather than a free-floating random hue - close to the
  * wall, but a little different, same as Mosaic.
  */
 import * as THREE from 'three';
@@ -27,6 +27,7 @@ import { randomInt } from '../maze/mazeQuery.js';
 import { ROLE, SceneryClaims } from './sceneryClaims.js';
 import { pickSite } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
+import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
 
 const GRID_SIZE = 27;
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -63,16 +64,11 @@ const HOLE_HALF_WIDTH = (majorWidth / 9) / 2;
 // extra distance beyond the hole's edge the falloff eases back up over
 const HOLE_TAPER_MARGIN = majorWidth / 9;
 
-// mirrors MazeWorld.js's own wall-coloring formula (see BreadcrumbBaseDecor's
-// panelRenderedColor for the same derivation) - not imported, to keep this
-// module free of MazeWorld's THREE/scene setup
-function panelRenderedColor(mazeData, panelIndex) {
-    return new THREE.Color(
-        0.05 + 0.9 * (panelIndex.x - 1) / mazeData.segments[0],
-        0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1],
-        0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2],
-    );
-}
+// displayed lightness offsets off the panel for the shortest and the tallest
+// tower - the depth cue the silhouette reads by (see _buildWall), held at the
+// same contrast across the maze's gradient by shadeLightness (panelPalette.js)
+const SHORTEST_OFFSET = -0.14;
+const TALLEST_OFFSET = 0.16;
 
 function pushCell(matrices, colors, dummy, tmpColor, position, surfaceAxis, height, hue, saturation, lightness) {
     dummy.position.copy(position);
@@ -80,7 +76,7 @@ function pushCell(matrices, colors, dummy, tmpColor, position, surfaceAxis, heig
     dummy.scale[surfaceAxis] = Math.max(height, 0.002);
     dummy.updateMatrix();
     matrices.push(dummy.matrix.clone());
-    tmpColor.setHSL(((hue % 1) + 1) % 1, saturation, lightness);
+    setPaletteColor(tmpColor, hue, saturation, lightness);
     colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
 }
 
@@ -217,7 +213,7 @@ export default class SkylineDecor {
         // Circuit, this is allowed to read as its own decorative surface
         const panelIndex = { ...room, [surface.axis]: room[surface.axis] + surface.dir };
         const panelHSL = { h: 0, s: 0, l: 0 };
-        panelRenderedColor(mazeData, panelIndex).getHSL(panelHSL);
+        panelPaletteHSL(mazeData, panelIndex, panelHSL);
 
         const pattern = makePatternFn(rng);
         const hue = ((panelHSL.h + (rng() * 2 - 1) * 0.06) % 1 + 1) % 1;
@@ -240,11 +236,15 @@ export default class SkylineDecor {
                 position[axisB] = center[axisB] + worldB;
                 position[surface.axis] = panelOffset - surface.dir * height / 2;
 
-                // taller towers still read as brighter (a depth cue), but
-                // the whole range is anchored to the panel's own lightness
-                // rather than a fixed absolute floor/ceiling
-                const lightness = Math.min(1, Math.max(0,
-                    panelHSL.l * 0.6 + 0.4 * (height / MAX_HEIGHT)));
+                // taller towers still read as brighter (a depth cue), and the
+                // ramp is a displayed offset off the panel's own lightness, so
+                // the silhouette carries the same contrast in a dark corner as
+                // a bright one. The 0.30 span from shortest to tallest is what
+                // the old linear l * 0.6 + 0.4 came to mid-maze; in the dark
+                // corner that same expression spanned 0.49 and in the bright
+                // one 0.24
+                const lightness = shadeLightness(panelHSL.l,
+                    SHORTEST_OFFSET + (TALLEST_OFFSET - SHORTEST_OFFSET) * (height / MAX_HEIGHT));
                 pushCell(matrices, colors, dummy, tmpColor, position, surface.axis, height, hue, saturation, lightness);
             }
         }

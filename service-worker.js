@@ -40,6 +40,7 @@ const FILES_TO_CACHE = [
     '/js/decor/sceneryClaims.js',
     '/js/decor/sceneryBudget.js',
     '/js/decor/branchSites.js',
+    '/js/decor/panelPalette.js',
     '/js/maze/mazeQuery.js',
     '/js/maze/mazeNexus.js',
     '/js/decor/DripsDecor.js',

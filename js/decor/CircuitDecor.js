@@ -28,6 +28,7 @@ import { AXES, roomInBounds, panelSolid, randomInt } from '../maze/mazeQuery.js'
 import { ROLE, SceneryClaims, panelKey } from './sceneryClaims.js';
 import { candidateSites } from './branchSites.js';
 import { budgetFor } from './sceneryBudget.js';
+import { panelPaletteHSL, shadeLightness, setPaletteColor } from './panelPalette.js';
 
 const GRID_SIZE = 9; // matches the wall model's 9x9 hole layout
 const CELL_SIZE = majorWidth / GRID_SIZE;
@@ -61,17 +62,6 @@ function inPlaneAxes(surfaceAxis) {
 const HOLE_INDICES = [1, 4, 7];
 function isHoleCell(i, j) {
     return HOLE_INDICES.includes(i) && HOLE_INDICES.includes(j);
-}
-
-// mirrors MazeWorld.js's own wall-coloring formula (see BreadcrumbBaseDecor's
-// panelRenderedColor for the same derivation) - not imported, to keep this
-// module free of MazeWorld's THREE/scene setup
-function panelRenderedColor(mazeData, panelIndex) {
-    return new THREE.Color(
-        0.05 + 0.9 * (panelIndex.x - 1) / mazeData.segments[0],
-        0.05 + 0.9 * (panelIndex.y - 1) / mazeData.segments[1],
-        0.05 + 0.9 * (panelIndex.z - 1) / mazeData.segments[2],
-    );
 }
 
 function cellKey(room, surface, i, j) {
@@ -177,7 +167,7 @@ function pushPad(matrices, colors, dummy, tmpColor, position, size, depth, norma
     dummy.scale[normalAxis] = depth;
     dummy.updateMatrix();
     matrices.push(dummy.matrix.clone());
-    tmpColor.setHSL(((hue % 1) + 1) % 1, saturation, lightness);
+    setPaletteColor(tmpColor, hue, saturation, lightness);
     colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
 }
 
@@ -326,20 +316,22 @@ export default class CircuitDecor {
             // element or something to interact with
             const panelIndex = { ...room, [surface.axis]: room[surface.axis] + surface.dir };
             const panelHSL = { h: 0, s: 0, l: 0 };
-            panelRenderedColor(mazeData, panelIndex).getHSL(panelHSL);
+            panelPaletteHSL(mazeData, panelIndex, panelHSL);
             const hue = ((panelHSL.h + (rng() * 2 - 1) * 0.02) % 1 + 1) % 1;
             // traces sit a touch darker than the wall (an etched groove);
             // pads sit a touch brighter (both anchored to the wall's own
             // color) so a junction reads as slightly "live" without looking
-            // like a UI glow
+            // like a UI glow. These are displayed offsets, held constant
+            // across the maze's gradient by shadeLightness (panelPalette.js) -
+            // the -0.13 they replace was an offset on the panel's *linear*
+            // value, which came to about this much mid-maze and ran off the
+            // bottom into pure black wherever the maze is dark
             const traceSaturation = panelHSL.s + 0.05;
-            const traceLightness = panelHSL.l - 0.13;
             const padSaturation = panelHSL.s + 0.2;
-            const padLightness = panelHSL.l + 0.13;
             for (const edge of edges) {
-                tmpColor.setHSL(hue,
-                    Math.min(1, Math.max(0, traceSaturation + rng() * 0.08)),
-                    Math.min(1, Math.max(0, traceLightness + rng() * 0.06)));
+                setPaletteColor(tmpColor, hue,
+                    traceSaturation + rng() * 0.08,
+                    shadeLightness(panelHSL.l, -0.11 + rng() * 0.05));
 
                 const isTurn = edge.from.surface.axis !== edge.to.surface.axis || edge.from.surface.dir !== edge.to.surface.dir;
                 if (!isTurn) {
@@ -384,7 +376,7 @@ export default class CircuitDecor {
                 const pos = cellWorldPos(node);
                 pos[node.surface.axis] -= node.surface.dir * PAD_DEPTH / 2;
                 pushPad(matrices, colors, dummy, tmpColor, pos, PAD_SIZE, PAD_DEPTH, node.surface.axis, hue,
-                    Math.min(1, Math.max(0, padSaturation)), Math.min(1, Math.max(0, padLightness)));
+                    padSaturation, shadeLightness(panelHSL.l, 0.09));
             }
 
             return true;
