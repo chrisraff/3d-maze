@@ -94,6 +94,15 @@ export function expectHueTintedEmissive(breadcrumb) {
         expect(emissive[channel]).toBeCloseTo(expected[channel], 6);
 }
 
+// One hand as VRManager hands it to updateProximityHighlight: where the grip
+// is, plus the ray it points along if it has one. `target` comes back filled.
+export const hand = (gripPos, rayOrigin = null, rayDir = null) =>
+    ({ gripPos, rayOrigin, rayDir, target: null });
+
+// a hand held at `from`, pointing its beam at `at`
+export const pointingAt = (from, at) =>
+    hand(from.clone(), from.clone(), at.clone().sub(from).normalize());
+
 export function makeGrip(x = 0, y = 0, z = 0) {
     const grip = new THREE.Object3D();
     grip.position.set(x, y, z);

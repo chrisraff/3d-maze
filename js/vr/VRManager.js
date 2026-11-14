@@ -19,6 +19,18 @@ const GAZE_RETICLE_ON_TARGET = 0xffffff;
 // whatever this is; it only sets the apparent size and focal depth.
 const GAZE_RETICLE_DISTANCE = 1.5;
 
+// the menu pointer, which is always aimed at the one surface there is
+const UI_POINTER_COLOR = 0x4499d0;
+
+// Hand beams, colour-coded like the gaze reticle: the ui blue while a marker
+// is merely within reach, white once this hand's aim is actually on one.
+const HAND_BEAM_IN_REACH = 0x0088cc;
+const HAND_BEAM_ON_TARGET = 0xffffff;
+// How long a beam is while it is pointing at nothing, in controller-local
+// units (the rig's 1.5x scale makes it longer than this in the maze). Enough
+// to read as a pointer, well short of the reach it is aiming within.
+const HAND_BEAM_LENGTH = 0.2;
+
 /**
  * Direction to place the VR UI along, written into `target` and returned.
  *
@@ -86,9 +98,6 @@ export default class VRManager extends EventTarget {
 
         // Breadcrumb integration
         this.breadcrumbs = null;
-        this._gripWorldPos1 = new THREE.Vector3();
-        this._gripWorldPos2 = new THREE.Vector3();
-        this._gripWorldPositions = [];
         this._selectStartTime = 0;
         this._tapThresholdMs = 300;
 
@@ -190,9 +199,17 @@ export default class VRManager extends EventTarget {
         this.uiIsMouseControlled = false;
         this.mouseMoveListenerHandle = this.mouseMoveListener.bind(this);
 
-        // controller pointer lines (shown in menu mode)
+        // controller pointer lines: the menu pointer, and the beam a marker
+        // is taken with in game mode
         this.vrLeftControllerLine = this._createControllerPointerLine();
         this.vrRightControllerLine = this._createControllerPointerLine();
+
+        // one entry per hand, refilled in place each frame by _collectHands
+        this._hands = [
+            this._createHand(this.vrLeftController, this.vrLeftControllerLine),
+            this._createHand(this.vrRightController, this.vrRightControllerLine),
+        ];
+        this._activeHands = [];
 
         // store original display of elements that should be hidden in vr so that we can restore them when exiting vr
         this.hiddenDomElemnts = [];
@@ -315,14 +332,15 @@ export default class VRManager extends EventTarget {
                     else this.dispatchEvent(new CustomEvent('pause'));
                 }, 500);
             } else {
-                // non-gaze controller selectstart in game mode
+                // non-gaze controller selectstart in game mode. Whatever this
+                // hand's beam is on, or a marker it is already closed on -
+                // _collectHands resolved both this frame, so the press acts on
+                // exactly what the beam was showing.
                 const controller = this.controllers.find(c => c.inputSource === event.inputSource);
                 if (controller?.gripObject && this.breadcrumbs) {
-                    controller.gripObject.getWorldPosition(this.tmpVector);
-                    this.camera.getWorldPosition(this.tmpVector2);
-                    const nearby = this.breadcrumbs.findNearby(this.tmpVector, this.tmpVector2);
-                    if (nearby) {
-                        this.breadcrumbs.beginReorient(nearby, controller.gripObject);
+                    const target = this._handFor(controller)?.target ?? null;
+                    if (target) {
+                        this.breadcrumbs.beginReorient(target, controller.gripObject);
                     } else {
                         this.breadcrumbs.beginPlace(controller.gripObject, controller.object);
                     }
@@ -445,6 +463,10 @@ export default class VRManager extends EventTarget {
         this.scene.remove(this.leftHandSprite);
         this.scene.remove(this.rightHandSprite);
         this.blackoutPlane.visible = false;
+        // the lines live on the controllers, which stay in the scene graph -
+        // update() is not running to hide a beam left over from the session
+        this.vrLeftControllerLine.visible = false;
+        this.vrRightControllerLine.visible = false;
 
         document.querySelectorAll('.xr-vr').forEach(element => element.style.display = 'none');
 
@@ -502,6 +524,23 @@ export default class VRManager extends EventTarget {
         }
     }
 
+    // One per controller: where that hand is, the ray it points along, and
+    // the beam that draws it. BreadcrumbManager fills in `target`.
+    _createHand(controller, line) {
+        return {
+            controller,
+            line,
+            target: null,
+            gripPos: new THREE.Vector3(),
+            rayOrigin: new THREE.Vector3(),
+            rayDir: new THREE.Vector3(),
+        };
+    }
+
+    _handFor(controller) {
+        return this._hands.find((hand) => hand.controller === controller) ?? null;
+    }
+
     _createControllerPointerLine() {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, -1], 3));
@@ -518,18 +557,20 @@ export default class VRManager extends EventTarget {
     }
 
     _updateControllerLines() {
-        const pairs = [
-            { controller: this.vrLeftController, line: this.vrLeftControllerLine },
-            { controller: this.vrRightController, line: this.vrRightControllerLine },
-        ];
-
-        for (const { controller, line } of pairs) {
-            if (!this.uiInteractionEnabled || !controller.isValid()) {
+        for (const hand of this._hands) {
+            const { controller, line } = hand;
+            if (!controller.isValid()) {
                 line.visible = false;
                 continue;
             }
 
+            if (!this.uiInteractionEnabled) {
+                this._updateHandBeam(hand);
+                continue;
+            }
+
             line.visible = true;
+            line.material.color.setHex(UI_POINTER_COLOR);
 
             const isFocused = controller === this.uiCurrentController;
             let length;
@@ -549,9 +590,46 @@ export default class VRManager extends EventTarget {
                 length = 0.15;
             }
 
-            line.geometry.attributes.position.setZ(1, -length);
-            line.geometry.attributes.position.needsUpdate = true;
+            this._setLineLength(line, length);
         }
+    }
+
+    /**
+     * In game mode the beam is the pointer a marker is taken with, so it is
+     * only there when there is one to take: a stub from the hand while
+     * something is within reach, reaching out to the marker and turning white
+     * once this hand's aim is on it.
+     *
+     * `nearestReachable` is a frame stale here - the pass that fills it runs
+     * later in the loop - which is invisible on a beam appearing.
+     */
+    _updateHandBeam(hand) {
+        const inReach = (this.breadcrumbs?.nearestReachable ?? null) !== null;
+        // mid-placement the marker in hand is what the player is watching, and
+        // a beam out of that same hand is just clutter
+        const idle = (this.breadcrumbs?.interactState ?? null) === null;
+
+        hand.line.visible = inReach && idle;
+        if (!hand.line.visible) return;
+
+        const onTarget = hand.target !== null;
+        hand.line.material.color.setHex(onTarget ? HAND_BEAM_ON_TARGET : HAND_BEAM_IN_REACH);
+
+        let length = HAND_BEAM_LENGTH;
+        if (onTarget) {
+            // local space, so the rig's scale doesn't stretch the beam past
+            // the marker it is supposed to stop on
+            this.tmpVector.copy(hand.target.position);
+            hand.controller.object.worldToLocal(this.tmpVector);
+            length = -this.tmpVector.z;
+        }
+
+        this._setLineLength(hand.line, length);
+    }
+
+    _setLineLength(line, length) {
+        line.geometry.attributes.position.setZ(1, -length);
+        line.geometry.attributes.position.needsUpdate = true;
     }
 
     /**
@@ -564,13 +642,14 @@ export default class VRManager extends EventTarget {
 
         this.vrLeftController.update();
         this.vrRightController.update();
-        this._updateControllerLines();
         this._updateHandSprites();
 
         if (this.breadcrumbs) {
-            this.breadcrumbs.updateInteract(this.camera);
-            this.breadcrumbs.updateProximityHighlight(this._collectGripWorldPositions(), this.camera);
+            this.breadcrumbs.updateInteract(this.camera, delta);
+            this.breadcrumbs.updateProximityHighlight(this._collectHands(), this.camera);
         }
+        // after the targeting pass, so a beam reaches the marker it is on
+        this._updateControllerLines();
         this._updateGazeReticle();
 
         // in vr, compensate for user movement by updating the compensation node to put the head at the camera node position
@@ -963,17 +1042,27 @@ export default class VRManager extends EventTarget {
         if (this.uiMesh) this.uiMesh.material.map.update();
     }
 
-    _collectGripWorldPositions() {
-        this._gripWorldPositions.length = 0;
-        if (this.vrLeftController.gripObject) {
-            this.vrLeftController.gripObject.getWorldPosition(this._gripWorldPos1);
-            this._gripWorldPositions.push(this._gripWorldPos1);
+    // The hands BreadcrumbManager should consider this frame, each carrying
+    // its grip position and pointer ray. Gaze has no hands, and that empty
+    // array is what leaves hover to BreadcrumbManager's own raycast.
+    _collectHands() {
+        this._activeHands.length = 0;
+
+        for (const hand of this._hands) {
+            hand.target = null;
+            if (!hand.controller.isValid() || !hand.controller.gripObject)
+                continue;
+
+            hand.controller.gripObject.getWorldPosition(hand.gripPos);
+            // setFromXRController divides the rig's scale out of the rotation,
+            // so this is a true world-space ray down the controller's -Z
+            this.rayCaster.setFromXRController(hand.controller.object);
+            hand.rayOrigin.copy(this.rayCaster.ray.origin);
+            hand.rayDir.copy(this.rayCaster.ray.direction);
+
+            this._activeHands.push(hand);
         }
-        if (this.vrRightController.gripObject) {
-            this.vrRightController.gripObject.getWorldPosition(this._gripWorldPos2);
-            this._gripWorldPositions.push(this._gripWorldPos2);
-        }
-        return this._gripWorldPositions;
+        return this._activeHands;
     }
 
     /**

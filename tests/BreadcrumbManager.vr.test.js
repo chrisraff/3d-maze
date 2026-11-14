@@ -2,11 +2,14 @@
 // re-aim. The camera-driven half of the same work is in BreadcrumbManager.test.js.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { HITBOX_RADIUS } from '../js/breadcrumbs/BreadcrumbManager.js';
+import {
+    HITBOX_RADIUS, REORIENT_PULL_SECONDS
+} from '../js/breadcrumbs/BreadcrumbManager.js';
 import * as maze from '../js/maze/maze.js';
 import {
     PLAYER_GATE, GRIP_GATE, v, rotY, stubBreadcrumbDom, makeManager, placeAt,
-    giveMaze, segmentAt, addWall, expectHueTintedEmissive, makeGrip, makeCamera
+    giveMaze, segmentAt, addWall, expectHueTintedEmissive, makeGrip, makeCamera,
+    hand, pointingAt
 } from './breadcrumbHelpers.js';
 
 beforeEach(() => stubBreadcrumbDom());
@@ -89,6 +92,57 @@ describe('findNearby', () => {
 
         expect(behind.z - farFace).toBeLessThan(HITBOX_RADIUS); // it really does overhang
         expect(manager.findNearby(behind, eye)).toBeNull();
+    });
+});
+
+// Pointing is how a marker is taken across a corridor, where no hand reaches.
+// The ray decides which marker; the player's own range still decides whether
+// it can be had at all.
+describe('findByRay', () => {
+    const at = (manager, scene, x, y, z) => {
+        placeAt(scene, manager.breadcrumbs[0], x, y, z);
+        return manager.breadcrumbs[0];
+    };
+
+    it('returns the breadcrumb the ray hits', () => {
+        const { manager, scene } = makeManager(1);
+        const b = at(manager, scene, 0, 0, -1);
+
+        expect(manager.findByRay(v(0, 0, 0), v(0, 0, -1), v(0, 0, 0))).toBe(b);
+    });
+
+    it('returns null when the ray points somewhere else', () => {
+        const { manager, scene } = makeManager(1);
+        at(manager, scene, 0, 0, -1);
+
+        expect(manager.findByRay(v(0, 0, 0), v(1, 0, 0), v(0, 0, 0))).toBeNull();
+    });
+
+    it('returns null when a wall is in front of the breadcrumb', () => {
+        const { manager, scene } = makeManager(1);
+        at(manager, scene, 0, 0, -1);
+        addWall(scene, 0, 0, -0.5);
+
+        expect(manager.findByRay(v(0, 0, 0), v(0, 0, -1), v(0, 0, 0))).toBeNull();
+    });
+
+    it('will not reach a breadcrumb the player could not grab', () => {
+        // the hand points from well ahead of the head, so a hit inside the
+        // ray's own range can still be out of the player's
+        const { manager, scene } = makeManager(1);
+        at(manager, scene, 0, 0, -PLAYER_GATE - 0.2);
+
+        const handPos = v(0, 0, -0.5);
+        expect(manager.findByRay(handPos, v(0, 0, -1), handPos)).not.toBeNull();
+        expect(manager.findByRay(handPos, v(0, 0, -1), v(0, 0, 0))).toBeNull();
+    });
+
+    it('ignores the breadcrumb already in hand', () => {
+        const { manager, scene } = makeManager(1);
+        const b = at(manager, scene, 0, 0, -1);
+        manager.beginReorient(b, makeGrip(0, 0, -1));
+
+        expect(manager.findByRay(v(0, 0, 0), v(0, 0, -1), v(0, 0, 0))).toBeNull();
     });
 });
 
@@ -209,8 +263,37 @@ describe('reorienting', () => {
         expect(manager.interactState).toBe('reorienting');
         expect(manager.interactTarget).toBe(b);
 
-        manager.updateInteract(makeCamera(0, 0, 1));
+        manager.updateInteract(makeCamera(0, 0, 1), REORIENT_PULL_SECONDS);
         expect(b.position.distanceTo(v(0.05, 0, 0.05))).toBeLessThan(1e-9);
+    });
+
+    // A pointed-at marker is taken from across the corridor, so it travels to
+    // the hand rather than appearing in it.
+    it('eases from where the breadcrumb stood to the hand', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, -1);
+        const grip = makeGrip(0, 0, 0);
+        // not on the grip: a zero-length clamp ray leaves the position alone
+        const camera = makeCamera(0, 0, 0.3);
+
+        manager.beginReorient(b, grip);
+
+        // still where it was until the pull has run any time at all
+        manager.updateInteract(camera, 0);
+        expect(b.position.z).toBeCloseTo(-1, 6);
+
+        manager.updateInteract(camera, REORIENT_PULL_SECONDS / 2);
+        expect(b.position.z).toBeGreaterThan(-1);
+        expect(b.position.z).toBeLessThan(0);
+
+        manager.updateInteract(camera, REORIENT_PULL_SECONDS / 2);
+        expect(b.position.z).toBeCloseTo(0, 6);
+
+        // and follows the hand from there
+        grip.position.set(0.2, 0, 0);
+        manager.updateInteract(camera, 0.016);
+        expect(b.position.distanceTo(v(0.2, 0, 0))).toBeLessThan(1e-9);
     });
 
     it('applies the grip rotation delta on top of the starting orientation', () => {
@@ -222,7 +305,7 @@ describe('reorienting', () => {
 
         manager.beginReorient(b, grip);
         grip.quaternion.copy(rotY(Math.PI / 2));
-        manager.updateInteract(makeCamera(0, 0, 1));
+        manager.updateInteract(makeCamera(0, 0, 1), REORIENT_PULL_SECONDS);
 
         const expected = rotY(Math.PI / 2).multiply(startQuat);
         expect(b.quaternion.angleTo(expected)).toBeLessThan(1e-6);
@@ -235,7 +318,7 @@ describe('reorienting', () => {
         const grip = makeGrip(0.1, 0, 0.1);
 
         manager.beginReorient(b, grip);
-        manager.updateInteract(makeCamera(0, 0, 1));
+        manager.updateInteract(makeCamera(0, 0, 1), REORIENT_PULL_SECONDS);
         manager.endReorient();
 
         expect(manager.interactState).toBeNull();
@@ -257,9 +340,12 @@ describe('reorienting', () => {
         manager.beginReorient(b, grip);
         grip.position.set(1, 0, 1);
         grip.quaternion.copy(rotY(2));
-        manager.updateInteract(makeCamera(0, 0, 1));
+        manager.updateInteract(makeCamera(0, 0, 1), REORIENT_PULL_SECONDS);
+        const pickups = manager.pickupCount;
         manager.cancelReorient();
 
+        // the short press of a grab is a pickup like any other
+        expect(manager.pickupCount).toBe(pickups + 1);
         expect(b.position.distanceTo(startPos)).toBeLessThan(1e-9);
         expect(b.quaternion.angleTo(startQuat)).toBeLessThan(1e-6);
         expect(manager.interactState).toBeNull();
@@ -278,7 +364,8 @@ describe('updateProximityHighlight', () => {
         const camera = makeCamera(0, 0, 1);
 
         // controller 0 is 0.12 from b0; controller 1 is 0.05 from b1
-        manager.updateProximityHighlight([v(0, 0, 0.12), v(0.5, 0, 0.05)], camera);
+        manager.updateProximityHighlight(
+            [hand(v(0, 0, 0.12)), hand(v(0.5, 0, 0.05))], camera);
 
         expect(manager.hoveredBreadcrumb).toBe(b1);
         expectHueTintedEmissive(b1);
@@ -291,10 +378,10 @@ describe('updateProximityHighlight', () => {
         placeAt(scene, b, 0, 0, 0);
         const camera = makeCamera(0, 0, 1);
 
-        manager.updateProximityHighlight([v(0, 0, 0.1)], camera);
+        manager.updateProximityHighlight([hand(v(0, 0, 0.1))], camera);
         expect(manager.hoveredBreadcrumb).toBe(b);
 
-        manager.updateProximityHighlight([v(5, 5, 5)], camera);
+        manager.updateProximityHighlight([hand(v(5, 5, 5))], camera);
         expect(manager.hoveredBreadcrumb).toBeNull();
         expect(b.userData.mesh.material.emissive.getHex()).toBe(0x000000);
     });
@@ -318,13 +405,62 @@ describe('updateProximityHighlight', () => {
         placeAt(scene, b1, 0.5, 0, 0);
         const camera = makeCamera(0, 0, 1);
 
-        manager.updateProximityHighlight([v(0, 0, 0.12)], camera);
+        const hands = [hand(v(0, 0, 0.12))];
+        manager.updateProximityHighlight(hands, camera);
         expect(manager.hoveredBreadcrumb).toBe(b0);
+        expect(hands[0].target).toBe(b0);
 
         manager.removeBreadcrumb(b1);
         manager.beginPlace(makeGrip(0.5, 0, 0.5), new THREE.Object3D());
-        manager.updateProximityHighlight([v(0, 0, 0.12)], camera);
+        manager.updateProximityHighlight(hands, camera);
 
         expect(manager.hoveredBreadcrumb).toBeNull();
+        // nothing to aim at mid-placement, so no beam reaches anything either
+        expect(hands[0].target).toBeNull();
+    });
+
+    it('targets and hovers what a beam is on, out past any hand reach', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, -1);
+        const camera = makeCamera(0, 0, 0);
+
+        const hands = [pointingAt(v(0, 0, -0.2), b.position)];
+        manager.updateProximityHighlight(hands, camera);
+
+        expect(hands[0].target).toBe(b);
+        expect(manager.hoveredBreadcrumb).toBe(b);
+        expectHueTintedEmissive(b);
+    });
+
+    it('prefers what the beam is on over what the hand is near', () => {
+        // the hand is within grabbing range of b0 while pointing at b1:
+        // aiming is deliberate, holding a controller somewhere is not
+        const { manager, scene } = makeManager(2);
+        const [b0, b1] = manager.breadcrumbs;
+        // near enough to grab yet clear of its own hitbox, so the beam can
+        // pass b0 rather than hitting it from the inside
+        placeAt(scene, b0, (HITBOX_RADIUS + GRIP_GATE) / 2, 0, -0.2);
+        placeAt(scene, b1, 0, 0, -1);
+        const camera = makeCamera(0, 0, 0);
+
+        const hands = [pointingAt(v(0, 0, -0.2), b1.position)];
+        manager.updateProximityHighlight(hands, camera);
+
+        expect(hands[0].target).toBe(b1);
+        expect(manager.hoveredBreadcrumb).toBe(b1);
+    });
+
+    it('falls back to the hand when the beam is on nothing', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        const camera = makeCamera(0, 0, 1);
+
+        const hands = [hand(v(0, 0, 0.1), v(0, 0, 0.1), v(1, 0, 0))];
+        manager.updateProximityHighlight(hands, camera);
+
+        expect(hands[0].target).toBe(b);
+        expect(manager.hoveredBreadcrumb).toBe(b);
     });
 });

@@ -97,6 +97,12 @@ export const PLACEMENT_DISTANCE_SCALE = 0.33;
 // how solid the gaze ghost looks while it is still only a preview
 export const GHOST_OPACITY = 0.55;
 
+// How long a marker takes to reach the hand that grabbed it. A pointer can
+// take one from across the corridor, where an instant snap reads as the
+// marker teleporting; a grab at arm's length covers no distance and looks
+// like a snap either way, so one easing serves both.
+export const REORIENT_PULL_SECONDS = 0.18;
+
 // Distances a marker fades out over as the player closes on it, so walking
 // into one dissolves it instead of being sliced open on the near plane - and
 // also seconds of approach, walking speed being majorWidth per second.
@@ -178,6 +184,7 @@ export default class BreadcrumbManager {
         this._interactTargetStartPos = new THREE.Vector3(); // breadcrumb pos at reorient start
         this._interactTargetStartQuat = new THREE.Quaternion(); // breadcrumb quat at reorient start
         this._interactStartOrientQuat = new THREE.Quaternion(); // initial breadcrumb orient for placing
+        this._interactPullElapsed = 0;                     // seconds into the pull to the hand
         this._interactCurrentQuat = new THREE.Quaternion(); // temp
         this._interactDeltaQuat = new THREE.Quaternion();  // temp
 
@@ -390,8 +397,12 @@ export default class BreadcrumbManager {
         return maze.isPathClear(this.mazedata, fromPos, breadcrumb.position);
     }
 
-    // Begin translating + rotating a placed breadcrumb with the grip.
+    // Begin translating + rotating a placed breadcrumb with the grip. False
+    // if it is not there to take: a pointer target is resolved a frame before
+    // the press that acts on it, and the other hand may have taken it since.
     beginReorient(breadcrumb, gripObject) {
+        if (!this.breadcrumbs.includes(breadcrumb)) return false;
+
         this._interactState = 'reorienting';
         this._interactTarget = breadcrumb;
         this._interactGripObject = gripObject;
@@ -399,7 +410,9 @@ export default class BreadcrumbManager {
         gripObject.getWorldQuaternion(this._interactStartQuat);
         this._interactTargetStartPos.copy(breadcrumb.position);
         this._interactTargetStartQuat.copy(breadcrumb.quaternion);
+        this._interactPullElapsed = 0;
         this._deenergizeBase(breadcrumb);
+        return true;
     }
 
     // no-op for a breadcrumb the player placed themselves (no medallionIndex)
@@ -415,8 +428,11 @@ export default class BreadcrumbManager {
         this._interactGripObject = null;
     }
 
-    // Restore original position/orientation and return the breadcrumb to the stack.
+    // Restore original position/orientation and return the breadcrumb to the
+    // stack. This is the short press of a grab, so it is a pickup like any
+    // other - it just happens to be one that started by reaching for it.
     cancelReorient() {
+        this.pickupCount++;
         this._interactTarget.position.copy(this._interactTargetStartPos);
         this._interactTarget.quaternion.copy(this._interactTargetStartQuat);
         this.removeBreadcrumb(this._interactTarget);
@@ -462,8 +478,11 @@ export default class BreadcrumbManager {
         this._interactGripObject = null;
     }
 
-    // Per-frame: move and/or rotate the active interaction target to follow the grip.
-    updateInteract(camera) {
+    /**
+     * Per-frame: move and/or rotate the active interaction target to follow
+     * the grip. `delta` is seconds, and only the pull to the hand reads it.
+     */
+    updateInteract(camera, delta = 0) {
         // Only the grip-driven states belong here. Gaze placing has no grip
         // object to read, and update() drives it instead.
         if (this._interactState !== 'placing' && this._interactState !== 'reorienting')
@@ -477,8 +496,15 @@ export default class BreadcrumbManager {
         camera.getWorldPosition(this._playerWorldPos);
 
         if (this._interactState === 'reorienting') {
-            // translate: breadcrumb snaps to and follows grip, wall-clamped
+            // translate: breadcrumb eases to the grip over REORIENT_PULL_SECONDS
+            // and follows it from there, wall-clamped throughout
+            this._interactPullElapsed += delta;
+            const pull = THREE.MathUtils.smoothstep(
+                this._interactPullElapsed, 0, REORIENT_PULL_SECONDS);
+
             this._interactGripObject.getWorldPosition(this._tmpPos);
+            if (pull < 1)
+                this._tmpPos.lerpVectors(this._interactTargetStartPos, this._tmpPos, pull);
             this._wallClampPosition(this._tmpPos, this._playerWorldPos);
 
             // rotate: apply grip delta to the breadcrumb's original orientation
@@ -523,38 +549,52 @@ export default class BreadcrumbManager {
         this._interactTarget.position.copy(targetPos);
     }
 
-    // --- Per-frame proximity highlight (called by VRManager) ---
+    // --- Per-frame hand targeting (called by VRManager) ---
 
-    // positions: array of Vector3 world positions (one per connected controller).
-    // The glow is not touched here; update() drives it once a frame for both
-    // VR and non-VR, and VRManager.update() always runs before it.
-    updateProximityHighlight(positions, camera) {
+    /**
+     * `hands` is one entry per connected controller, `{ gripPos, rayOrigin,
+     * rayDir }` with the ray optional. Each gets a `target` written back: the
+     * marker that hand would act on, so the beam VRManager draws and the
+     * select it handles read one answer rather than casting twice.
+     *
+     * Pointing beats proximity. A ray on a marker is aimed at it, while a
+     * hand is wherever the player happens to be holding it, so the two only
+     * disagree with the hand near one marker and the beam on another.
+     *
+     * The glow is not touched here; update() drives it once a frame for both
+     * VR and non-VR, and VRManager.update() always runs before it.
+     */
+    updateProximityHighlight(hands, camera) {
         // gaze placing is not grip-driven; update()'s raycast owns hover there
         if (this.isGazePlacing) return;
 
         camera.getWorldPosition(this._playerWorldPos);
 
         if (this._interactState !== null) {
+            for (const hand of hands) hand.target = null;
             // keep the reoriented breadcrumb highlighted during a hold; clear otherwise
             this._setHoveredBreadcrumb(this._interactState === 'reorienting' ? this._interactTarget : null);
             return;
         }
 
-        // No grips means gaze, and this pass has no opinion on what is hovered
+        // No hands means gaze, and this pass has no opinion on what is hovered
         // there - update()'s raycast owns it. Answering anyway would fight it
         // every frame, since VRManager.update() runs first.
-        if (positions.length === 0) return;
+        if (hands.length === 0) return;
 
         let best = null;
         let bestDist = Infinity;
-        for (const pos of positions) {
-            const candidate = this.findNearby(pos, this._playerWorldPos);
-            if (candidate !== null) {
-                const d = pos.distanceTo(candidate.position);
-                if (d < bestDist) {
-                    bestDist = d;
-                    best = candidate;
-                }
+        for (const hand of hands) {
+            hand.target = (hand.rayDir
+                ? this.findByRay(hand.rayOrigin, hand.rayDir, this._playerWorldPos)
+                : null) ?? this.findNearby(hand.gripPos, this._playerWorldPos);
+
+            if (hand.target === null) continue;
+
+            const d = hand.gripPos.distanceTo(hand.target.position);
+            if (d < bestDist) {
+                bestDist = d;
+                best = hand.target;
             }
         }
         this._setHoveredBreadcrumb(best);
@@ -936,6 +976,14 @@ export default class BreadcrumbManager {
         this.updateBreadCrumbDisplay();
     }
 
+    /**
+     * Fades a marker out over NEAR_FADE_START..END. Distance-driven rather
+     * than eased over time: the player's own approach is the easing, and a
+     * marker still catching up is exactly the one that would clip.
+     *
+     * Unlike the gaze ghost this keeps depthWrite - it is the nearest thing
+     * in view, so its faces should still sort against each other, and there
+     * is nothing behind it worth showing through to.
      */
     _updateNearFade(breadcrumb, playerDist) {
         const mesh = breadcrumb.userData.mesh;
@@ -1171,26 +1219,50 @@ export default class BreadcrumbManager {
         this.mouseVector.set(sceneX, sceneY);
         this.raycaster.setFromCamera(this.mouseVector, camera);
 
+        return this._firstBreadcrumbAlongRay(this.raycaster.ray.origin);
+    }
+
+    /**
+     * What a VR controller's pointer is on: the first placed marker along the
+     * ray, or null when a wall or the edge of pickup range comes first. This
+     * is how a marker is taken from across the corridor; `findNearby` still
+     * covers a hand closed right on one.
+     *
+     * Range stays the player's own, not the ray's - the hand reaches a good
+     * way ahead of the head, and pointing shouldn't take a marker a grab
+     * couldn't. Line of sight is measured from the player for the same
+     * reason: a hand poked through a panel can't reach past it.
+     */
+    findByRay(rayOrigin, rayDirection, playerWorldPos) {
+        this.raycaster.set(rayOrigin, rayDirection);
+
+        const breadcrumb = this._firstBreadcrumbAlongRay(playerWorldPos);
+        if (breadcrumb === null)
+            return null;
+
+        return playerWorldPos.distanceTo(breadcrumb.position) > maze.majorWidth * 0.75
+            ? null : breadcrumb;
+    }
+
+    // Walks the layer-3 hits of whatever ray is already set on this.raycaster:
+    // the first breadcrumb hitbox, or null once a wall or anything out of
+    // pickup range stops the walk. `fromPos` is where reach is measured from.
+    _firstBreadcrumbAlongRay(fromPos) {
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
 
-        if (intersects.length > 0) {
-            let i = -1;
-            while (++i < intersects.length) {
-                if (intersects[i].distance > maze.majorWidth * 0.75) {
-                    return null;
-                }
-                if (intersects[i].object.userData.isMazeWallHitBox) {
-                    return null;
-                }
-                if (intersects[i].object.userData.isBreadCrumbHitBox) {
-                    const breadcrumb = intersects[i].object.userData.parentBreadcrumb;
-                    if (breadcrumb === this._interactTarget)
-                        continue;
-                    // the hitbox can overhang a panel the breadcrumb is behind
-                    if (!this._canReachBreadcrumb(this.raycaster.ray.origin, breadcrumb))
-                        continue;
-                    return breadcrumb;
-                }
+        for (const hit of intersects) {
+            if (hit.distance > maze.majorWidth * 0.75)
+                return null;
+            if (hit.object.userData.isMazeWallHitBox)
+                return null;
+            if (hit.object.userData.isBreadCrumbHitBox) {
+                const breadcrumb = hit.object.userData.parentBreadcrumb;
+                if (breadcrumb === this._interactTarget)
+                    continue;
+                // the hitbox can overhang a panel the breadcrumb is behind
+                if (!this._canReachBreadcrumb(fromPos, breadcrumb))
+                    continue;
+                return breadcrumb;
             }
         }
         return null;
