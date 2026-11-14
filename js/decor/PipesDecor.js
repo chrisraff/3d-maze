@@ -11,7 +11,18 @@
  * plunging into whichever solid panel it's against when it ends, stopping
  * exactly at that panel's own mid-plane (the middle of its
  * minorWidth-thick slab - see wallMid in LatticeStudsDecor) so it always
- * ends buried in solid material and never pokes out the far side. Before a
+ * ends buried in solid material and never pokes out the far side. The
+ * *start* is that same plunge run backwards START_BURIED_CHANCE of the time,
+ * the run emerging from the very panel it then travels along; only a run
+ * that doesn't gets a cap, so most pipes read as coming from somewhere and
+ * going somewhere rather than as a stub lying on the wall. A start over one
+ * of the wall model's own cut-out holes keeps its cap instead
+ * (plungeHitsHole): a cap sits proud of the surface and reads the same over
+ * a hole as over solid material, which is why nothing about a run's start
+ * ever had to know where the holes are, but a plunge there has nothing to
+ * disappear into and hangs in the hole, visible from the next room. The
+ * terminating plunge is never exposed that way - it only ever happens
+ * STANDOFF short of a room edge, well outside the outermost hole band. Before a
  * wrap or a plunge the run stops STANDOFF short of the panel ahead, so the
  * corner lands exactly on that panel's own standoff plane. Each run is a
  * small bundle of 1-3 parallel pipes (see clusterSize in _renderRun),
@@ -20,12 +31,14 @@
  * runs on the same surface share one standoff plane, so any crossing would
  * put coplanar faces on top of each other.
  *
- * Color is read straight off whichever room's panel a given segment is
- * currently running against (the same raw grid-position formula
- * MazeWorld.js colors panels with - mirrored here, not imported, matching
- * the other scenery that needs it), darkened and desaturated a bit so a
- * pipe reads as a distinct object mounted on the wall rather than
- * camouflaged flush with it.
+ * Color is one value for the whole run, read off the panel the run starts
+ * against (via panelPalette.js, which mirrors MazeWorld.js's own
+ * grid-position formula), darkened and desaturated a bit so a pipe reads as
+ * a distinct object mounted on the wall rather than camouflaged flush with
+ * it. One value and not one per segment: a bundle is a single piece of
+ * conduit, and recoloring it as it crossed into the next room made one run
+ * read as two pipes meeting end to end. The darkening is floored at
+ * MIN_LIGHTNESS - see there for why the maze's darkest panels need it.
  *
  * Parallel pipes and right-angle bends: offsetting a whole bundle sideways
  * by a fixed world-space vector doesn't survive a 90-degree bend - the
@@ -38,7 +51,12 @@
  * two different axes at a same-panel bend, where lateralAxis swaps with
  * travelAxis). At a bend the offset's sign can flip, too: the pipe on the
  * inside of the turn has to bend earlier than the one on the outside, or
- * the bundle crosses itself. Each joint is squared off by running the
+ * the bundle crosses itself. That same miter moves a joint along the *next*
+ * segment's own travel axis by up to one PIPE_SPACING, so a segment shorter
+ * than MIN_SEGMENT comes out reversed: a bundle that turned and then
+ * immediately stopped left its inside pipe running backwards out of its own
+ * elbow. A bend is only taken where the segments either side of it both
+ * clear that length. Each joint is squared off by running the
  * incoming segment one radius past the corner and starting the outgoing one
  * right where that ends, so the two abut face to face without overlapping.
  * Only the start of a run is capped; every other joint already meets
@@ -77,6 +95,17 @@ const MAX_PROTRUSION = CAMERA_COLLISION_DISTANCE - CAMERA_NEAR - EXTRA_MARGIN;
 // outer edge - STANDOFF + PIPE_RADIUS - lands exactly on MAX_PROTRUSION
 const STANDOFF = MAX_PROTRUSION - PIPE_RADIUS;
 
+// How dark a pipe may get. A decor reads as a surface only while there is
+// lighting range left under it, and on the maze's darkest panels - the
+// entrance floor among them - the shaded value below lands near black, where
+// every face of the bundle renders alike and the run has no visible form at
+// all. The floor sits just above the darkest the wall gradient itself reaches
+// (displayed 0.12), so a pipe stays readable there.
+const MIN_LIGHTNESS = 0.15;
+
+// a pipe sits this much darker than its own panel, in displayed lightness
+const LIGHTNESS_OFFSET = -0.14;
+
 const BEND_CHANCE = 0.55; // at most one bend per room
 const BEND_MARGIN = 0.2; // bend point stays within [BEND_MARGIN, 1-BEND_MARGIN] of the available span
 const TERMINATE_CHANCE = 0.22; // chance a run ends early even when it could keep going
@@ -85,16 +114,41 @@ const MAX_SEGMENTS = 9;
 // lateral coordinate - this far off the panel's own edge, comfortably more
 // than a full bundle's half-width, so no pipe ever grazes a side wall
 const START_MARGIN = majorWidth * 0.15;
+// The shortest segment a bend may leave either side of it: each joint's miter
+// pulls the corner along the next segment's travel axis by up to one
+// PIPE_SPACING (see the file comment), and two pipe diameters of run left over
+// after that is enough for the elbow to read as a turn.
+const MIN_SEGMENT = PIPE_SPACING + PIPE_DIAMETER * 2;
+// how often a run emerges from its panel rather than starting with a cap
+const START_BURIED_CHANCE = 0.5;
 
 function inPlaneAxes(axis) {
     return AXES.filter(a => a !== axis);
 }
 
-// "roughly the same color as the cell" - the panel's own rendered color,
-// darkened/desaturated so the pipe still reads as a distinct object, with a
-// small hue jitter that's the same for every segment of one run so the
-// whole bundle reads as one consistent material even as it passes through
-// differently-colored rooms
+// the wall model's own cut-out holes: three bands per in-plane axis, each a
+// ninth of the panel wide, centered on the thirds - see LatticeStudsDecor's
+// file comment for the derivation of these same two constants
+const HOLE_OFFSETS = [-majorWidth / 3, 0, majorWidth / 3];
+const HOLE_HALF_WIDTH = (majorWidth / 9) / 2;
+
+// Would a plunge centered here land in one of those holes? Measured against
+// the bundle's whole footprint rather than its centerline, since the pipes
+// spread PIPE_SPACING either side along lateralAxis and a bundle centered
+// just clear of a hole can still have its outside pipe over it.
+function plungeHitsHole(room, surface, point, lateralAxis) {
+    return inPlaneAxes(surface.axis).every(axis => {
+        const local = point[axis] - getOffset(room[axis]);
+        const reach = HOLE_HALF_WIDTH + PIPE_RADIUS
+            + (axis === lateralAxis ? PIPE_SPACING : 0);
+        return HOLE_OFFSETS.some(hole => Math.abs(local - hole) < reach);
+    });
+}
+
+// "roughly the same color as the cell" - one panel's own rendered color,
+// darkened/desaturated so the pipe still reads as a distinct object, plus a
+// small hue jitter - held for the whole run - so two runs against the same
+// stretch of the gradient don't come out the identical material
 function pipeColorFor(mazeData, room, surface, hueJitter) {
     const panelIndex = { ...room, [surface.axis]: room[surface.axis] + surface.dir };
     const hsl = { h: 0, s: 0, l: 0 };
@@ -103,8 +157,8 @@ function pipeColorFor(mazeData, room, surface, hueJitter) {
     // maze's gradient - the old Math.max(0.12, l * 0.6) read the panel's
     // linear value, where the dark end sits around 0.02, so nearly a fifth of
     // all panels hit that floor and came out *brighter* than their wall
-    return setPaletteColor(new THREE.Color(), hsl.h + hueJitter, hsl.s * 0.55,
-        shadeLightness(hsl.l, -0.14));
+    const lightness = Math.max(MIN_LIGHTNESS, shadeLightness(hsl.l, LIGHTNESS_OFFSET));
+    return setPaletteColor(new THREE.Color(), hsl.h + hueJitter, hsl.s * 0.55, lightness);
 }
 
 function pushSegment(matrices, colors, dummy, start, end, color) {
@@ -188,9 +242,10 @@ export default class PipesDecor {
         for (let i = 0; i < count * 3 && runCount < count; i++) {
             const run = this._buildRun(mazeData, rng, claims, sites);
             if (!run) continue;
-            const { path, commit } = run;
+            const { path, commit, capped } = run;
             const runPipes = [], runPipeColors = [], runCaps = [], runCapColors = [];
-            this._renderRun(mazeData, path, rng, dummy, runPipes, runPipeColors, runCaps, runCapColors);
+            this._renderRun(mazeData, path, rng, dummy, runPipes, runPipeColors,
+                runCaps, runCapColors, capped);
 
             // also reject a run that loops back across itself (pipes and
             // caps checked separately - a cap wraps its own pipe by design;
@@ -235,6 +290,8 @@ export default class PipesDecor {
     // a list of straight segments { start, end, room, surface, lateralAxis },
     // where lateralAxis is the in-plane axis NOT being traveled along, i.e.
     // the axis a parallel pipe bundle offsets along (see the file comment).
+    // `capped` says whether the run starts out on the open wall, and so needs
+    // a cap, rather than emerging from its own panel.
     // `commit` is the caller's to call once it keeps the run - a discarded run
     // still consumes its branch site, which is why build() asks for up to
     // three times as many runs as it needs.
@@ -258,6 +315,18 @@ export default class PipesDecor {
         point[surface.axis] = getOffset(room[surface.axis]) + surface.dir * (majorWidth / 2 - STANDOFF);
 
         const path = [];
+        // the terminating plunge below, run backwards: the pipe comes up out
+        // of the panel it then travels along, so it needs no cap. Over one of
+        // the panel's holes there is nothing for it to come out of, so that
+        // start keeps the cap it always used to have.
+        const capped = rng() >= START_BURIED_CHANCE
+            || plungeHitsHole(room, surface, point, lateralAxis);
+        if (!capped) {
+            const emerge = point.clone();
+            emerge[surface.axis] = getOffset(room[surface.axis])
+                + surface.dir * (majorWidth / 2 + minorWidth / 2);
+            path.push({ start: emerge, end: point.clone(), room, surface, lateralAxis });
+        }
         const maxRooms = 2 + randomInt(rng, 4);
         let roomsVisited = 0;
 
@@ -267,15 +336,23 @@ export default class PipesDecor {
             // the bend point becomes the new lateral coordinate, so it keeps
             // the same START_MARGIN clearance from the edge a start point does
             const bendLimit = getOffset(room[travelAxis]) + travelDir * (majorWidth / 2 - START_MARGIN);
-            if ((bendLimit - point[travelAxis]) * travelDir > 0 && rng() < BEND_CHANCE) {
+            const bendSpan = (bendLimit - point[travelAxis]) * travelDir;
+            // the directions out of a bend that leave MIN_SEGMENT to run in,
+            // measured to the nearest thing the outgoing segment could end on
+            // - the far panel's standoff plane - so a bend taken here is long
+            // enough however the run then ends. A bend doesn't move the
+            // coordinate this reads, so it is the same answer after it.
+            const afterDirs = [1, -1].filter(dir => (getOffset(room[lateralAxis])
+                + dir * (majorWidth / 2 - STANDOFF) - point[lateralAxis]) * dir >= MIN_SEGMENT);
+            if (bendSpan >= MIN_SEGMENT && afterDirs.length > 0 && rng() < BEND_CHANCE) {
                 const t = BEND_MARGIN + rng() * (1 - 2 * BEND_MARGIN);
                 const bendPoint = point.clone();
-                bendPoint[travelAxis] = point[travelAxis] + (bendLimit - point[travelAxis]) * t;
+                bendPoint[travelAxis] += travelDir * (MIN_SEGMENT + (bendSpan - MIN_SEGMENT) * t);
                 path.push({ start: point.clone(), end: bendPoint.clone(), room, surface, lateralAxis });
                 point.copy(bendPoint);
 
                 [travelAxis, lateralAxis] = [lateralAxis, travelAxis];
-                travelDir = rng() < 0.5 ? 1 : -1;
+                travelDir = afterDirs[randomInt(rng, afterDirs.length)];
             }
 
             const edgeCoord = getOffset(room[travelAxis]) + travelDir * majorWidth / 2;
@@ -332,12 +409,15 @@ export default class PipesDecor {
         buried[surface.axis] = getOffset(room[surface.axis]) + surface.dir * (majorWidth / 2 + minorWidth / 2);
         path.push({ start: point.clone(), end: buried, room, surface, lateralAxis });
 
-        return { path, commit };
+        return { path, commit, capped };
     }
 
-    _renderRun(mazeData, path, rng, dummy, pipeMatrices, pipeColors, capMatrices, capColors) {
+    _renderRun(mazeData, path, rng, dummy, pipeMatrices, pipeColors, capMatrices,
+        capColors, capped = true) {
+        // one color for the whole run, off the panel it starts against - see
+        // the file comment for why it isn't read per segment
         const hueJitter = (rng() * 2 - 1) * 0.04;
-        const colors = path.map(seg => pipeColorFor(mazeData, seg.room, seg.surface, hueJitter));
+        const color = pipeColorFor(mazeData, path[0].room, path[0].surface, hueJitter);
 
         const clusterSize = 1 + randomInt(rng, 3);
 
@@ -390,10 +470,12 @@ export default class PipesDecor {
             }
 
             for (let i = 0; i < path.length; i++)
-                pushSegment(pipeMatrices, pipeColors, dummy, starts[i], ends[i], colors[i]);
+                pushSegment(pipeMatrices, pipeColors, dummy, starts[i], ends[i], color);
 
-            // start cap
-            pushCap(capMatrices, capColors, dummy, new THREE.Box3(starts[0], starts[0]), PIPE_RADIUS * 1.1, colors[0]);
+            // start cap - only where the run begins out on the open wall
+            if (capped)
+                pushCap(capMatrices, capColors, dummy, new THREE.Box3(starts[0], starts[0]),
+                    PIPE_RADIUS * 1.1, color);
         }
     }
 }
