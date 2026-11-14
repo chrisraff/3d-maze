@@ -50,6 +50,10 @@ export default class TutorialManager {
      *   @param {Object} [callbacks[type].abandoned] - Give-up tests, indexed by step
      *     abandoned[stepNumber](tutorialData): boolean - True drops the tutorial
      *     unseen; a gated type goes back to waiting for available()
+     *   @param {Function} [callbacks[type].lastStep] - Step to finish on
+     *     lastStep(): number - For a lesson whose length depends on the
+     *     controls in use, so it can end before a step its steps still hold
+     *     markup for. Without it a type runs until a step has no element.
      *   @param {boolean} [callbacks[type].chained] - May follow the previous type
      *     right away instead of waiting for the next call
      *   @param {boolean} [callbacks[type].satisfiedByGoal] - Reaching the goal proves
@@ -241,10 +245,15 @@ export default class TutorialManager {
         if (condition && condition(this.tutorialData)) {
             this.cleanupTutorialStep(this.tutorialData.step);
 
+            // a lesson that ends early under the controls in use says where,
+            // rather than running on into a step it keeps markup for
+            const wasLastStep =
+                this.tutorialData.step >= (typeCallbacks.lastStep?.() ?? Infinity);
+
             this.tutorialData.step++;
 
             // Try to display the next step
-            const result = this.displayTutorialStep(this.tutorialData.step);
+            const result = !wasLastStep && this.displayTutorialStep(this.tutorialData.step);
             if (!result) {
                 // No more steps, cleanup and end tutorial
                 this.cleanupTutorialStep(this.tutorialData.step - 1);

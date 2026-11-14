@@ -494,3 +494,88 @@ describe('abandoned() step tests', () => {
         expect(manager.tutorialData.step).toBe(1);
     });
 });
+
+describe('lastStep', () => {
+    // A lesson whose length depends on the controls in use: the markup carries
+    // every step, and the shorter form stops partway through it. `entered`
+    // records the steps actually reached, since the teardown hides all of them.
+    function buildShortened(value) {
+        elements = stubDom({ intro: 3 });
+        const state = { done: false };
+        const lastStep = { value };
+        const entered = [];
+        const completed = [];
+        const manager = new TutorialManager({
+            tutorialOrder: ['intro'],
+            onTutorialComplete: (t) => completed.push(t),
+            callbacks: {
+                intro: {
+                    conditions: { 0: () => state.done, 1: () => state.done, 2: () => state.done },
+                    setup: {
+                        0: () => entered.push(0),
+                        1: () => entered.push(1),
+                        2: () => entered.push(2)
+                    },
+                    lastStep: () => lastStep.value
+                }
+            }
+        });
+        return { manager, state, lastStep, entered, completed };
+    }
+
+    it('finishes on the step it names, never entering the later markup', () => {
+        const { manager, state, entered, completed } = buildShortened(1);
+        manager.startNextTutorial();
+
+        state.done = true;
+        manager.update();
+        expect(entered).toEqual([0, 1]);
+
+        // step 1 is the last one, so this ends the lesson rather than advancing
+        manager.update();
+        vi.runAllTimers();
+
+        expect(entered).toEqual([0, 1]);
+        expect(completed).toEqual(['intro']);
+        expect(manager.showTutorials.intro).toBe(false);
+        expect(manager.inTutorial).toBe(false);
+    });
+
+    it('runs the step a longer form names instead', () => {
+        const { manager, state, entered, completed } = buildShortened(2);
+        manager.startNextTutorial();
+
+        state.done = true;
+        manager.update();
+        manager.update();
+
+        expect(entered).toEqual([0, 1, 2]);
+        expect(completed).toEqual([]);
+
+        manager.update();
+        vi.runAllTimers();
+        expect(completed).toEqual(['intro']);
+    });
+
+    // the control scheme can change mid-lesson, a controller connecting late
+    it('reads it as each step passes, not once when the lesson starts', () => {
+        const { manager, state, lastStep, entered, completed } = buildShortened(2);
+        manager.startNextTutorial();
+
+        lastStep.value = 0;
+        state.done = true;
+        manager.update();
+        vi.runAllTimers();
+
+        expect(entered).toEqual([0]);
+        expect(completed).toEqual(['intro']);
+    });
+
+    it('leaves a type without one running until its steps run out', () => {
+        const { manager, intro, completed } = build();
+        manager.startNextTutorial();
+        finish(manager, intro);
+
+        expect(completed).toEqual(['intro']);
+    });
+});

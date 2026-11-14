@@ -36,6 +36,7 @@ const FILES_TO_CACHE = [
     '/js/state/Settings.js',
     '/js/state/mazeOptions.js',
     '/js/state/markerFacing.js',
+    '/js/state/tutorialLapse.js',
     '/js/decor/scenery.js',
     '/js/decor/sceneryClaims.js',
     '/js/decor/sceneryBudget.js',

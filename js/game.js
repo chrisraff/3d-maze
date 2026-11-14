@@ -30,6 +30,7 @@ import { SceneryClaims, orderForBuild } from './decor/sceneryClaims.js';
 import BranchSites from './decor/branchSites.js';
 import Settings from './state/Settings.js';
 import { MAZE_OPTION_DEFAULTS, sceneryScaleFor } from './state/mazeOptions.js';
+import { SCREEN_LAPSE_MS, VR_LAPSE_MS, hasLapsed, liveTutorialsSeen } from './state/tutorialLapse.js';
 import { setSceneryDensityScale } from './decor/sceneryBudget.js';
 
 initAnalytics();
@@ -109,6 +110,13 @@ const TUTORIAL_ORDER = ['intro', 'breadcrumbs', 'breadcrumb-reaim'];
 // there is no VR re-aim: both VR placements already aim the marker by where
 // the hand or the head was pointing.
 const VR_TUTORIAL_ORDER = ['vr', 'vr-breadcrumbs'];
+// Lessons that finishing does not record. The VR movement lesson is mostly
+// timed beats, so sitting through it proves nothing: a player who put a
+// headset on, watched it and backed out should be taught again next time.
+// What records it is a maze finished in VR (onMazeCompleted) - proof they can
+// actually get around in one. Its steps running out still stops it repeating
+// for the rest of this page load.
+const PROVEN_BY_VR_COMPLETION = ['vr'];
 // The marker lessons and the supply each needs: finding one only means
 // something where markers stand in the maze; re-aiming just needs one in hand.
 const MARKER_TUTORIALS = {
@@ -116,8 +124,9 @@ const MARKER_TUTORIALS = {
     'breadcrumb-reaim': (markerMode) => markerMode !== 'off',
     'vr-breadcrumbs': (markerMode) => markerMode === 'on',
 };
-// which of TUTORIAL_ORDER the player has finished; kept so that hiding a
-// lesson for one maze is never mistaken for having learned it
+// which types the player has finished, minus whichever order has lapsed
+// (tutorialLapse.js); kept so that hiding a lesson for one maze is never
+// mistaken for having learned it
 var tutorialsSeen = [];
 // markers placed before the re-aim lesson offers itself - it refines a habit,
 // so it waits until the player has one to refine
@@ -131,6 +140,13 @@ var introCinematicPending = false;
 // a first-time player has no idea what the shot is about to show them, so it
 // plays through; everyone else can cut it short
 var hasCompletedMaze = false;
+// the shot establishes the maze in front of the player, so it belongs to that
+// maze and plays once for it - not again on every lock, which is what a VR
+// session in the middle of a run used to leave behind
+var introCinematicShown = false;
+// set from sessionstart/sessionend rather than read off renderer.xr, which the
+// VR mirror blanks mid-frame (see Settings.vrPresenting)
+var vrPresenting = false;
 
 
 function loadSavedVariables()
@@ -138,18 +154,21 @@ function loadSavedVariables()
     const lastMazeCompletionDate = Number(storageGetItem('lastMazeCompletionDate', '0'));
     hasCompletedMaze = lastMazeCompletionDate > 0;
 
-    // show tutorial if more than 30 days have passed since the last maze completion
-    const showTutorial = (Date.now() - lastMazeCompletionDate) > (1000 * 60 * 60 * 24 * 30);
+    // each order is offered again after a long enough gap, measured against
+    // its own completions (tutorialLapse.js)
+    const screenLapsed = hasLapsed(lastMazeCompletionDate, SCREEN_LAPSE_MS);
+    const vrLapsed = hasLapsed(
+        Number(storageGetItem('lastVrMazeCompletionDate', '0')), VR_LAPSE_MS);
 
-    // Which of TUTORIAL_ORDER is done; the 30-day lapse that re-arms the intro
-    // wipes it. 'intro' is seeded so players predating this key skip it.
-    tutorialsSeen = showTutorial
-        ? []
-        : ['intro', ...storageGetItem('tutorialsSeen', '').split(',').filter(Boolean)];
+    // Which types are done, dropping whichever order has lapsed. 'intro' is
+    // seeded so players predating this key skip it.
+    tutorialsSeen = liveTutorialsSeen(
+        ['intro', ...storageGetItem('tutorialsSeen', '').split(',').filter(Boolean)],
+        VR_TUTORIAL_ORDER,
+        { screenLapsed, vrLapsed });
 
     const showTutorials = {};
-    // both orders: a type is only ever offered under its own, and the VR
-    // movement lesson has its flag forced back on at every sessionstart
+    // both orders, since a type is only ever offered under its own
     for (const type of [...TUTORIAL_ORDER, ...VR_TUTORIAL_ORDER])
         showTutorials[type] = !tutorialsSeen.includes(type);
 
@@ -268,6 +287,11 @@ function loadSavedVariables()
             }
         },
         vr: {
+            // Gaze has no step 3: its one button is already spoken for, so
+            // pausing is the options ring step 2 just taught and the step
+            // holds no copy for it. End at the ring rather than sit on a
+            // blank panel for six seconds.
+            lastStep: () => vrManager.isUsingGazeControls ? 2 : 3,
             conditions: {
                 0: (tutorialData) => {
                     return cameraNode && cameraNode.position.distanceToSquared(tutorialData.cameraPos) > 1;
@@ -312,8 +336,8 @@ function loadSavedVariables()
         // gaze taps and goes through the options ring. The copy for each lives
         // in the step's .vr-controls-* spans (index.html).
         'vr-breadcrumbs': {
-            // follows the movement lesson, which runs at every sessionstart,
-            // so a one-maze VR session still gets to this one
+            // follows the movement lesson rather than waiting for the next
+            // maze, so a player's first VR session gets to this one
             chained: true,
             // the screen lesson's gate: a marker in sight down the corridor,
             // with the player still standing where they saw it
@@ -375,15 +399,28 @@ function loadSavedVariables()
         tutorialOrder: TUTORIAL_ORDER,
         callbacks: tutorialCallbacks,
         onTutorialComplete: (type) => {
-            if (tutorialsSeen.includes(type)) return;
-            tutorialsSeen.push(type);
-            storageSetItem('tutorialsSeen', tutorialsSeen.join(','));
+            if (PROVEN_BY_VR_COMPLETION.includes(type)) return;
+            recordTutorialSeen(type);
         }
     });
 
     document.querySelectorAll('.menu-experienced').forEach((el) => {
-        el.style.display = showTutorial ? 'none' : '';
+        el.style.display = screenLapsed ? 'none' : '';
     });
+}
+
+/**
+ * Write a lesson down as learned. Also clears its show flag, since this is
+ * called for a lesson the player wasn't necessarily running at the time -
+ * a maze finished in VR proves the movement lesson whichever lesson, if any,
+ * is on the panel when they reach the exit.
+ */
+function recordTutorialSeen(type) {
+    if (tutorialManager) tutorialManager.showTutorials[type] = false;
+
+    if (tutorialsSeen.includes(type)) return;
+    tutorialsSeen.push(type);
+    storageSetItem('tutorialsSeen', tutorialsSeen.join(','));
 }
 
 /**
@@ -651,6 +688,7 @@ function init() {
     // Setup VR event listeners
     renderer.xr.addEventListener('sessionstart', (event) => {
         controls.setXRPresenting(true);
+        vrPresenting = true;
         // marker facing is stored per context, so entering VR swaps which of
         // the two values is in force (markerFacing.js)
         settings?.setVrPresenting(true);
@@ -658,7 +696,6 @@ function init() {
         goalDots.setVR( true );
 
         tutorialManager.useAnimations = false;
-        tutorialManager.showTutorials['vr'] = true;
         // the VR lessons teach VR gestures, so they are a different order
         tutorialManager.setTutorialOrder(VR_TUTORIAL_ORDER);
         tutorialManager.setTutorialType('vr');
@@ -666,6 +703,7 @@ function init() {
 
     renderer.xr.addEventListener('sessionend', (event) => {
         controls.setXRPresenting(false);
+        vrPresenting = false;
         settings?.setVrPresenting(false);
         // gaze state belongs to the session; a stranded preview would follow
         // the camera around for the rest of the run
@@ -756,6 +794,9 @@ function init() {
 function buildMaze(size=mazeSize) {
     mazeSize = size;
 
+    // a new maze is a new establishing shot
+    introCinematicShown = false;
+
     playerCollider.reset();
 
     segments = mazeSize * 2 - 1;
@@ -832,10 +873,18 @@ function onMazeCompleted({ mazeData: completedMazeData, elapsedMillis })
     runHistory.showCompletedTrail();
 
     // reaching the exit only completes the lessons it actually demonstrates
-    if (tutorialManager) {
-        tutorialManager.endOnGoalReached();
-        storageSetItem('lastMazeCompletionDate', Date.now());
-        hasCompletedMaze = true;
+    tutorialManager?.endOnGoalReached();
+
+    storageSetItem('lastMazeCompletionDate', Date.now());
+    hasCompletedMaze = true;
+    // VR keeps its own clock, since the lessons it has to offer are its own:
+    // a headset run is what holds them learned, and a week without one brings
+    // them back (tutorialLapse.js). It is also the only thing that records the
+    // movement lesson, so that goes down here rather than when its last step
+    // times out.
+    if (vrPresenting) {
+        storageSetItem('lastVrMazeCompletionDate', Date.now());
+        PROVEN_BY_VR_COMPLETION.forEach(recordTutorialSeen);
     }
 }
 
@@ -1000,13 +1049,22 @@ function updateMenuCentering()
     }
 }
 
-// The fly-around is gated on the same thing the intro tutorial is: it is an
-// orientation aid, not something a returning player should sit through. VR
-// runs its own tutorial type and would be a motion-sickness problem besides.
+/**
+ * The fly-around is gated on the same thing the intro tutorial is: it is an
+ * orientation aid, not something a returning player should sit through. VR
+ * runs its own tutorial type and would be a motion-sickness problem besides.
+ *
+ * It also runs at most once per maze. It establishes the maze standing in
+ * front of the player, so coming back to the same one - from a pause, or out
+ * of a VR session that interrupted the intro lesson mid-run - has nothing left
+ * to establish, and the tutorial state alone cannot tell that apart: an
+ * unfinished intro lesson still leaves `nextTutorialType()` reading 'intro'.
+ */
 function shouldPlayIntroCinematic()
 {
     return mazeData !== null
-        && !renderer.xr.isPresenting
+        && !introCinematicShown
+        && !vrPresenting
         && tutorialManager.nextTutorialType() === 'intro';
 }
 
@@ -1036,6 +1094,7 @@ function hideCinematicCaption()
 
 function playIntroCinematic()
 {
+    introCinematicShown = true;
     document.querySelector('#hud-container').classList.add('hide');
     setPauseButtonVisible(false);
 
