@@ -473,6 +473,7 @@ export default class BreadcrumbManager {
     endPlace() {
         this.breadcrumbs.push(this._interactTarget);
         this._startPlacementCue(this._interactTarget);
+        this.placeCount++;
         this._interactState = null;
         this._interactTarget = null;
         this._interactGripObject = null;

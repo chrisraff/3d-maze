@@ -99,14 +99,22 @@ var dustSize   = 0.025;
 var dustSizeVR = 0.0075;
 
 var tutorialManager;
-// non-VR tutorials, one per maze in this order. VR is set imperatively on
-// sessionstart, so it is deliberately not listed.
+// screen tutorials, one per maze in this order
 const TUTORIAL_ORDER = ['intro', 'breadcrumbs', 'breadcrumb-reaim'];
+// Entering VR swaps the order wholesale (setTutorialOrder). The marker lesson
+// there is its own type rather than VR copy on the screen one: a lesson
+// teaches a gesture, so learning markers with a mouse says nothing about
+// taking one off the end of a beam - and the screen steps live outside
+// #overlay, which a headset never draws. There is no VR re-aim lesson because
+// there is no VR re-aim: both VR placements already aim the marker by where
+// the hand or the head was pointing.
+const VR_TUTORIAL_ORDER = ['vr', 'vr-breadcrumbs'];
 // The marker lessons and the supply each needs: finding one only means
 // something where markers stand in the maze; re-aiming just needs one in hand.
 const MARKER_TUTORIALS = {
     'breadcrumbs': (markerMode) => markerMode === 'on',
     'breadcrumb-reaim': (markerMode) => markerMode !== 'off',
+    'vr-breadcrumbs': (markerMode) => markerMode === 'on',
 };
 // which of TUTORIAL_ORDER the player has finished; kept so that hiding a
 // lesson for one maze is never mistaken for having learned it
@@ -140,7 +148,9 @@ function loadSavedVariables()
         : ['intro', ...storageGetItem('tutorialsSeen', '').split(',').filter(Boolean)];
 
     const showTutorials = {};
-    for (const type of TUTORIAL_ORDER)
+    // both orders: a type is only ever offered under its own, and the VR
+    // movement lesson has its flag forced back on at every sessionstart
+    for (const type of [...TUTORIAL_ORDER, ...VR_TUTORIAL_ORDER])
         showTutorials[type] = !tutorialsSeen.includes(type);
 
     const tutorialCallbacks = {
@@ -296,6 +306,67 @@ function loadSavedVariables()
                     tutorialData.lastLoggedTime = Date.now();
                 }
             }
+        },
+        // Markers in VR, keyed to the control scheme: a controller takes one
+        // off the end of its beam and places by holding the trigger, while
+        // gaze taps and goes through the options ring. The copy for each lives
+        // in the step's .vr-controls-* spans (index.html).
+        'vr-breadcrumbs': {
+            // follows the movement lesson, which runs at every sessionstart,
+            // so a one-maze VR session still gets to this one
+            chained: true,
+            // the screen lesson's gate: a marker in sight down the corridor,
+            // with the player still standing where they saw it
+            available: () => breadcrumbs.nearestInSight !== null
+                && !breadcrumbs.playerLeft(breadcrumbs.nearestInSight),
+            conditions: {
+                0: () => breadcrumbs.nearestInView !== null,
+                1: (tutorialData) => breadcrumbs.pickupCount > tutorialData.pickupStart,
+                // the press that starts a placement, under either scheme. A
+                // pull quick enough to begin and finish one inside a single
+                // frame never shows as 'placing', so a placement already
+                // counted clears this step too
+                2: (tutorialData) => breadcrumbs.interactState === 'placing'
+                    || breadcrumbs.isGazePlacing
+                    || breadcrumbs.placeCount > tutorialData.placeStart,
+                3: (tutorialData) => breadcrumbs.placeCount > tutorialData.placeStart,
+                4: (tutorialData) => Date.now() - tutorialData.lastLoggedTime > 6000
+            },
+            setup: {
+                0: (tutorialData) => {
+                    // which scheme's copy to show is the whole point of this
+                    // lesson, and a controller can connect late
+                    vrManager.updateControlSchemeDisplay();
+                    // kept for later steps: carrying one takes it out of
+                    // `breadcrumbs`, and placing it empties the stack
+                    tutorialData.marker = breadcrumbs.nearestInSight;
+                    mountVrMarkerIcons(tutorialData.marker);
+                    breadcrumbs.setTutorialFlash(tutorialData.marker);
+                },
+                1: (tutorialData) => {
+                    breadcrumbs.setTutorialFlash(null);
+                    tutorialData.pickupStart = breadcrumbs.pickupCount;
+                    // they may have pointed at a different one on the way in
+                    tutorialData.marker = breadcrumbs.nearestInView ?? tutorialData.marker;
+                    mountVrMarkerIcons(tutorialData.marker);
+                },
+                // one baseline for both halves of the placement, so a pull
+                // that clears step 2 by placing outright doesn't leave step 3
+                // waiting for a second marker
+                2: (tutorialData) => {
+                    tutorialData.placeStart = breadcrumbs.placeCount;
+                },
+                4: (tutorialData) => {
+                    tutorialData.lastLoggedTime = Date.now();
+                    mountVrMarkerIcons(tutorialData.marker
+                        ?? breadcrumbs.nearestReachable ?? breadcrumbs.nextInStack);
+                }
+            },
+            abandoned: {
+                // only the walk is abandonable - later steps are at the marker
+                0: (tutorialData) => breadcrumbs.playerLeft(tutorialData.marker)
+            },
+            teardown: () => breadcrumbs.setTutorialFlash(null)
         }
     };
 
@@ -327,6 +398,16 @@ function applyMarkerTutorialVisibility(markerMode) {
 
     for (const [type, needsSupply] of Object.entries(MARKER_TUTORIALS))
         tutorialManager.showTutorials[type] = needsSupply(markerMode) && !tutorialsSeen.includes(type);
+}
+
+/**
+ * Point the VR marker lesson's own glyphs at one breadcrumb. Scoped to its
+ * steps rather than the whole document: the gaze options ring carries a
+ * `.breadcrumb-icon` too, and that one depicts the next marker in the stack.
+ */
+function mountVrMarkerIcons(breadcrumb) {
+    document.querySelectorAll('[tutorial-type="vr-breadcrumbs"]')
+        .forEach((step) => mountBreadcrumbIcons(breadcrumb, step));
 }
 
 function setupInputBindings() {
@@ -578,6 +659,8 @@ function init() {
 
         tutorialManager.useAnimations = false;
         tutorialManager.showTutorials['vr'] = true;
+        // the VR lessons teach VR gestures, so they are a different order
+        tutorialManager.setTutorialOrder(VR_TUTORIAL_ORDER);
         tutorialManager.setTutorialType('vr');
     });
 
@@ -592,6 +675,7 @@ function init() {
         dust._material.size = dustSize;
         goalDots.setVR( false );
         tutorialManager.useAnimations = true;
+        tutorialManager.setTutorialOrder(TUTORIAL_ORDER);
         tutorialManager.setTutorialType('intro');
         onWindowResize();
     });

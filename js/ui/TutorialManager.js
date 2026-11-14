@@ -91,6 +91,18 @@ export default class TutorialManager {
         this.callbacks[type] = callbacks;
     }
 
+    /**
+     * Replace the list of types to offer.
+     */
+    setTutorialOrder(order) {
+        this.tutorialOrder = order;
+        // a type armed under the old order would otherwise sit waiting on a
+        // gate nothing will offer again; dropped unseen, so it comes back
+        // whenever that order is in force
+        if (this.armedType !== null && !order.includes(this.armedType))
+            this.armedType = null;
+    }
+
     setTutorialType(type) {
         if (this.tutorialType === type)
             return;

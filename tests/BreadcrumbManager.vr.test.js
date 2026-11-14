@@ -201,6 +201,17 @@ describe('beginPlace / endPlace', () => {
         expect(manager.interactState).toBeNull();
         expect(manager.interactTarget).toBeNull();
     });
+
+    it('endPlace counts the placement, like every other way of making one', () => {
+        const { manager } = makeManager(1);
+        manager.removeBreadcrumb(manager.breadcrumbs[0]);
+        manager.beginPlace(makeGrip(), new THREE.Object3D());
+        const placements = manager.placeCount;
+
+        manager.endPlace();
+
+        expect(manager.placeCount).toBe(placements + 1);
+    });
 });
 
 describe('updateInteract while placing', () => {

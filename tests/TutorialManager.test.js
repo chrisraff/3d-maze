@@ -112,6 +112,78 @@ describe('startNextTutorial', () => {
     });
 });
 
+// Entering VR swaps the whole order out, so the two sets of lessons never
+// compete for a slot - see VR_TUTORIAL_ORDER in game.js.
+describe('setTutorialOrder', () => {
+    function buildTwoOrders(options = {}) {
+        elements = stubDom({ intro: 2, breadcrumbs: 2, vr: 2, 'vr-markers': 2 });
+        const vr = { done: false };
+        const vrMarkers = { done: false, ready: false };
+        const manager = new TutorialManager({
+            tutorialOrder: ['intro', 'breadcrumbs'],
+            callbacks: {
+                intro: type({ done: false }),
+                breadcrumbs: type({ done: false, ready: false }, true),
+                vr: type(vr),
+                'vr-markers': { ...type(vrMarkers, true), chained: true }
+            },
+            ...options
+        });
+        return { manager, vr, vrMarkers };
+    }
+
+    // what entering VR does: swap the order, then pick that order's first type
+    const enterVr = (manager) => {
+        manager.setTutorialOrder(['vr', 'vr-markers']);
+        manager.setTutorialType('vr');
+    };
+
+    it('offers the new order instead of the old one', () => {
+        const { manager } = buildTwoOrders();
+        enterVr(manager);
+
+        expect(manager.nextTutorialType()).toBe('vr');
+        manager.startNextTutorial();
+        expect(visible(elements, 'vr', 0)).toBe(true);
+        expect(visible(elements, 'intro', 0)).toBe(false);
+    });
+
+    it('chains into a type of the new order', () => {
+        const { manager, vr, vrMarkers } = buildTwoOrders();
+        enterVr(manager);
+        manager.startNextTutorial();
+
+        finish(manager, vr);
+        expect(manager.armedType).toBe('vr-markers');
+
+        vrMarkers.ready = true;
+        manager.update();
+        expect(visible(elements, 'vr-markers', 0)).toBe(true);
+    });
+
+    it('drops a type armed under the old order, unseen', () => {
+        const { manager } = buildTwoOrders({ showTutorials: { intro: false } });
+        manager.startNextTutorial();
+        expect(manager.armedType).toBe('breadcrumbs');
+
+        enterVr(manager);
+
+        expect(manager.armedType).toBe(null);
+        // and it is still there to be offered when that order comes back
+        manager.setTutorialOrder(['intro', 'breadcrumbs']);
+        expect(manager.nextTutorialType()).toBe('breadcrumbs');
+    });
+
+    it('keeps a type armed when the new order still lists it', () => {
+        const { manager } = buildTwoOrders({ showTutorials: { intro: false } });
+        manager.startNextTutorial();
+
+        manager.setTutorialOrder(['breadcrumbs']);
+
+        expect(manager.armedType).toBe('breadcrumbs');
+    });
+});
+
 describe('available() gate', () => {
     it('holds step 0 back until the gate opens', () => {
         const { manager, breadcrumbs } = build({ showTutorials: { intro: false } });

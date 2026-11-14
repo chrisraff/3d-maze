@@ -479,6 +479,14 @@
                 top: 72%;
             }
 
+            /* The VR marker lesson shares one panel with the gaze options
+               ring, whose discs and labels reach ~150px below the centre of
+               it, so its copy sits below all of that rather than across the
+               middle of the ring it is telling the player to use. */
+            .tutorial-text-vr-low {
+                top: 82%;
+            }
+
             /* Sits low so it never covers the dots the push-in is closing on. */
             #cinematic-caption {
                 top: 72%;
@@ -846,6 +854,27 @@
             </div>
             <div tutorial-type="vr" tutorial-step="3" style="display: none;" class="tutorial-text tutorial-element">
                 <span class="vr-controls-controllers">Press either thumbstick to pause</span>
+            </div>
+
+            <!-- Markers in VR. Its own type rather than VR copy on the
+                 `breadcrumbs` steps - see VR_TUTORIAL_ORDER in game.js. -->
+            <div tutorial-type="vr-breadcrumbs" tutorial-step="0" style="display: none;" class="tutorial-text tutorial-text-vr-low tutorial-element">
+                <span>Approach the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span></span>
+            </div>
+            <div tutorial-type="vr-breadcrumbs" tutorial-step="1" style="display: none;" class="tutorial-text tutorial-text-vr-low tutorial-element">
+                <span class="vr-controls-controllers">Point at the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> and pull the trigger</span>
+                <span style="display: none;" class="vr-controls-gaze">Look at the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span> and tap to take it</span>
+            </div>
+            <div tutorial-type="vr-breadcrumbs" tutorial-step="2" style="display: none;" class="tutorial-text tutorial-text-vr-low tutorial-element">
+                <span class="vr-controls-controllers">Hold the trigger to take out a <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span></span>
+                <span style="display: none;" class="vr-controls-gaze">Press and hold, then choose the <span class="marker-token">marker<img class="breadcrumb-icon" alt="" /></span></span>
+            </div>
+            <div tutorial-type="vr-breadcrumbs" tutorial-step="3" style="display: none;" class="tutorial-text tutorial-text-vr-low tutorial-element">
+                <span class="vr-controls-controllers">Let go to place the marker</span>
+                <span style="display: none;" class="vr-controls-gaze">Look where you want it and tap</span>
+            </div>
+            <div tutorial-type="vr-breadcrumbs" tutorial-step="4" style="display: none;" class="tutorial-text tutorial-text-vr-low tutorial-element">
+                <span>Place <span class="marker-token">markers<img class="breadcrumb-icon" alt="" /></span> to remember where you've been</span>
             </div>
 
             <!-- Gaze options. Radial so every choice is one short look from
