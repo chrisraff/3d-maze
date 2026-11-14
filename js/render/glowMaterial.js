@@ -5,10 +5,12 @@ import * as THREE from 'three';
  * by the intro fly-around's start marker.
  *
  * `uFalloff` shapes how fast the brightness drops off toward the silhouette.
- * At the default 1.0 it is nearly flat across the disc, which is what the
- * breadcrumbs want - their arrow mesh occludes the bright middle, leaving the
- * ring around it. A marker with nothing inside it to hide behind needs a much
- * steeper value or it reads as a solid ball rather than a glow.
+ * At the default 1.0 it is nearly flat across the disc, which is what a
+ * breadcrumb wants at rest - its arrow mesh occludes the bright middle,
+ * leaving the ring around it. A marker with nothing inside it to hide behind
+ * needs a much steeper value or it reads as a solid ball rather than a glow.
+ * BreadcrumbManager also raises it to mark a hovered marker, since a steeper
+ * value pulls that ring in against the arrow's silhouette.
  *
  * Each call returns its own material: the uniforms are animated per instance.
  */

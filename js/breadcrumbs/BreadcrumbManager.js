@@ -48,13 +48,25 @@ function surfaceFromDirection(direction) {
 // breadcrumb before the player's aim is precise enough to actually click it
 const RETICLE_AIM_COS = Math.cos(THREE.MathUtils.degToRad(25));
 
-// how hard a hovered breadcrumb lights up, as a multiplier on its tint
-export const HOVER_EMISSIVE = 0.2;
+// Hovering tightens the glow rather than lighting the arrow up. The arrow
+// occludes the glow disc's bright middle, so raising uFalloff pulls what is
+// left of it into a rim hugging the silhouette and drops the diffuse outer
+// wash - which is what an emissive lift on the arrow was competing with, the
+// two being additive white against each other.
+export const IDLE_GLOW_FALLOFF = 1.0;
+export const HOVER_GLOW_FALLOFF = 4.0;
 
-// how far that tint goes from the breadcrumb's own hue (0) toward white (1).
-// Pure white washes out against the additive-white proximity glow behind the
-// arrow; pure hue reads dim. In between keeps both.
-export const HOVER_EMISSIVE_WHITENESS = 0.5;
+// A floor on a hovered marker's alpha, as _flashTarget has, doing two jobs.
+// dot^uFalloff dims the whole disc, so the rim needs that headroom back
+// (~4x where the silhouette sits, around dot 0.7); and the proximity glow
+// fades to nothing as the player closes in, so without a floor there would
+// be no glow left to sharpen over the last stretch of pickup range. Above 1
+// on purpose - blending is additive, so the band nearest the silhouette
+// clips to white and gives the rim a defined edge.
+export const HOVER_GLOW_LEVEL = 2.0;
+
+// The brightest a glow gets on its own, at the far edge of pickup range.
+export const GLOW_MAX_ALPHA = 0.5;
 
 // Taps only count inside an oval: a circle this many viewport heights across,
 // so the far ends of a wide screen and the corners fall outside it.
@@ -112,7 +124,28 @@ export const REORIENT_PULL_SECONDS = 0.18;
 const NEAR_FADE_START = maze.majorWidth * 0.2;
 const NEAR_FADE_END = maze.majorWidth * 0.1;
 
-const HOVER_EMISSIVE_WHITE = new THREE.Color(1, 1, 1);
+// how solid a marker draws at a given distance - one definition, so what a
+// pick can take and what the material renders can't drift apart
+const nearFadeOpacity = (playerDist) =>
+    THREE.MathUtils.smoothstep(playerDist, NEAR_FADE_END, NEAR_FADE_START);
+
+// Faded past this, a marker stops answering a pick at all. At 10% it is also
+// just about to be sliced open by the desktop near plane (see NEAR_FADE_*),
+// so there is nothing left to aim at that reads as a marker - and leaving it
+// selectable means a grab that lands on something the player cannot see.
+export const MIN_SELECTABLE_OPACITY = 0.1;
+
+// smoothstep's inverse - the one place that needs a distance back out of the
+// fade curve rather than an opacity out of a distance
+const inverseSmoothstep = (y) => 0.5 - Math.sin(Math.asin(1 - 2 * y) / 3);
+
+// Where nearFadeOpacity crosses that floor: ~0.239, which is also about where
+// the arrow starts clipping the desktop near plane. Every pick compares
+// against this rather than evaluating the curve again - smoothstep is
+// monotonic, so the two are the same test, and it is derived from the floor
+// so retuning MIN_SELECTABLE_OPACITY carries it along.
+export const MIN_SELECTABLE_DISTANCE = NEAR_FADE_END
+    + inverseSmoothstep(MIN_SELECTABLE_OPACITY) * (NEAR_FADE_START - NEAR_FADE_END);
 
 const isFinitePosition = (v) =>
     Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
@@ -376,6 +409,8 @@ export default class BreadcrumbManager {
             const playerDist = playerWorldPos.distanceTo(breadcrumb.position);
             if (playerDist > playerGate)
                 continue;
+            if (playerDist < MIN_SELECTABLE_DISTANCE)
+                continue;
             const gripDist = gripWorldPos.distanceTo(breadcrumb.position);
             if (gripDist > gripGate)
                 continue;
@@ -387,6 +422,14 @@ export default class BreadcrumbManager {
             }
         }
         return best;
+    }
+
+    // Faded almost to nothing: not a target any more, however close the
+    // player is standing to it. Every path that resolves a pick tests this,
+    // nearestReachable included - the VR beam gates on that while findByRay
+    // fills it, so the two have to agree about what is takeable.
+    _isSelectable(breadcrumb, playerPos) {
+        return playerPos.distanceTo(breadcrumb.position) >= MIN_SELECTABLE_DISTANCE;
     }
 
     // True if the maze leaves a straight line open from fromPos to the breadcrumb.
@@ -636,7 +679,9 @@ export default class BreadcrumbManager {
             const visible = hasSight && camera !== null
                 && this._isInView(breadcrumb, camera);
 
-            if (inRange && playerDist < nearestDist) {
+            const selectable = playerDist >= MIN_SELECTABLE_DISTANCE;
+
+            if (inRange && selectable && playerDist < nearestDist) {
                 nearestDist = playerDist;
                 nearest = breadcrumb;
             }
@@ -649,20 +694,47 @@ export default class BreadcrumbManager {
                 inSight = breadcrumb;
             }
 
-            let target = inRange ? 0.5 * (playerDist / playerGate)**2 : 0.0;
+            let target = inRange
+                ? GLOW_MAX_ALPHA * (playerDist / playerGate)**2 : 0.0;
 
             // if the tutorial is pointing at this breadcrumb, pulse it up to FLASH_LEVEL
             if (breadcrumb === this._flashTarget && flashOn) {
                 target = Math.max(target, FLASH_LEVEL);
             }
 
-            const alpha = THREE.MathUtils.lerp(
-                breadcrumb.userData.glowAlpha,
-                target,
-                1 - Math.exp(-FADE_SPEED * deltaTime)
-            );
+            // Hover sharpens the glow into a rim and floors its brightness -
+            // except once the marker has started its near fade, where a
+            // clipped-white rim filling the view as you walk into one is
+            // harsh. The last stretch gets a plain glow at the brightness the
+            // same marker has from across the corridor instead.
+            const hovered = breadcrumb === this.hoveredBreadcrumb;
+            const sharpen = hovered && playerDist > NEAR_FADE_START;
+            if (hovered) {
+                target = Math.max(
+                    target, sharpen ? HOVER_GLOW_LEVEL : GLOW_MAX_ALPHA);
+            }
+
+            const ease = 1 - Math.exp(-FADE_SPEED * deltaTime);
+            const uniforms = breadcrumb.userData.glowMaterial.uniforms;
+
+            // Walked into: the arrow has faded to nothing and a pick no
+            // longer takes it, so the glow goes out with it. Forced rather
+            // than eased, because the hover floor holds it at GLOW_MAX_ALPHA
+            // right up to this point - easing from there leaves a quarter
+            // second of bright blob hanging in the player's face after the
+            // marker itself has gone. So a glow means "a pick can take this".
+            const alpha = selectable
+                ? THREE.MathUtils.lerp(breadcrumb.userData.glowAlpha, target, ease)
+                : 0.0;
             breadcrumb.userData.glowAlpha = alpha;
-            breadcrumb.userData.glowMaterial.uniforms.uAlpha.value = alpha;
+            uniforms.uAlpha.value = alpha;
+
+            const falloff = THREE.MathUtils.lerp(
+                breadcrumb.userData.glowFalloff,
+                sharpen ? HOVER_GLOW_FALLOFF : IDLE_GLOW_FALLOFF,
+                ease);
+            breadcrumb.userData.glowFalloff = falloff;
+            uniforms.uFalloff.value = falloff;
         }
 
         this.nearestReachable = nearest;
@@ -744,7 +816,9 @@ export default class BreadcrumbManager {
             transparent: true,
         });
         breadcrumb.userData.glowMaterial = createGlowMaterial();
+        breadcrumb.userData.glowMaterial.uniforms.uFalloff.value = IDLE_GLOW_FALLOFF;
         breadcrumb.userData.glowAlpha = 0.0;
+        breadcrumb.userData.glowFalloff = IDLE_GLOW_FALLOFF;
 
         this.updateBreadcrumbMesh(breadcrumb);
 
@@ -991,7 +1065,7 @@ export default class BreadcrumbManager {
         const material = mesh?.material;
         if (!material) return;
 
-        const opacity = THREE.MathUtils.smoothstep(playerDist, NEAR_FADE_END, NEAR_FADE_START);
+        const opacity = nearFadeOpacity(playerDist);
         if (material.opacity === opacity) return;
 
         material.opacity = opacity;
@@ -1124,6 +1198,9 @@ export default class BreadcrumbManager {
         for (const breadcrumb of this.breadcrumbs) {
             const dist = this._playerWorldPos.distanceTo(breadcrumb.position);
             if (dist === 0 || dist > playerGate) continue;
+            // faded out of selection, so neither the hover raycast below nor
+            // the aim reticle has anything to find here
+            if (dist < MIN_SELECTABLE_DISTANCE) continue;
             anyInRange = true;
 
             if (reticleVisible) continue;
@@ -1198,21 +1275,11 @@ export default class BreadcrumbManager {
             <= IN_VIEW_NDC_RADIUS * IN_VIEW_NDC_RADIUS;
     }
 
-    // prevent errors when breadcrumb mesh hasn't loaded yet
-    _setBreadcrumbEmissive(breadcrumb, value) {
-        const material = breadcrumb?.userData.mesh?.material;
-        if (material)
-            material.emissive.copy(material.color)
-                .lerp(HOVER_EMISSIVE_WHITE, HOVER_EMISSIVE_WHITENESS)
-                .multiplyScalar(value);
-    }
-
+    // Nothing to apply here: updateGlowHighlight eases every marker toward
+    // its own target every frame, so the one being left behind needs no
+    // undoing - and it runs after this, so the cue lands in the same frame.
     _setHoveredBreadcrumb(breadcrumb) {
-        if (breadcrumb === this.hoveredBreadcrumb)
-            return;
-        this._setBreadcrumbEmissive(this.hoveredBreadcrumb, 0);
         this.hoveredBreadcrumb = breadcrumb;
-        this._setBreadcrumbEmissive(this.hoveredBreadcrumb, HOVER_EMISSIVE);
     }
 
     // look for a breadcrumb at a corresponding screen position
@@ -1263,6 +1330,8 @@ export default class BreadcrumbManager {
                 // the hitbox can overhang a panel the breadcrumb is behind
                 if (!this._canReachBreadcrumb(fromPos, breadcrumb))
                     continue;
+                if (!this._isSelectable(breadcrumb, fromPos))
+                    continue;
                 return breadcrumb;
             }
         }
@@ -1283,15 +1352,14 @@ export default class BreadcrumbManager {
         if (idx > -1) {
             this.breadcrumbs.splice(idx, 1);
         }
-        // if necessary, unhighlight the breadcrumb
-        if (this.hoveredBreadcrumb === breadcrumb) {
-            this._setBreadcrumbEmissive(this.hoveredBreadcrumb, 0);
-        };
         this.hoveredBreadcrumb = null;
 
         breadcrumb.userData.glowAlpha = 0.0;
-        if (breadcrumb.userData.glowMaterial)
+        breadcrumb.userData.glowFalloff = IDLE_GLOW_FALLOFF;
+        if (breadcrumb.userData.glowMaterial) {
             breadcrumb.userData.glowMaterial.uniforms.uAlpha.value = 0.0;
+            breadcrumb.userData.glowMaterial.uniforms.uFalloff.value = IDLE_GLOW_FALLOFF;
+        }
         this._resetNearFade(breadcrumb);
 
         this.breadcrumbStack.push(breadcrumb);

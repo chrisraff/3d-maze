@@ -8,7 +8,7 @@ import {
 import * as maze from '../js/maze/maze.js';
 import {
     PLAYER_GATE, GRIP_GATE, v, rotY, stubBreadcrumbDom, makeManager, placeAt,
-    giveMaze, segmentAt, addWall, expectHueTintedEmissive, makeGrip, makeCamera,
+    giveMaze, segmentAt, addWall, makeGrip, makeCamera,
     hand, pointingAt
 } from './breadcrumbHelpers.js';
 
@@ -74,9 +74,24 @@ describe('findNearby', () => {
         const face = maze.getOffset(2) - maze.minorWidth / 2;
         const clamped = segmentAt(1, 1, 2).setZ(face - HITBOX_RADIUS);
         placeAt(scene, manager.breadcrumbs[0], clamped.x, clamped.y, clamped.z);
-        const eye = segmentAt(1, 1, 2).setZ(face - 0.25);
+        // far enough back to be out of the near fade, which would refuse it
+        // for being invisible rather than for being behind the panel
+        const eye = segmentAt(1, 1, 2).setZ(face - HITBOX_RADIUS - 0.3);
 
         expect(manager.findNearby(clamped, eye)).toBe(manager.breadcrumbs[0]);
+    });
+
+    it('will not take a marker the near fade has dissolved', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+
+        // the hand is right on it, so only the fade can turn this down
+        const near = v(0, 0, maze.majorWidth * 0.11);
+        expect(manager.findNearby(b.position, near)).toBeNull();
+
+        const back = v(0, 0, maze.majorWidth * 0.15);
+        expect(manager.findNearby(b.position, back)).toBe(b);
     });
 
     it('does not reach through a panel a breadcrumb is only just behind', () => {
@@ -379,8 +394,6 @@ describe('updateProximityHighlight', () => {
             [hand(v(0, 0, 0.12)), hand(v(0.5, 0, 0.05))], camera);
 
         expect(manager.hoveredBreadcrumb).toBe(b1);
-        expectHueTintedEmissive(b1);
-        expect(b0.userData.mesh.material.emissive.getHex()).toBe(0x000000);
     });
 
     it('clears the hover when no breadcrumb is in reach', () => {
@@ -394,7 +407,6 @@ describe('updateProximityHighlight', () => {
 
         manager.updateProximityHighlight([hand(v(5, 5, 5))], camera);
         expect(manager.hoveredBreadcrumb).toBeNull();
-        expect(b.userData.mesh.material.emissive.getHex()).toBe(0x000000);
     });
 
     it('keeps the target highlighted while reorienting', () => {
@@ -406,7 +418,6 @@ describe('updateProximityHighlight', () => {
         manager.updateProximityHighlight([], makeCamera(0, 0, 1));
 
         expect(manager.hoveredBreadcrumb).toBe(b);
-        expectHueTintedEmissive(b);
     });
 
     it('clears the hover while placing', () => {
@@ -441,7 +452,6 @@ describe('updateProximityHighlight', () => {
 
         expect(hands[0].target).toBe(b);
         expect(manager.hoveredBreadcrumb).toBe(b);
-        expectHueTintedEmissive(b);
     });
 
     it('prefers what the beam is on over what the hand is near', () => {

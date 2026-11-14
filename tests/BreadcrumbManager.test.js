@@ -3,7 +3,10 @@
 // Grip-driven behaviour lives in BreadcrumbManager.vr.test.js.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { ABANDON_CELLS } from '../js/breadcrumbs/BreadcrumbManager.js';
+import BreadcrumbManager, {
+    ABANDON_CELLS, IDLE_GLOW_FALLOFF, HOVER_GLOW_FALLOFF, HOVER_GLOW_LEVEL,
+    GLOW_MAX_ALPHA, MIN_SELECTABLE_DISTANCE
+} from '../js/breadcrumbs/BreadcrumbManager.js';
 import * as maze from '../js/maze/maze.js';
 import {
     PLAYER_GATE, SIGHT_GATE, v, stubBreadcrumbDom, makeManager, placeAt,
@@ -80,11 +83,145 @@ describe('proximity glow', () => {
         const [b] = manager.breadcrumbs;
         b.userData.glowAlpha = 0.4;
         b.userData.glowMaterial.uniforms.uAlpha.value = 0.4;
+        b.userData.glowFalloff = HOVER_GLOW_FALLOFF;
+        b.userData.glowMaterial.uniforms.uFalloff.value = HOVER_GLOW_FALLOFF;
 
         manager.removeBreadcrumb(b);
 
         expect(b.userData.glowAlpha).toBe(0);
         expect(b.userData.glowMaterial.uniforms.uAlpha.value).toBe(0);
+        expect(b.userData.glowFalloff).toBe(IDLE_GLOW_FALLOFF);
+        expect(b.userData.glowMaterial.uniforms.uFalloff.value).toBe(IDLE_GLOW_FALLOFF);
+    });
+});
+
+// The hover cue: a tighter glow rather than a brighter arrow, so it adds
+// contrast against the halo instead of spending it.
+describe('hover glow', () => {
+    let clock = 0;
+    function settle(manager, playerPos) {
+        vi.spyOn(performance, 'now')
+            .mockReturnValueOnce(clock += 1000)
+            .mockReturnValueOnce(clock += 1000); // 1s: the lerp converges
+        manager.updateGlowHighlight(playerPos);
+        manager.updateGlowHighlight(playerPos);
+    }
+    beforeEach(() => { clock = 0; });
+
+    it('sharpens the falloff and floors the brightness of the hovered marker', () => {
+        const { manager, scene } = makeManager(2);
+        const [b, other] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        placeAt(scene, other, 0.3, 0, 0);
+        manager._setHoveredBreadcrumb(b);
+
+        settle(manager, v(0, 0, 0.5));
+
+        expect(b.userData.glowFalloff).toBeCloseTo(HOVER_GLOW_FALLOFF, 4);
+        expect(b.userData.glowAlpha).toBeCloseTo(HOVER_GLOW_LEVEL, 4);
+        expect(b.userData.glowMaterial.uniforms.uFalloff.value).toBe(b.userData.glowFalloff);
+
+        // and nothing rubs off on the marker beside it
+        expect(other.userData.glowFalloff).toBeCloseTo(IDLE_GLOW_FALLOFF, 4);
+        expect(other.userData.glowAlpha).toBeLessThan(HOVER_GLOW_LEVEL);
+    });
+
+    it('resizes nothing - the glow carries the cue on its own', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        const outerScale = b.scale.x;
+        manager._setHoveredBreadcrumb(b);
+
+        settle(manager, v(0, 0, 0.5));
+
+        // HITBOX_RADIUS stays honest, the glow sphere the rim is measured off
+        // does not move, and the arrow keeps its distance from the near plane
+        expect(b.scale.x).toBe(outerScale);
+        expect(b.userData.mesh.scale.x).toBe(1);
+        expect(b.userData.glowMesh.scale.x).toBe(1);
+    });
+
+    it('cuts the glow outright once the marker stops being selectable', () => {
+        // the hover floor holds alpha at GLOW_MAX_ALPHA right up to here, so
+        // easing out would leave a bright blob in the player's face
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        manager._setHoveredBreadcrumb(b);
+
+        settle(manager, v(0, 0, maze.majorWidth * 0.11));
+
+        expect(b.userData.glowAlpha).toBe(0);
+        expect(b.userData.glowMaterial.uniforms.uAlpha.value).toBe(0);
+    });
+
+    it('does not cut it one step earlier, while a pick can still take it', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        manager._setHoveredBreadcrumb(b);
+
+        settle(manager, v(0, 0, maze.majorWidth * 0.13));
+
+        expect(b.userData.glowAlpha).toBeGreaterThan(0);
+    });
+
+    it('drops the sharpening for plain brightness once the near fade starts', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        manager._setHoveredBreadcrumb(b);
+
+        // NEAR_FADE_START is majorWidth * 0.2, so this is mid-fade - where
+        // proximity alone would give ~0.02, so the floor is what shows
+        settle(manager, v(0, 0, maze.majorWidth * 0.15));
+
+        expect(b.userData.glowFalloff).toBeCloseTo(IDLE_GLOW_FALLOFF, 4);
+        expect(b.userData.glowAlpha).toBeCloseTo(GLOW_MAX_ALPHA, 4);
+    });
+
+    it('sharpens again just outside the near fade', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        manager._setHoveredBreadcrumb(b);
+
+        settle(manager, v(0, 0, maze.majorWidth * 0.25));
+
+        expect(b.userData.glowFalloff).toBeCloseTo(HOVER_GLOW_FALLOFF, 4);
+        expect(b.userData.glowAlpha).toBeCloseTo(HOVER_GLOW_LEVEL, 4);
+    });
+
+    it('leaves nearestReachable null for a marker faded out of selection', () => {
+        // the VR beam gates on nearestReachable while findByRay fills it, so
+        // the two have to agree about what is takeable
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+
+        // straddling MIN_SELECTABLE_DISTANCE, which guards the inverse
+        // smoothstep it comes out of as well as the gate itself
+        settle(manager, v(0, 0, MIN_SELECTABLE_DISTANCE - 0.01));
+        expect(manager.nearestReachable).toBeNull();
+
+        settle(manager, v(0, 0, MIN_SELECTABLE_DISTANCE + 0.01));
+        expect(manager.nearestReachable).toBe(b);
+    });
+
+    it('eases both back when the hover moves off', () => {
+        const { manager, scene } = makeManager(1);
+        const [b] = manager.breadcrumbs;
+        placeAt(scene, b, 0, 0, 0);
+        b.userData.glowFalloff = HOVER_GLOW_FALLOFF;
+        b.userData.glowAlpha = HOVER_GLOW_LEVEL;
+
+        manager._setHoveredBreadcrumb(null);
+        settle(manager, v(0, 0, 0.5));
+
+        expect(b.userData.glowFalloff).toBeCloseTo(IDLE_GLOW_FALLOFF, 4);
+        expect(b.userData.glowAlpha).toBeCloseTo(
+            GLOW_MAX_ALPHA * (0.5 / PLAYER_GATE) ** 2, 4);
     });
 });
 

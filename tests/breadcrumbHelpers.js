@@ -5,7 +5,7 @@
  */
 import { vi, expect } from 'vitest';
 import * as THREE from 'three';
-import BreadcrumbManager, { HOVER_EMISSIVE, HOVER_EMISSIVE_WHITENESS, SIGHT_CELLS } from '../js/breadcrumbs/BreadcrumbManager.js';
+import BreadcrumbManager, { SIGHT_CELLS } from '../js/breadcrumbs/BreadcrumbManager.js';
 import * as maze from '../js/maze/maze.js';
 
 // Gates from findNearby / updateGlowHighlight
@@ -80,18 +80,6 @@ export function addWall(scene, x, y, z, { width = 4, height = 4, depth = 0.05 } 
     scene.add(wall);
     scene.updateMatrixWorld(true);
     return wall;
-}
-
-// a hovered breadcrumb lights up in its own hue pulled partway toward white,
-// not in plain white - assert against the material's actual color so this
-// stays independent of which random hue the stubbed Math.random produced
-export function expectHueTintedEmissive(breadcrumb) {
-    const { color, emissive } = breadcrumb.userData.mesh.material;
-    const expected = color.clone()
-        .lerp(new THREE.Color(1, 1, 1), HOVER_EMISSIVE_WHITENESS)
-        .multiplyScalar(HOVER_EMISSIVE);
-    for (const channel of ['r', 'g', 'b'])
-        expect(emissive[channel]).toBeCloseTo(expected[channel], 6);
 }
 
 // One hand as VRManager hands it to updateProximityHighlight: where the grip

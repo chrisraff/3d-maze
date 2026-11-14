@@ -90,8 +90,7 @@ const DEPTH = minorWidth * 0.5;
 // ties them to the marker they came off.
 const BAND_INTENSITY = 0.5;
 // how far a band's color sits from the marker's own hue (0) toward white (1).
-// Mirrors BreadcrumbManager's HOVER_EMISSIVE_WHITENESS, for the same reason:
-// a saturated band can disappear against a similarly colored panel, and a
+// A saturated band can disappear against a similarly colored panel, and a
 // white one stops reading as this marker's.
 const WHITENESS = 0.15;
 
