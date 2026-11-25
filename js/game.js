@@ -1097,6 +1097,9 @@ function playIntroCinematic()
     introCinematicShown = true;
     document.querySelector('#hud-container').classList.add('hide');
     setPauseButtonVisible(false);
+    // the shot owns the view, so panning during it is absorbed rather than
+    // banked - otherwise the camera jumps when it hands back
+    controls.lookInputEnabled = false;
 
     introCinematic.play({
         segments,
@@ -1115,6 +1118,7 @@ function playIntroCinematic()
             hideCinematicCaption();
             document.querySelector('#hud-container').classList.remove('hide');
             setPauseButtonVisible(true);
+            controls.lookInputEnabled = true;
             // the shot is time the player had no control over, so it isn't
             // charged to their run
             session.restartTimer();

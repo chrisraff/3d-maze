@@ -91,6 +91,11 @@ var FlyPointerLockControls = function ( object, domElement ) {
     // set false for devices with no cursor to capture - see game.js
     this.pointerLockEnabled = true;
 
+    // Set false while something else owns the view (the intro cinematic): look
+    // deltas are absorbed rather than queued, so the heading the player comes
+    // back to is exactly the one they left.
+    this.lookInputEnabled = true;
+
     var touchDOM = null;
 
     var panTouchDragging = false;
@@ -130,6 +135,7 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
     function onMouseMove( event ) {
         if ( scope.isLocked === false ) return;
+        if ( scope.lookInputEnabled === false ) return;
 
         const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
         const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
@@ -222,6 +228,10 @@ var FlyPointerLockControls = function ( object, domElement ) {
 
             panLastTouchX = clientX;
             panLastTouchY = clientY;
+
+            // keep tracking the finger so a drag spanning the end of the
+            // absorption doesn't apply the whole span it covered at once
+            if (!scope.lookInputEnabled) return;
 
             scope.tmpVector.set( - movementY, - movementX, 0 );
             scope.applyRotation( scope.tmpVector, 0.006 );
